@@ -171,7 +171,9 @@ impl Core {
 
     pub(crate) fn is_home(&self, app: &AppRef) -> bool {
         let known = self.known_home_apps.iter().chain(&self.cfg.home.extra_apps);
-        known.into_iter().any(|entry| id_matches(entry, &app.id))
+        known
+            .into_iter()
+            .any(|entry| app_id_matches(entry, &app.id))
     }
 
     pub(crate) fn is_away_app(&self, app: &AppRef) -> bool {
@@ -391,7 +393,7 @@ pub(crate) fn change_name(change: Change) -> Option<&'static str> {
 }
 
 /// Case-insensitive app-id match; an entry ending in `*` matches by prefix.
-fn id_matches(entry: &str, id: &str) -> bool {
+pub fn app_id_matches(entry: &str, id: &str) -> bool {
     match entry.strip_suffix('*') {
         Some(prefix) => id
             .get(..prefix.len())
@@ -402,7 +404,7 @@ fn id_matches(entry: &str, id: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::id_matches;
+    use super::app_id_matches as id_matches;
 
     #[test]
     fn app_ids_match_exactly_or_by_prefix() {

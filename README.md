@@ -8,28 +8,48 @@ waits, and it is yours to define: writing, reading, design, email, another proje
 Focus Autopilot is a local background app that moves you between the two, driven by the
 agent's state:
 
-- When a prompt runs long enough, it switches you to the app you chose for steady work.
-- When the agent finishes or needs your approval, it brings you back to the window you
-  prompted from and shows a short recap: what you asked, what the agent did, what it needs.
-- Every switch is announced by a short countdown that one click or one key cancels or
-  snoozes, so keystrokes never land in the wrong window.
+- You go wherever you like while a prompt runs: another window, another app, a break.
+- When the agent finishes or needs your approval and you are not in the window you prompted
+  from, you get a sound and a small box on screen. One key takes you back to that window and
+  shows a short recap: what you asked, what the agent did, what it needs from you.
+- Optionally, name an away app and it also switches you there when a prompt runs long, with a
+  countdown that one key cancels or snoozes, so keystrokes never land in the wrong window.
 
 v1 supports Claude Code on macOS and Windows. Nothing leaves your machine by default, and the
 app asks for no OS permission.
 
 Design: "Focus Autopilot — Feature Backlog & Technical Design (v1: Claude Code on macOS and
 Windows)". Section numbers in code comments refer to that document. The design and the code
-call the app you switch to the "away app".
+call the optional app it switches you to the "away app". Where the build departs from the
+design, [docs/adr/0003-shell-decisions.md](docs/adr/0003-shell-decisions.md) records why and wins.
 
 **This repository is at an early stage. Read [STATUS.md](STATUS.md) before anything else:**
 the decision core, a headless runner and a first macOS daemon are built; the daemon has not run on a Mac yet.
+
+## Works with
+
+Focus Autopilot listens to Claude Code's hooks, and Claude Code fires the same hooks wherever
+it runs, so one install covers every surface that runs it. Each needs its app in the home-app
+list; if it is missing, `focusd` says so and prints the line to add.
+
+| Where you run Claude Code | Status |
+| --- | --- |
+| Terminal (Terminal, iTerm2, Ghostty, Warp, ...) | works; tested on a Mac |
+| VS Code, via the Claude Code extension | expected to work: the extension shares `~/.claude/settings.json`. Not yet tested here |
+| Cursor, via the same extension or `claude` in its terminal | expected to work, same as VS Code. Cursor's own built-in agent is a different product with its own hooks and is not supported |
+| Claude Desktop app, Code tab | expected to work per Anthropic's docs; users have reported some hook events not firing there. The chat tab has no hooks and is not supported |
+| JetBrains IDEs | expected to work; not tested |
+| Claude Code on the web or other cloud sessions | not supported: they fire no local hooks |
+
+Returns go to the app, not a specific window: with several windows of one editor you land in
+whichever one the OS raises.
 
 ## Layout
 
 ```
 crates/
   focus-core/      every decision; no I/O, no unsafe, no dependencies
-  focus-platform/  the Platform trait, built-in home apps, and a fake for tests
+  focus-platform/  the Platform, Overlay and Hotkeys traits, home apps, macOS adapter, a fake
   focus-receiver/  hardened loopback hook receiver, payload parsing, config.toml loading
   focus-runner/    the shell loop shared by the two runners
   focus-headless/  dev runner: receiver + core + fake platform, effects printed
@@ -40,7 +60,9 @@ docs/adr/          architecture decision records
 
 ## Try it on a Mac
 
-See [docs/mac-quickstart.md](docs/mac-quickstart.md). It has not run on a Mac yet.
+See [docs/mac-quickstart.md](docs/mac-quickstart.md): build, install the hooks, run `focusd`.
+The switching, the on-screen boxes and the recap have run on a Mac; the global hotkey and the
+VS Code, Cursor and Desktop paths have not.
 
 ## Try it anywhere (fake platform)
 
@@ -51,8 +73,9 @@ cargo run -p focus-headless -- --port 47821
 It prints a token. Send hooks with `curl -H "X-Focus-Token: <token>" -H "Content-Type:
 application/json" -d '{"hook_event_name":"UserPromptSubmit","session_id":"s1","cwd":"/w","prompt":"hi"}'
 http://127.0.0.1:47821/hook`, then a `Stop` event, and watch the toasts and recap. A config
-with short thresholds (`switching.away_after_seconds`, `short_grace_seconds`, `countdown.seconds`)
-makes the away switch happen in seconds.
+with an away app and short thresholds (`switching.away_after_seconds`, `short_grace_seconds`, `countdown.seconds`)
+makes the away switch happen in seconds. `[recap] mode = "llm"` turns on three-line summaries
+written by your own `claude` CLI (each line cut at 120 characters).
 
 ## Check it
 

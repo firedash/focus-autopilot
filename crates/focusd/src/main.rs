@@ -49,18 +49,36 @@ mod mac {
             return Err("config.toml has no receiver.token. Run `focusctl install-hooks`.".into());
         }
         let apps = known_apps::for_this_os();
-        let is_home = |id: &str| {
-            apps.iter().any(|a| a.eq_ignore_ascii_case(id))
-                || config
-                    .home
-                    .extra_apps
-                    .iter()
-                    .any(|a| a.eq_ignore_ascii_case(id))
-        };
         config
-            .validate(is_home)
+            .validate(|id| home_match(&apps, &config, id))
             .map_err(|e| format!("invalid config: {e:?}"))?;
         Ok((config, apps))
+    }
+
+    /// Prints how this run is set up, registers the hotkeys, and returns the focus key as it
+    /// reads on screen.
+    fn announce(platform: &MacPlatform, config: &Config) -> Option<String> {
+        if config.away.apps.is_empty() {
+            println!("manual mode: no away app, so nothing switches you away on its own.");
+        } else {
+            println!("away apps: {}.", config.away.apps.join(", "));
+        }
+        let focus_hint = setup_hotkeys(platform, config);
+        match &focus_hint {
+            Some(key) => println!("press {key} to act on a toast."),
+            None => println!("no focus hotkey: type `click` here to act on a toast."),
+        }
+        if config.recap.mode == focus_core::RecapMode::Llm {
+            println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");
+        }
+        focus_hint
+    }
+
+    /// Built-in and configured home apps, with the same matching the core uses.
+    fn home_match(apps: &[String], config: &Config, id: &str) -> bool {
+        apps.iter()
+            .chain(&config.home.extra_apps)
+            .any(|entry| focus_core::app_id_matches(entry, id))
     }
 
     /// Registers the hotkeys, reports problems, and returns the focus key as it reads on screen.
@@ -129,28 +147,26 @@ mod mac {
         )
         .map_err(|e| format!("can't listen on 127.0.0.1:{}: {e}", config.receiver.port))?;
         println!("focusd listening on http://{}/hook", listener.addr);
-        if config.away.apps.is_empty() {
-            println!("manual mode: no away app, so nothing switches you away on its own.");
-        } else {
-            println!("away apps: {}.", config.away.apps.join(", "));
-        }
-        let focus_hint = setup_hotkeys(&platform, &config);
-        match &focus_hint {
-            Some(key) => println!("press {key} to act on a toast."),
-            None => println!("no focus hotkey: type `click` here to act on a toast."),
-        }
-        if config.recap.mode == focus_core::RecapMode::Llm {
-            println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");
-        }
+        let focus_hint = announce(&platform, &config);
         println!("Commands: click, pause, resume, quit.");
 
         let (rx, replies) = focus_runner::inputs(hook_rx);
+        let home_apps: Vec<String> = apps
+            .iter()
+            .chain(&config.home.extra_apps)
+            .cloned()
+            .collect();
         let options = focus_runner::Options {
             recap_for: config.ui.recap_shown_for,
             focus_hint,
             recap: paths::data_dir().map(|dir| focus_runner::RecapRunner {
                 dir: dir.join("recap-workdir"),
                 replies,
+            }),
+            is_home: Box::new(move |id| {
+                home_apps
+                    .iter()
+                    .any(|entry| focus_core::app_id_matches(entry, id))
             }),
         };
         let mut core = Core::new(config, apps);

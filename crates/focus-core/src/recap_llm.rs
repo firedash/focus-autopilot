@@ -19,7 +19,7 @@ Use only the facts below. Do not guess.
 ---";
 const FILES_SENT: usize = 5;
 const REPLY_LINES: usize = 3;
-const REPLY_LINE_MAX_CHARS: usize = 160;
+const REPLY_LINE_MAX_CHARS: usize = 120;
 
 pub(crate) fn prompt(session: &Session) -> String {
     let run = &session.run;

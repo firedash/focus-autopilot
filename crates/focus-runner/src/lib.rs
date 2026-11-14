@@ -44,6 +44,8 @@ pub struct Options {
     pub focus_hint: Option<String>,
     /// Where to run the Claude CLI for LLM recaps, and the channel its replies come back on.
     pub recap: Option<RecapRunner>,
+    /// Says whether an app id is a home app, to explain a prompt that was ignored.
+    pub is_home: Box<dyn Fn(&str) -> bool>,
 }
 
 /// Everything needed to run LLM recaps off the shell thread.
@@ -134,6 +136,12 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
         match msg {
             Ok(Msg::Hook(hook)) => {
                 println!("hook: {:?}", hook.event.kind);
+                if matches!(
+                    hook.event.kind,
+                    focus_core::EventKind::UserPromptSubmit { .. }
+                ) {
+                    warn_if_not_home(platform, options);
+                }
                 effects.extend(core.handle(Input::Hook(hook.event), hook.at));
             }
             Ok(Msg::Line(line)) => match commands(&line, core, now) {
@@ -192,6 +200,20 @@ fn summarize(options: &Options, id: u64, prompt: String, timeout: Duration) {
             }
         }
     });
+}
+
+/// A prompt typed in an app that isn't a home app is ignored, because there is no window to
+/// return to. Say so, and say how to fix it.
+fn warn_if_not_home<P: Platform>(platform: &P, options: &Options) {
+    if let Ok(Some(front)) = platform.frontmost()
+        && !(options.is_home)(&front.id)
+    {
+        println!(
+            "note: this prompt came from {} ({}), which is not a home app, so no return is \
+             set up for it. To use it, add \"{}\" under [home] extra_apps in config.toml.",
+            front.name, front.id, front.id
+        );
+    }
 }
 
 /// The toast text, with a second line saying which key does what.
@@ -303,6 +325,7 @@ mod tests {
             recap_for: Duration::from_secs(10),
             focus_hint: hint.map(str::to_owned),
             recap: None,
+            is_home: Box::new(|_| true),
         }
     }
 

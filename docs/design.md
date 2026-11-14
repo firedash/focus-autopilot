@@ -2,9 +2,19 @@
 
 Nov 14, 2026 · firedash
 
+> **Changes since this document was written.** The build departed from the design in a few
+> places; [ADR 0003](adr/0003-shell-decisions.md) records each and wins over the text below.
+> In short: (1) **manual mode is the default**: with no away app configured nothing switches
+> the user away, and when Claude finishes or needs approval they get a toast and one key
+> takes them back; the automatic away and return switches in sections 7 and 8 apply only
+> when `away.apps` is set. (2) The LLM recap holds back the basic card instead of replacing
+> it (section 10). (3) Claude Code in VS Code, Cursor and the Claude Desktop app's Code tab
+> uses the same hooks as the terminal, so the receiver needs no change for them; each needs
+> its app in the home-app list. (4) Exact-window return and the Tauri shell are not built.
+
 ## 1. Overview
 
-Focus Autopilot (working name) is a local background app that moves a developer between intermittent prompting work with a coding agent and steady work in an app they choose, driven by the agent's state. v1 supports Claude Code only, on macOS and Windows: when a prompt runs long enough, it switches you to your chosen away app; when Claude finishes or needs permission, it switches you back and shows a short recap of where you left off.
+Focus Autopilot (working name) is a local background app that moves a developer between intermittent prompting work with a coding agent and steady work in an app they choose, driven by the agent's state. v1 supports Claude Code only, on macOS and Windows: when Claude finishes or needs permission while you are elsewhere, it tells you and one key takes you back with a short recap of where you left off. Optionally, when a prompt runs long enough it also switches you to an away app you chose.
 
 **Problem.** Prompt-and-wait coding leaves idle gaps that vary from seconds to 20 minutes. Pomodoro timers don't fit that rhythm, and moving to other work means either checking back constantly or forgetting to return. Existing tools cover only half the loop: they bring you back, or they entertain you while you wait, but none does both with real apps and a recap (see section 3).
 
@@ -13,7 +23,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 **v1 goals**
 
 - Detect when a Claude Code turn starts, needs input, and ends, using Claude Code hooks.
-- Switch focus to a configured away app on long runs, and back to the coding window on completion or permission prompts.
+- Bring the user back to the coding window on completion or permission prompts with one key, and optionally switch them to a configured away app on long runs.
 - Warn before every automatic switch with a short countdown and an easy snooze, so keystrokes never land in the wrong window.
 - Show a recap card on return: what you asked, what Claude did, and what needs your decision.
 - Estimate wait length from elapsed time and local history, and use it to decide whether to switch at all.
@@ -22,7 +32,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 
 **Non-goals for v1**
 
-- Support for agents other than Claude Code (Codex, Cursor, Antigravity are later).
+- Support for agents other than Claude Code (Codex, Cursor's own agent, Antigravity are later). Claude Code itself runs in terminals, VS Code, Cursor, JetBrains and the Desktop app, and all of those are in scope.
 - Linux support (planned for V2).
 - Pausing or controlling the away app, or any app-specific integration.
 - Auto-approving permission prompts or answering Claude's questions.
@@ -40,7 +50,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 | Session | One Claude Code conversation, identified by `session_id` |
 | Run | One prompt and everything Claude does until it stops, identified by `prompt_id` |
 | Home window | The terminal, IDE or Claude app window the prompt was sent from |
-| Away app | An app the user chose for steady work during waits; what counts as steady work is up to them |
+| Away app | Optional. An app the user chose for steady work during waits, which focusd switches to on long runs. With none set (the default) the user goes wherever they like |
 | Switch | An automatic focus change, always announced by a countdown toast |
 | Fallback prompt | The one-click or one-key toast shown when the OS refuses a switch or an automatic one would be unsafe |
 | Focus key | The hotkey that acts on whichever toast is showing |
@@ -496,6 +506,8 @@ Use only the facts below. Do not guess.
 <prompt, tool summary, last message>
 ```
 
+The reply is cut to three lines, and each line to 120 characters at a word boundary with an ellipsis, so a model that ignores the length ask can't produce a wall of text.
+
 **Privacy rules**
 
 - Send only the truncated fields above, never file contents or the transcript.
@@ -531,7 +543,7 @@ token = "<written by focusctl install-hooks>"
 extra_apps = []               # bundle ids (macOS) or executable names (Windows) treated as home apps
 
 [away]
-apps = []                     # ordered; the first running app wins, e.g. ["Obsidian.exe"]
+apps = []                     # empty = manual mode (nothing switches you away). Else ordered; the first running app wins, e.g. ["Obsidian.exe"]
 immersive = []                # subset of apps that get a longer countdown with a warning (V1)
 
 [switching]

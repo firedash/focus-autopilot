@@ -2,89 +2,82 @@
 
 Last updated 2026-11-14.
 
-## Built and tested
+**Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
+decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back with one
+key. The switching, boxes and recap have been run on a Mac with real Claude Code in a
+terminal. Everything marked "unrun" below compiles and passes clippy for macOS but has not
+been seen working. See [docs/mac-quickstart.md](docs/mac-quickstart.md) to run it.
 
-`focus-core`: the code every other part will call. It covers milestone M1 and the V1 backlog
-items that are pure decision logic.
+Where the build departs from `docs/design.md`, [ADR 0003](docs/adr/0003-shell-decisions.md)
+wins. The biggest departure: **manual mode is the default**. Nothing switches you away on its
+own; you go where you like and one key brings you back. Automatic switching to an away app is
+optional.
 
-| Design item | Where | State |
+## What runs
+
+| Part | Crate | State |
 | --- | --- | --- |
-| Core contract: `Input`, `Effect`, `Core::handle/tick/next_deadline` (section 5) | `io.rs`, `engine.rs` | done |
-| Session transitions, all 12 rows (section 7; backlog B1) | `session.rs`, `run.rs` | done |
-| Resume heuristic after a needs-input pause (B2) | `session.rs`, `engine.rs` | done |
-| Away guards (D1) | `guards.rs` | done |
-| Switch controller: countdowns, input-quiet guard, verification, fallback prompts, snooze, debounce, pause (D2 to D7) | `away.rs`, `returns.rs`, `actions.rs`, `mode.rs` | done |
-| Sound on return (D8) | `returns.rs` | effect emitted; playing it is the shell's job |
-| Basic recap card (F1) and run statistics on it (F3) | `recap.rs` | text built; the window is the shell's job |
-| Toast text (section 8) | `toast.rs` | done |
-| Every config key with its default (section 11; G1) | `config.rs` | values and validation; TOML parsing not written |
-| Text cleaning: ANSI and control characters stripped, lengths capped (section 6) | `events.rs` | done |
-| Immersive flag: longer countdown with a warning (C4) | `away.rs`, `toast.rs` | done |
-| Run records for `runs.jsonl` (E1) | `run.rs`, `hooks.rs` | record emitted as an effect; writing the file is the shell's job |
-| History-based estimate (E2) | `estimator.rs` | done; the shell loads past runs and passes them in |
-| Live signals raise the estimate (E3) | `estimator.rs`, `run.rs` | done |
-| Declare-long hotkey (E4) | `hooks.rs`, `guards.rs` | decision done; registering the hotkey is the shell's job |
-| Return queue across windows (H1) | `returns.rs` | done |
-| Ignore projects by folder pattern (G5) | `glob.rs`, `hooks.rs` | done |
-| LLM recap (F2) | `recap_llm.rs`, `redact.rs`, `hooks.rs` | prompt text, secret redaction, reply handling and timeout done; running the `claude` CLI is the shell's job |
-| `Platform` trait, fake platform, built-in home apps (section 8) | `focus-platform` | trait and fake done; app ids unverified |
+| Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; 84 original tests plus manual-mode and recap-fallback tests |
+| Hook receiver: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver` | done; negative tests over a real socket |
+| Payload parsing, truncation, ANSI stripping, project hash; `config.toml` loading (unknown keys are errors) | `focus-receiver` | done |
+| `focusctl install-hooks`, `uninstall-hooks`, `rotate-token` (dry run, backup, atomic write, symlinks, strict JSON, idempotent; uninstall restores the original bytes) | `focusctl` | done and tested |
+| The shell loop shared by both runners; front-app polling every 500 ms; activation verified against the real front app | `focus-runner` | done |
+| LLM recap: runs the user's `claude` CLI (no tools, no hooks), three lines of at most 120 characters, basic card as fallback | `focus-runner`, `focus-core` | tested with fake CLIs and end to end with a fake `claude`; not yet against every real CLI version |
+| macOS adapter: front app, running apps, activation, idle time, sound | `focus-platform/src/macos.rs` | run on a Mac |
+| On-screen toast and recap card (non-activating panels) | `focus-platform/src/macos_overlay.rs` | run on a Mac |
+| Global hotkeys (focus key acts on the toast, pause key); chord parser | `hotkey.rs`, `macos_hotkeys.rs` | parser tested; registration unrun |
+| Warning when a prompt comes from an app that is not a home app, with the config line to add | `focus-runner` | done |
+| Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
-Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --all-targets` with
-the workspace lints from section 13 (warnings denied, pedantic, no `unwrap`, `expect`, `panic`
-or `todo` outside tests), and `cargo test`: 84 tests in the first two crates, all passing; `cargo test --workspace` now runs 121. The integration tests
-replay the design's first fixture and 59 scripted scenarios through a fake clock and a fake
-shell.
+Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
+--all-targets` with the workspace lints from section 13 of the design (warnings denied,
+pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests), and `cargo test
+--workspace`: 138 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
+focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
-The V1 items were built before the MVP has run on a real machine, which is out of the
-design's order. If the M2 platform spike changes the switching model, they may need rework.
+## Which Claude Code surfaces
 
-## Runnable now (headless)
+Hooks are Claude Code's, so one install covers every place it runs. Only the terminal has
+been tested. Each other surface needs its app in the home-app list (`focusd` prints the line
+to add).
 
-`focus-receiver` (M0, partly) and `focus-headless` exist. `cargo run -p focus-headless` listens
-on 127.0.0.1, takes real hook POSTs, runs them through `focus-core` with a real clock and a fake
-platform, and prints every effect (toasts, activation, recap, sound). Type `front <id>`, `idle
-<s>`, `click`, `pause`, `resume` or `quit` to play the user and the OS. There is still no real
-window switching: that needs the M2 adapters.
+| Surface | Expectation |
+| --- | --- |
+| Terminal | works |
+| VS Code, Claude Code extension | should work: shares `~/.claude/settings.json` with the CLI |
+| Cursor, same extension or `claude` in its terminal | should work as VS Code does; Cursor's own agent is not supported |
+| Claude Desktop, Code tab | should work per Anthropic's docs; some users report certain hook events not firing there |
+| JetBrains | should work; untested |
+| Cloud sessions | not supported: no local hooks |
 
-| Item | Where | State |
-| --- | --- | --- |
-| Receiver checks: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver/src/check.rs`, `server.rs` | done, negative tests over a real socket |
-| Payload parsing, truncation, ANSI stripping, project hash | `payload.rs` | done; unknown field types read as absent |
-| `config.toml` loading, every key; unknown keys are errors | `config_file.rs` | done |
-| Fuzz targets, strace test, `focusctl record`, CI, repository files (rest of M0) | | not built |
-
-
-
-- Line coverage on `focus-core`. The target is 90%; `cargo-llvm-cov` wasn't available where
-  this was built, so the number is unknown.
-- Performance budgets.
+Returns go to the app, not the window. Exact-window return (backlog C5) is not built.
 
 ## Not built
 
-Nothing below exists yet, so there is no app to run.
-
-- **M0 (rest)** `focusctl record`, CI, and the repository files from section 13
-  (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, CODEOWNERS, THREAT_MODEL.md,
-  PERMISSIONS.md, AUDIT.md, REPRODUCIBLE.md, deny.toml, workflows).
-- **M2** the platform spike on a real Mac and Windows, and the Windows adapter. The macOS adapter is written but unrun.
-- **M3** the Tauri shell that wires receiver, core and platform together.
-- **M4 (rest)** `focusctl doctor`, `--scope project` and `--scope local`, the failed-hook visibility check.
-- **M5** overlay windows, tray, wizard, launch at login, `focusctl doctor`.
-- **M6** release engineering.
-- Fuzz targets and the strace integration test for `focus-headless`.
-
-Why the platform work stops here: nothing could be run on macOS or Windows. The receiver and
-headless runner were added later, once crates.io was reachable.
+- **M0 (rest):** `focusctl record`, CI, fuzz targets, the strace integration test, and the
+  repository files from section 13 (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md,
+  CODEOWNERS, THREAT_MODEL.md, PERMISSIONS.md, AUDIT.md, REPRODUCIBLE.md, deny.toml,
+  workflows).
+- **M2:** the platform spike recorded in an ADR, and the whole Windows adapter.
+- **M3/M5:** the Tauri shell, tray, click on a toast, first-run wizard, launch at login. For
+  now `focusd` runs in a terminal and also prints toasts and recaps there.
+- **M4 (rest):** `focusctl doctor`, `--scope project` and `--scope local`, the failed-hook
+  visibility check.
+- **M6:** release engineering.
+- Front-app change notifications (polled instead), exact-window return, the declare-long
+  hotkey, `runs.jsonl` history on disk (the core emits the records; nothing writes them).
+- Line coverage on `focus-core` is unmeasured; the target is 90%. No performance budgets
+  measured.
 
 ## Before continuing
 
 1. `rust-toolchain.toml` pins 1.97.0, the version this was checked with.
-2. `Cargo.lock` is included and lists only the two workspace crates.
-3. Verify the app ids in `crates/focus-platform/src/known_apps.rs` on real installs. They
-   were written from memory.
-4. Read the records in `docs/adr/`: they list where the design left a choice open and what
+2. Verify the app ids in `crates/focus-platform/src/known_apps.rs` against real installs of
+   VS Code, Cursor and the Claude Desktop app. They were written from memory. `focusd` prints
+   `front: <id>` whenever the front app changes, which gives the real id.
+3. Read the records in `docs/adr/`: they list where the design left a choice open and what
    was chosen.
-5. The core's trace tests still read fixtures with a test-only JSON reader
+4. The core's trace tests still read fixtures with a test-only JSON reader
    (`crates/focus-core/tests/support/json.rs`). `focus-receiver/tests/http.rs` parses the same
    fixture with the real parser; moving the core tests onto it would make `focus-core` depend
    on the receiver in dev, which was left undone.

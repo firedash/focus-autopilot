@@ -119,6 +119,10 @@ fn run() -> Result<(), String> {
     config
         .validate(|id| apps.iter().any(|a| a.eq_ignore_ascii_case(id)))
         .map_err(|e| format!("invalid config: {e:?}"))?;
+    let is_home = {
+        let apps = apps.clone();
+        move |id: &str| apps.iter().any(|a| focus_core::app_id_matches(a, id))
+    };
     let mut core = Core::new(config, apps);
 
     println!("listening on http://{}/hook", listener.addr);
@@ -136,6 +140,7 @@ fn run() -> Result<(), String> {
                 dir: std::env::temp_dir().join("focus-headless-recap"),
                 replies,
             }),
+            is_home: Box::new(is_home),
         },
         |line, core, now| command(line, &platform, core, now),
     );

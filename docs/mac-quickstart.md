@@ -55,6 +55,38 @@ focus_key = "Control+Option+Space"
 pause = "Control+Option+P"
 ```
 
+## Using it from VS Code, Cursor or the Claude app
+
+The hooks belong to Claude Code, not to the terminal, so the hooks you installed already
+cover Claude Code wherever it runs. What each place needs is its app recognised as a "home"
+app, so `focusd` knows where to send you back to. Try them one at a time:
+
+1. Start `focusd` and leave it running.
+2. Open the app and start a Claude Code session in it:
+   - **VS Code:** the Claude Code extension (its settings are shared with `claude` in the
+     terminal, so no extra setup).
+   - **Cursor:** install the same extension in Cursor, or run `claude` in Cursor's terminal.
+     Cursor's own built-in agent is a different product and is not supported.
+   - **Claude desktop app:** use the Code tab. The chat tab has no hooks. Anthropic's docs
+     say the Code tab fires the same hooks; some users report certain events missing there.
+3. Send a prompt, then click into another app.
+4. Watch the `focusd` window. It prints `front: <bundle id>` as the front app changes, and
+   `hook: UserPromptSubmit ...` when your prompt arrives.
+   - **No `hook:` lines:** that app isn't sending hooks. Restart it (it only loads the hooks
+     at startup) and check the extension or app version.
+   - **A `note: this prompt came from ... which is not a home app` line:** copy the id it
+     prints into `config.toml`, then restart `focusd`:
+
+     ```toml
+     [home]
+     extra_apps = ["the.id.focusd.printed"]
+     ```
+
+Two limits to know about. Returns go to the app, not a specific window, so with several
+editor windows open you land in whichever one macOS raises. And Cursor's, VS Code's and the
+Claude app's ids in the built-in list were written from memory: the `front:` line shows the
+real one, and if it differs from the list, tell me so I can correct it.
+
 ## Shorter recaps (optional)
 
 By default the recap is built from the hook fields: your prompt and the start of Claude's last
