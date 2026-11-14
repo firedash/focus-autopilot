@@ -7,7 +7,6 @@
 //! No call here may trigger an OS permission prompt, read input content, read window titles
 //! or synthesize input.
 
-pub mod editor_url;
 pub mod fake;
 pub mod hotkey;
 pub mod known_apps;
@@ -65,16 +64,6 @@ pub trait Platform {
     fn activate(&self, target: &AppRef) -> Result<()>;
 
     fn play_sound(&self, sound: Sound);
-
-    /// Brings forward the window of `target` that has `folder` open, by asking the editor to
-    /// open that folder. `Ok(true)` when the request was made; `Ok(false)` when `target` has no
-    /// such route, so the caller activates the app as usual. A request only: the core verifies.
-    ///
-    /// # Errors
-    /// When the OS call fails.
-    fn open_project(&self, _target: &AppRef, _folder: &str) -> Result<bool> {
-        Ok(false)
-    }
 }
 
 /// The on-screen toast and recap card (design section 8). Nothing here may take keyboard focus:

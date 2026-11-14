@@ -34,13 +34,12 @@ optional.
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
-| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Unexplained: do not rely on it.** In a real test (option on, two VS Code windows, exact folders) it brought the right window forward, but that window showed no terminal with the Claude session; the process was still running (checked with `ps`/`lsof`), so the session was out of reach, not killed. Off by default; `focusd` warns when it is on. Not merged to `main` |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
 --all-targets` with the workspace lints from section 13 of the design (warnings denied,
 pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests), and `cargo test
---workspace`: 165 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
+--workspace`: 156 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
 focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 ## Which Claude Code surfaces
@@ -58,9 +57,9 @@ Each also needs its app in the home-app list (`focusd` prints the line to add).
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
 
-Returns go to the app, not the window (except the opt-in editor route above), so with several
-sessions in one app the key lands in the app; the project name on the toast says which session is waiting. Exact-window return exists only for VS Code and Cursor, behind
-`[return] open_project_in_editor`; terminals have none (backlog C5).
+Returns go to the app, not the window, so with several sessions in one app the key lands in
+the app; the project name on the toast says which session is waiting. Exact-window return
+(backlog C5) is not built.
 
 ## Not built
 
@@ -77,18 +76,19 @@ sessions in one app the key lands in the app; the project name on the toast says
 - Known redaction gaps: a secret in plain prose and attached short flags (`mysql -pSecret`).
 - Config reload on edit (the file is read once; restart `focusd`), and warnings instead of
   errors for unknown keys (ADR 0003 item 22).
-- Front-app change notifications (polled instead), exact-window return for terminals (editors
-  have the opt-in URL route; see ADR 0003 item 16), the declare-long hotkey.
+- Front-app change notifications (polled instead), exact-window return (needs the opt-in
+  Accessibility permission, or a window or terminal identifier in the hook; the editor-URL
+  route was tried and withdrawn, see ADR 0003 items 16 and 21), the
+  declare-long hotkey.
 - Line coverage on `focus-core` is unmeasured; the target is 90%. No performance budgets
   measured.
 
 ## Next steps, in order
 
 1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
-2. Understand why the editor window showed no Claude terminal although the process was alive:
-   walk the process's ancestors (is it under VS Code's terminal host or under Terminal.app?) and
-   check how VS Code treats the URL for a folder that is already open. Until then the route stays
-   off and unmerged. `code <folder>` is the alternative and needs a spawned process.
+2. Exact-window return for editors by project URL was tried and withdrawn (ADR 0003 item 21):
+   Claude's folder and a window's open folder often differ. An identifier for the window or
+   terminal itself would be needed; `VSCODE_IPC_HOOK_CLI` in the hook is an untested idea.
 3. Decide on terminals: carrying the terminal's session id in the hook (documented
    `allowedEnvVars`), then selecting that session through Apple Events with a one-time
    Automation prompt per app.

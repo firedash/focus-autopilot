@@ -148,7 +148,6 @@ impl Sim {
                 Effect::Activate {
                     target,
                     verify_after,
-                    ..
                 } => {
                     if self.shell_verifies {
                         self.pending_verify =
@@ -243,17 +242,6 @@ impl Sim {
             .iter()
             .filter_map(|(ms, fx)| match fx {
                 Effect::Activate { target, .. } => Some((*ms, target.id.as_str())),
-                _ => None,
-            })
-            .collect()
-    }
-
-    /// The folder each activation carried: `Some` for a return, `None` for an away switch.
-    pub fn activation_folders(&self) -> Vec<Option<&str>> {
-        self.log
-            .iter()
-            .filter_map(|(_, fx)| match fx {
-                Effect::Activate { folder, .. } => Some(folder.as_deref()),
                 _ => None,
             })
             .collect()

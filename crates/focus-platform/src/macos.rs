@@ -14,7 +14,7 @@ use objc2_app_kit::{
     NSWorkspace,
 };
 use objc2_core_graphics::{CGEventSource, CGEventSourceStateID, CGEventType};
-use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop, NSString, NSURL, ns_string};
+use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop, ns_string};
 
 use std::cell::Cell;
 
@@ -103,25 +103,6 @@ impl Platform for MacPlatform {
         // A request only: macOS 14 may refuse a background process; the core verifies.
         app.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
         Ok(())
-    }
-
-    fn open_project(&self, target: &AppRef, folder: &str) -> Result<bool> {
-        let Some(url) = crate::editor_url::editor_url(&target.id, folder) else {
-            return Ok(false);
-        };
-        let Some(url) = NSURL::URLWithString(&NSString::from_str(&url)) else {
-            return Ok(false);
-        };
-        // The OS routes the URL to the editor registered for its scheme, which brings it
-        // forward with the window that has the folder open. No process is started here.
-        let opened = NSWorkspace::sharedWorkspace().openURL(&url);
-        if opened {
-            Ok(true)
-        } else {
-            Err(PlatformError::Os(
-                "the editor could not open the project URL".into(),
-            ))
-        }
     }
 
     fn play_sound(&self, _sound: Sound) {

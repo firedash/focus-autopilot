@@ -69,13 +69,6 @@ mod mac {
             Some(key) => println!("press {key} to act on a toast."),
             None => println!("no focus hotkey: type `click` here to act on a toast."),
         }
-        if config.returns.open_project_in_editor {
-            println!(
-                "WARNING: open_project_in_editor is experimental and unexplained. In one test it brought \
-                 the right VS Code window forward, but that window showed no terminal with the \
-                 Claude session (which was still running). Do not rely on it."
-            );
-        }
         if config.recap.mode == focus_core::RecapMode::Llm {
             println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");
         }
@@ -105,7 +98,6 @@ mod mac {
                 replies,
             }),
             verbose,
-            open_project_in_editor: config.returns.open_project_in_editor,
             history: paths::data_dir().map(|dir| focus_runner::HistoryFile {
                 path: dir.join("runs.jsonl"),
                 retention_days,

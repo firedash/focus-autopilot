@@ -101,42 +101,6 @@ editor windows open you land in whichever one macOS raises. And Cursor's, VS Cod
 Claude app's ids in the built-in list were written from memory: the `front:` line shows the
 real one, and if it differs from the list, please open an issue so the list can be corrected.
 
-## Return to the right editor window (optional)
-
-By default the key takes you back to the app. With several VS Code or Cursor windows open you
-land in whichever one macOS raises. To land in the window that has the project open:
-
-```toml
-[return]
-open_project_in_editor = true
-```
-
-Restart `focusd`. When the app you prompted from is VS Code, VS Code Insiders or Cursor, the
-return then opens `vscode://file/<project folder>` (or `cursor://...`) through macOS, which
-is meant to bring forward the window that already has that folder open. It starts no process
-and needs no permission.
-
-**Do not rely on this: in a test it brought the right window forward but the Claude session was
-not visible there.** VS Code showed its confirmation dialog and the right window came up, but
-that window had no terminal with the history, and showing the terminal opened an empty one. The
-Claude process itself was still running in the project folder (checked with `ps` and `lsof`),
-so the session was not killed, only out of reach, and why is not understood. It was not a
-subfolder problem (the window's folder was exactly Claude's folder). `focusd` prints a warning
-when the option is on.
-
-*Earlier, less important finding:* a first test with two VS Code windows
-brought forward the previously active window, but it was inconclusive: VS Code shows a
-confirmation dialog for any `vscode://file/...` URL ("An external application wants to open
-...") and that dialog did not appear, which suggests `focusd` never took this route and only
-switched to the app. When the option is on, `focusd` now prints one of two things on each
-return: `OPEN project in <app>: <url>` (it used the route) or `editor window return skipped:
-<reason>` (it did not, and why). Check which you get.
-
-VS Code's dialog has a checkbox, "Allow opening local paths without asking". Without it you
-are asked each time. Ticking it lets any local app open files and folders in VS Code without
-asking, which is the risk the dialog warns about, so decide that for yourself. This is VS
-Code's own prompt, not a macOS permission. Terminals have no such route yet.
-
 ## Start at login (optional)
 
 ```bash

@@ -42,9 +42,6 @@ pub enum Effect {
     Activate {
         target: AppRef,
         verify_after: Duration,
-        /// For a return, the project folder of the session being returned to, so an editor can
-        /// be asked for the window that has it open. `None` for an away switch or no folder.
-        folder: Option<String>,
     },
     /// Read a value now and report it as an `Observation`.
     Probe(ProbeKind),

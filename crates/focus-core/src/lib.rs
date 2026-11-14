@@ -28,7 +28,7 @@ mod toast;
 
 pub use config::{
     Away, Config, ConfigError, Countdown, History, Home, Hotkeys, Ignore, Recap, RecapMode,
-    Receiver, Returns, Switching, Ui,
+    Receiver, Switching, Ui,
 };
 pub use engine::{Core, app_id_matches};
 pub use estimator::{Estimate, PromptLen, RunSample, Tier, away_threshold, tier_of};

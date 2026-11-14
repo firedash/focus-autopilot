@@ -100,9 +100,8 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     which *project* a session is in, not which *window*, so any route needs a way to tie a
     session to a window. The routes, none of them built:
     - **Editors:** open `vscode://file/<project folder>` (and `cursor://...`) through the
-      normal macOS open-URL call. No permission and no spawned process. A first check with one folder open
-      showed VS Code coming forward, but a later check with two windows open showed the
-      wrong window (item 21).
+      normal macOS open-URL call. Tried and withdrawn (item 21): it needs the window's open
+      folder to equal Claude's folder, which the hook cannot tell us.
     - **Terminals:** carry the terminal's own session id in the hook. Anthropic's hooks page
       documents `allowedEnvVars` for HTTP hooks, which lets a header take a value from an
       environment variable, so a header such as `X-Focus-Term: $ITERM_SESSION_ID` is plausible
@@ -143,16 +142,35 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     seconds, so "the key does nothing" can be separated from the rest of the app. Neither has
     been run on a Mac.
 
-21. **Editor return by project URL, opt-in.** With `[return] open_project_in_editor = true`,
-    a return to VS Code, VS Code Insiders or Cursor opens `<scheme>://file/<percent-encoded
-    project folder>` through `NSWorkspace.openURL` instead of only activating the app. The
-    core attaches the session's folder to the activation for returns only (never for an away
-    switch), and the shell falls back to ordinary activation if the option is off, the app is
-    not such an editor, or the request fails. The activation is still verified afterwards.
-    Off by default because the URL cannot tell the editor to focus a window rather than open a
-    folder: when Claude ran in a *subfolder* of an open workspace, the editor may open a new
-    window for it. Only editors whose behaviour has been checked are in the scheme table
-    (`editor_url.rs`). Terminals still return to the app, not the window (item 16).
+21. **Editor window return by project URL: tried and withdrawn.** The idea: on a return to
+    VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<Claude's project folder>` through
+    `NSWorkspace.openURL`, so the editor focuses the window that has the folder open. It was
+    built behind an opt-in `[return] open_project_in_editor` and tested on a Mac. Findings:
+    - A manual `open "vscode://file/..."` works and shows VS Code's own confirmation dialog
+      ("An external application wants to open ... in Code", with a checkbox "Allow opening local
+      paths without asking"); it is not a macOS permission, but each return would wait for a
+      click until the box is ticked, and ticking it lets any local app open paths in VS Code.
+    - On a real return the route was taken and the right-looking window title came forward, but
+      it was a **new** window with an empty terminal. The user's window had `workspace` open
+      (`.../python-bootcamp/workspace`) while Claude's folder was its parent,
+      `.../python-bootcamp`. No window had exactly that folder, so VS Code opened one.
+    - The Claude session was never lost: `ps` and `lsof` showed the process still running in
+      `.../python-bootcamp`, in the original window. Earlier notes here said it was "lost" or
+      "killed", and later blamed a child folder; both were guesses the evidence contradicted, and
+      the corrections were made in the open rather than quietly.
+    - **Why it cannot be made reliable:** the hook reports Claude's folder, and a VS Code window
+      is matched by the folder (or workspace) it was opened with. Those differ in either
+      direction (Claude in a parent or child of the opened folder, a `.code-workspace`, a
+      symlinked path), and every mismatch opens a stray window. Nothing in the hook says which
+      window the terminal belongs to.
+    The code was removed and never reached `main`. The idea that could work is an identifier
+    that names the window or terminal itself: VS Code's integrated terminals carry
+    `VSCODE_IPC_HOOK_CLI` and `TERM_PROGRAM=vscode` in their environment, and the hooks page
+    documents `allowedEnvVars` for HTTP hooks, so such a value could in principle reach the
+    receiver in a header. Whether that identifies one window, and what could use it without
+    starting a program, is unknown and untested. A lesson for this record: "the right window
+    came forward" is not the whole test, and a focus action must never leave a user unable to
+    reach their running session.
 
 22. **Config differences from the design.** The design says an unknown key in `config.toml`
     produces a warning and is ignored, and that the file is re-read when it changes. As built,
@@ -160,39 +178,3 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     typo cannot leave a setting silently at its default, and the file is read once at startup:
     changes need a restart. The design's behaviour may return with the tray, which has
     somewhere to show a warning.
-
-    **Outcome of the first real test: inconclusive.** With two VS Code windows open, a return
-    with the option on showed the previously active window, not the one with the project. But
-    VS Code shows a confirmation dialog ("An external application wants to open ... in Code") for
-    any `vscode://file/...` URL it is handed, and a manual `open "vscode://..."` produced it
-    while the return did not. So the return most likely never opened the URL and only activated
-    the app, which brings forward VS Code's last-active window, exactly what was seen. An earlier
-    version of this record called it a failure of the URL route; that was premature. Why the
-    route was not taken is not established: the option may not have been on in the running
-    `focusd`, or the app id may not have matched. `focusd` now prints `OPEN project in ...` when
-    it takes the route and `editor window return skipped: <reason>` when it does not.
-
-    **VS Code asks first.** The dialog has a checkbox, "Allow opening local paths without
-    asking". Until it is ticked, each return waits for a click, which defeats the point; ticking
-    it lets any local app open paths in VS Code unprompted. That is VS Code's own prompt and
-    not an OS permission, but it is a cost the "asks for no permission" claim should not hide.
-
-    If the URL handler turns out to raise the last-active window regardless, the editor's own
-    command line (`code <folder>`, documented to focus the window with the folder) would work,
-    at the price of spawning a process, which would need the design's threat model (spawned
-    programs: `focusctl` and `claude` only) amended first.
-
-    **Second test: the route works, and the Claude session was out of reach.** With the option on,
-    the return printed the route line, VS Code showed its confirmation dialog, and the right
-    window came forward, but that window had no terminal with the history, and showing the
-    terminal opened an empty one. The Claude process was still running in the project folder
-    (confirmed with `ps` and `lsof`, attached to a real terminal device), so the session was not
-    killed. It was not a subfolder problem: the window's folder was exactly Claude's folder, and
-    there was no second window for the same folder. Why the window did not show the session is
-    not established. Open questions: which terminal host owns that process (VS Code's, or
-    Terminal.app), and how VS Code treats the URL for a folder that is already open. Earlier
-    versions of this record said the session was "lost" or "killed", and then blamed a subfolder;
-    both were guesses that the evidence did not support.
-    The option stays off by default, `focusd` warns when it is on, and the code is not merged to
-    `main`. A lesson for this record: a focus action must never leave the user unable to reach
-    their running session, and "it focused the right window" is not the whole test.
