@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "focus-runner"
+description = "The shell loop shared by focusd and focus-headless: feeds the core, carries out its effects."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+focus-core = { path = "../focus-core" }
+focus-platform = { path = "../focus-platform" }
+focus-receiver = { path = "../focus-receiver" }
+
+[lints]
+workspace = true

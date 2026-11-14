@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "focusd"
+description = "Focus Autopilot daemon for macOS: hook receiver, core and the real platform adapter."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+focus-core = { path = "../focus-core" }
+focus-platform = { path = "../focus-platform" }
+focus-receiver = { path = "../focus-receiver" }
+focus-runner = { path = "../focus-runner" }
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "focusctl"
+description = "Focus Autopilot command-line tool: install and remove Claude Code hooks, rotate the token."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+focus-receiver = { path = "../focus-receiver" }
+focus-runner = { path = "../focus-runner" }
+serde = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+toml_edit = "0.23"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

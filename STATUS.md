@@ -31,7 +31,7 @@ items that are pure decision logic.
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --all-targets` with
 the workspace lints from section 13 (warnings denied, pedantic, no `unwrap`, `expect`, `panic`
-or `todo` outside tests), and `cargo test`: 84 tests in the first two crates, all passing; the new crates add 20 more (`cargo test --workspace`). The integration tests
+or `todo` outside tests), and `cargo test`: 84 tests in the first two crates, all passing; `cargo test --workspace` now runs 121. The integration tests
 replay the design's first fixture and 59 scripted scenarios through a fake clock and a fake
 shell.
 
@@ -66,9 +66,9 @@ Nothing below exists yet, so there is no app to run.
 - **M0 (rest)** `focusctl record`, CI, and the repository files from section 13
   (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, CODEOWNERS, THREAT_MODEL.md,
   PERMISSIONS.md, AUDIT.md, REPRODUCIBLE.md, deny.toml, workflows).
-- **M2** macOS and Windows adapters and the platform spike. Needs real machines.
+- **M2** the platform spike on a real Mac and Windows, and the Windows adapter. The macOS adapter is written but unrun.
 - **M3** the Tauri shell that wires receiver, core and platform together.
-- **M4** `focusctl install-hooks`, `uninstall-hooks`, `rotate-token`.
+- **M4 (rest)** `focusctl doctor`, `--scope project` and `--scope local`, the failed-hook visibility check.
 - **M5** overlay windows, tray, wizard, launch at login, `focusctl doctor`.
 - **M6** release engineering.
 - Fuzz targets and the strace integration test for `focus-headless`.

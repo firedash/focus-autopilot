@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The platform layer (design section 8): everything that reads from or acts on the OS goes
-//! through [`Platform`]. This is the only crate that may use `unsafe`, and it has none yet:
-//! the macOS and Windows adapters are milestone M2 and are not written.
+//! through [`Platform`]. This is the only crate that may use `unsafe`, each block with a written
+//! justification. The macOS adapter is written and type-checked but has not run on a Mac; the
+//! Windows adapter is not written (milestone M2).
 //!
 //! No call here may trigger an OS permission prompt, read input content, read window titles
 //! or synthesize input.
 
 pub mod fake;
 pub mod known_apps;
+#[cfg(target_os = "macos")]
+pub mod macos;
 
 use std::sync::mpsc::Sender;
 

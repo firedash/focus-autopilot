@@ -11,6 +11,7 @@ rust-version.workspace = true
 focus-core = { path = "../focus-core" }
 focus-platform = { path = "../focus-platform" }
 focus-receiver = { path = "../focus-receiver" }
+focus-runner = { path = "../focus-runner" }
 
 [lints]
 workspace = true

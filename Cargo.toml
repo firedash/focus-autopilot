@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 [workspace]
 resolver = "3"
-members = ["crates/focus-core", "crates/focus-platform", "crates/focus-receiver", "crates/focus-headless"]
+members = ["crates/focus-core", "crates/focus-platform", "crates/focus-receiver", "crates/focus-headless", "crates/focus-runner", "crates/focusd", "crates/focusctl"]
 
 [workspace.package]
 version = "0.1.0"

@@ -22,7 +22,7 @@ Windows)". Section numbers in code comments refer to that document. The design a
 call the app you switch to the "away app".
 
 **This repository is at an early stage. Read [STATUS.md](STATUS.md) before anything else:**
-the decision core and a headless runner are built. There is no app that switches real windows yet.
+the decision core, a headless runner and a first macOS daemon are built; the daemon has not run on a Mac yet.
 
 ## Layout
 
@@ -31,11 +31,18 @@ crates/
   focus-core/      every decision; no I/O, no unsafe, no dependencies
   focus-platform/  the Platform trait, built-in home apps, and a fake for tests
   focus-receiver/  hardened loopback hook receiver, payload parsing, config.toml loading
+  focus-runner/    the shell loop shared by the two runners
   focus-headless/  dev runner: receiver + core + fake platform, effects printed
+  focusd/          the daemon (macOS): receiver + core + real platform adapter
+  focusctl/        install and remove the Claude Code hooks, rotate the token
 docs/adr/          architecture decision records
 ```
 
-## Try it
+## Try it on a Mac
+
+See [docs/mac-quickstart.md](docs/mac-quickstart.md). It has not run on a Mac yet.
+
+## Try it anywhere (fake platform)
 
 ```
 cargo run -p focus-headless -- --port 47821
