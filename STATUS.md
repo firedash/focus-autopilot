@@ -34,7 +34,7 @@ optional.
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
-| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Does not work reliably: with two VS Code windows open, a return showed the previously active window, not the one with the project (reported on a Mac; cause unknown).** Off by default |
+| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Not shown to work on a Mac.** A first test with two VS Code windows showed the previously active window, but the VS Code confirmation dialog for URL opens did not appear, so the route was probably not exercised. Off by default; `focusd` now prints whether it used the route or why it skipped it |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
@@ -85,10 +85,13 @@ sessions in one app the key lands in the app; the project name on the toast says
 ## Next steps, in order
 
 1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
-2. Find out why the editor URL focuses the wrong window. With two windows open, run
-   `open "vscode://file/<folder of the window that is NOT in front>"`: does that window come
-   forward? If not, the URL handler just raises the last-active window and this route is
-   dead. Then compare `code <folder>` (ADR 0003 item 21), which would need a spawned process.
+2. Re-test the editor route properly: pull, rebuild, set `[return] open_project_in_editor =
+   true`, restart `focusd` (its startup should say it returns to editors by project folder),
+   and with two VS Code windows open run a return. Look for `OPEN project in ...` or `editor
+   window return skipped: ...` in the output, and for VS Code's confirmation dialog. Separately,
+   `open "vscode://file/<folder of the window NOT in front>"` shows whether the URL handler
+   picks the right window at all; if not, compare `code <folder>` (ADR 0003 item 21), which
+   would need a spawned process.
 3. Decide on terminals: carrying the terminal's session id in the hook (documented
    `allowedEnvVars`), then selecting that session through Apple Events with a one-time
    Automation prompt per app.

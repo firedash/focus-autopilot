@@ -258,9 +258,15 @@ fn open_in_editor<P: Platform>(
     target: &AppRef,
     folder: Option<&str>,
 ) -> bool {
-    let (true, Some(folder)) = (options.open_project_in_editor, folder) else {
+    if let Some(reason) = editor_route_skipped(options, target, folder) {
+        // Silent when the option is simply off; otherwise say why the plain app switch was
+        // used, so "it opened the wrong window" can be told apart from "it never tried".
+        if options.open_project_in_editor {
+            println!("editor window return skipped: {reason}");
+        }
         return false;
-    };
+    }
+    let Some(folder) = folder else { return false };
     match platform.open_project(target, folder) {
         Ok(true) => {
             if options.verbose
@@ -280,6 +286,27 @@ fn open_in_editor<P: Platform>(
             false
         }
     }
+}
+
+/// Why the editor route is not used for this return, or `None` if it is.
+fn editor_route_skipped(
+    options: &Options,
+    target: &AppRef,
+    folder: Option<&str>,
+) -> Option<String> {
+    if !options.open_project_in_editor {
+        return Some("the option is off".to_owned());
+    }
+    if folder.is_none() {
+        return Some("the session has no project folder".to_owned());
+    }
+    if focus_platform::editor_url::scheme_for(&target.id).is_none() {
+        return Some(format!(
+            "{} is not a known editor (known: VS Code, VS Code Insiders, Cursor)",
+            target.id
+        ));
+    }
+    None
 }
 
 /// The event's name without its fields, which can hold prompts and commands.
@@ -455,6 +482,26 @@ mod tests {
             platform.projects_opened(),
             vec![("com.microsoft.VSCode".to_owned(), "/work/api".to_owned())]
         );
+    }
+
+    #[test]
+    fn the_reason_the_editor_route_was_skipped_is_stated() {
+        let mut on = options(None);
+        on.open_project_in_editor = true;
+        let vscode = app("com.microsoft.VSCode");
+        assert_eq!(editor_route_skipped(&on, &vscode, Some("/w")), None);
+        assert!(
+            editor_route_skipped(&options(None), &vscode, Some("/w"))
+                .unwrap()
+                .contains("off")
+        );
+        assert!(
+            editor_route_skipped(&on, &vscode, None)
+                .unwrap()
+                .contains("no project folder")
+        );
+        let reason = editor_route_skipped(&on, &app("com.apple.Terminal"), Some("/w")).unwrap();
+        assert!(reason.contains("com.apple.Terminal") && reason.contains("not a known editor"));
     }
 
     #[test]

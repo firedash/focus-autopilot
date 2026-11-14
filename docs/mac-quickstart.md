@@ -116,13 +116,18 @@ return then opens `vscode://file/<project folder>` (or `cursor://...`) through m
 is meant to bring forward the window that already has that folder open. It starts no process
 and needs no permission.
 
-**This does not work reliably yet.** On a Mac with two VS Code windows open, the return brought
-forward the previously active window, not the one `claude` was run in. Why is not known: VS
-Code may simply raise its last-active window for a URL, or the folder Claude reports may not be
-the folder that window has open (a subfolder, a `.code-workspace`, a symlinked path). It stays
-off by default, and you probably shouldn't turn it on. When it is on, `focusd` prints
-`OPEN project in <app>: <url>` so the URL it used can be compared with what each window has
-open. Terminals have no such route yet.
+**This is experimental and not yet shown to work.** A first test with two VS Code windows
+brought forward the previously active window, but it was inconclusive: VS Code shows a
+confirmation dialog for any `vscode://file/...` URL ("An external application wants to open
+...") and that dialog did not appear, which suggests `focusd` never took this route and only
+switched to the app. When the option is on, `focusd` now prints one of two things on each
+return: `OPEN project in <app>: <url>` (it used the route) or `editor window return skipped:
+<reason>` (it did not, and why). Check which you get.
+
+VS Code's dialog has a checkbox, "Allow opening local paths without asking". Without it you
+are asked each time. Ticking it lets any local app open files and folders in VS Code without
+asking, which is the risk the dialog warns about, so decide that for yourself. This is VS
+Code's own prompt, not a macOS permission. Terminals have no such route yet.
 
 ## Start at login (optional)
 

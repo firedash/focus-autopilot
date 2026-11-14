@@ -161,13 +161,23 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     changes need a restart. The design's behaviour may return with the tray, which has
     somewhere to show a warning.
 
-    **Outcome of the first real test:** with two VS Code windows open, a return with the option on
-    brought forward the previously active window, not the one that had the project. The cause is
-    not established. Candidates: VS Code raises its last-active window for a `vscode://` URL; the
-    folder in the hook (`cwd`) is not the folder that window has open (a subfolder, a
-    `.code-workspace` window, a symlinked path). The option stays off by default and the
-    quickstart says it is unreliable. `focusd` prints the URL it opened (in a terminal) so the two
-    can be compared. If the URL handler is the cause, the editor's own command line
-    (`code <folder>`, which focuses the window with the folder) would work, at the price of
-    spawning a process, which would need the design's threat model (spawned programs: `focusctl`
-    and `claude` only) amended first.
+    **Outcome of the first real test: inconclusive.** With two VS Code windows open, a return
+    with the option on showed the previously active window, not the one with the project. But
+    VS Code shows a confirmation dialog ("An external application wants to open ... in Code") for
+    any `vscode://file/...` URL it is handed, and a manual `open "vscode://..."` produced it
+    while the return did not. So the return most likely never opened the URL and only activated
+    the app, which brings forward VS Code's last-active window, exactly what was seen. An earlier
+    version of this record called it a failure of the URL route; that was premature. Why the
+    route was not taken is not established: the option may not have been on in the running
+    `focusd`, or the app id may not have matched. `focusd` now prints `OPEN project in ...` when
+    it takes the route and `editor window return skipped: <reason>` when it does not.
+
+    **VS Code asks first.** The dialog has a checkbox, "Allow opening local paths without
+    asking". Until it is ticked, each return waits for a click, which defeats the point; ticking
+    it lets any local app open paths in VS Code unprompted. That is VS Code's own prompt and
+    not an OS permission, but it is a cost the "asks for no permission" claim should not hide.
+
+    If the URL handler turns out to raise the last-active window regardless, the editor's own
+    command line (`code <folder>`, documented to focus the window with the folder) would work,
+    at the price of spawning a process, which would need the design's threat model (spawned
+    programs: `focusctl` and `claude` only) amended first.
