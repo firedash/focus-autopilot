@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "focus-platform"
+description = "Focus Autopilot platform layer: the Platform trait, known home apps, and a fake for tests."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+focus-core = { path = "../focus-core" }
+
+[lints]
+workspace = true
