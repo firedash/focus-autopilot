@@ -128,6 +128,9 @@ impl Overlay for MacPlatform {
     fn tick(&self, now: std::time::Instant) {
         Self::pump();
         self.overlay.dispatch_events();
+        if self.hotkeys_on.get() {
+            macos_hotkeys::pump();
+        }
         self.overlay.tick(now);
     }
 

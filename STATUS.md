@@ -27,10 +27,10 @@ optional.
 | LLM recap: runs the user's `claude` CLI (no tools, no hooks), three lines of at most 120 characters, basic card as fallback | `focus-runner`, `focus-core` | tested with fake CLIs and end to end with a fake `claude`; not yet against every real CLI version |
 | macOS adapter: front app, running apps, activation, idle time, sound | `focus-platform/src/macos.rs` | run on a Mac |
 | On-screen toast and recap card (non-activating panels) | `focus-platform/src/macos_overlay.rs` | run on a Mac |
-| Global hotkeys (focus key acts on the toast, pause key); chord parser | `hotkey.rs`, `macos_hotkeys.rs` | parser tested; registration unrun |
+| Global hotkeys (focus key acts on the toast, pause key); chord parser; a second delivery path through Carbon's own event pump; `focusd --test-hotkeys` self-test | `hotkey.rs`, `macos_hotkeys.rs` | parser tested; **registration and delivery unrun on a Mac: the most likely thing to need a fix** |
 | Warning when a prompt comes from an app that is not a home app, with the config line to add | `focus-runner` | done |
 | Secrets redacted at the receiver (before storing, with a window past the cut) and again on the recap card | `focus-receiver`, `focus-core` | done; tested including a key straddling the truncation point |
-| Project name on every toast and recap, other waiting projects named | `focus-core` | done and tested; the key still returns to the app, not the session |
+| Project name on every toast and recap; same-named folders shown as `parent/name`; one `Also:` line per other waiting session with its outcome, kept under an LLM summary too | `focus-core` | done and tested; the key still returns to the app, not the session |
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
@@ -39,7 +39,7 @@ optional.
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
 --all-targets` with the workspace lints from section 13 of the design (warnings denied,
 pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests), and `cargo test
---workspace`: 152 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
+--workspace`: 156 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
 focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 ## Which Claude Code surfaces
@@ -73,11 +73,23 @@ the app; the project name on the toast says which session is waiting. Exact-wind
 - **M4 (rest):** `focusctl doctor`, `--scope project` and `--scope local`, the failed-hook
   visibility check.
 - **M6:** release engineering.
+- Known redaction gaps: a secret in plain prose and attached short flags (`mysql -pSecret`).
 - Front-app change notifications (polled instead), exact-window return (needs the opt-in
   Accessibility permission or spawning the editor's command line; see ADR 0003 item 16), the
   declare-long hotkey.
 - Line coverage on `focus-core` is unmeasured; the target is 90%. No performance budgets
   measured.
+
+## Next steps, in order
+
+1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
+2. Try the `vscode://file/<folder>` route for exact-window return in editors: with a folder
+   open in VS Code, run `open "vscode://file/<that folder>"` and see whether that window comes
+   forward. If so it needs no permission and no process; build it (ADR 0003 item 16).
+3. Decide on terminals: carrying the terminal's session id in the hook (documented
+   `allowedEnvVars`), then selecting that session through Apple Events with a one-time
+   Automation prompt per app.
+4. Test VS Code, Cursor and the Claude Desktop Code tab, and correct the app ids.
 
 ## Before continuing
 

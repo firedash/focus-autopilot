@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::events::{AppRef, project_name};
+use crate::events::AppRef;
 use crate::run::{Need, Outcome};
 use crate::session::Session;
 
@@ -54,12 +54,17 @@ pub(crate) fn away_prompt(target: &AppRef) -> Toast {
     }
 }
 
-pub(crate) fn return_countdown(session: &Session, home: &AppRef, countdown: Duration) -> Toast {
+pub(crate) fn return_countdown(
+    session: &Session,
+    project: &str,
+    home: &AppRef,
+    countdown: Duration,
+) -> Toast {
     Toast {
         kind: ToastKind::ReturnCountdown,
         text: format!(
             "{} Back to {} in {} s.",
-            headline(session),
+            headline(session, project),
             home.name,
             countdown.as_secs()
         ),
@@ -68,17 +73,17 @@ pub(crate) fn return_countdown(session: &Session, home: &AppRef, countdown: Dura
     }
 }
 
-pub(crate) fn return_prompt(session: &Session) -> Toast {
+pub(crate) fn return_prompt(session: &Session, project: &str) -> Toast {
     Toast {
         kind: ToastKind::ReturnPrompt,
-        text: format!("{} Go back?", headline(session)),
+        text: format!("{} Go back?", headline(session, project)),
         action: "Go back now",
         countdown: None,
     }
 }
 
 /// "Claude is done in my-app.": the project name tells parallel sessions apart.
-fn headline(session: &Session) -> String {
+fn headline(session: &Session, project: &str) -> String {
     let base = match (&session.run.need, &session.run.outcome) {
         (Some(Need::Approval(_) | Need::Plan), _) => "Claude needs your approval",
         (Some(Need::Question), _) => "Claude has a question",
@@ -86,7 +91,6 @@ fn headline(session: &Session) -> String {
         (None, Some(Outcome::Error(_))) => "Claude stopped with an error",
         (None, _) => "Claude is done",
     };
-    let project = project_name(&session.run.cwd);
     if project.is_empty() {
         format!("{base}.")
     } else {

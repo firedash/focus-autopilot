@@ -25,7 +25,9 @@ const TOP_MARGIN: f64 = 48.0;
 struct Panel {
     window: Retained<NSPanel>,
     label: Retained<NSTextField>,
-    size: (f64, f64),
+    /// The width is fixed; the height grows with the text.
+    size: Cell<(f64, f64)>,
+    font_size: f64,
 }
 
 impl Panel {
@@ -69,19 +71,43 @@ impl Panel {
         Self {
             window,
             label,
-            size,
+            size: Cell::new(size),
+            font_size,
         }
     }
 
-    fn show(&self, mtm: MainThreadMarker, text: &str) {
+    /// Tall enough for `text` once wrapped, never shorter than the panel's starting height.
+    fn height_for(&self, text: &str, min_height: f64) -> f64 {
+        let (width, _) = self.size.get();
+        // About 0.55 of the font size per character is a fair average for the system font.
+        let per_line = ((width - 2.0 * PAD) / (self.font_size * 0.55))
+            .floor()
+            .max(10.0);
+        let mut lines = 0.0_f64;
+        for line in text.lines() {
+            let chars = f64::from(u32::try_from(line.chars().count().max(1)).unwrap_or(u32::MAX));
+            lines += (chars / per_line).ceil();
+        }
+        (lines * self.font_size * 1.45 + 2.0 * PAD).max(min_height)
+    }
+
+    fn show(&self, mtm: MainThreadMarker, text: &str, min_height: f64) {
         self.label.setStringValue(&NSString::from_str(text));
+        let height = self.height_for(text, min_height);
+        let (width, _) = self.size.get();
+        self.size.set((width, height));
+        self.window.setContentSize(NSSize::new(width, height));
+        self.label.setFrame(NSRect::new(
+            NSPoint::new(PAD, PAD),
+            NSSize::new(width - 2.0 * PAD, height - 2.0 * PAD),
+        ));
         let screen = NSScreen::mainScreen(mtm);
         let frame = screen.map_or_else(
             || NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(1440.0, 900.0)),
             |s| s.frame(),
         );
-        let x = frame.origin.x + (frame.size.width - self.size.0) / 2.0;
-        let y = frame.origin.y + frame.size.height - self.size.1 - TOP_MARGIN;
+        let x = frame.origin.x + (frame.size.width - width) / 2.0;
+        let y = frame.origin.y + frame.size.height - height - TOP_MARGIN;
         self.window.setFrameOrigin(NSPoint::new(x, y));
         // `orderFrontRegardless` shows the panel without activating this process.
         self.window.orderFrontRegardless();
@@ -124,7 +150,7 @@ impl MacOverlay {
         let Some(mtm) = self.mtm else { return };
         let mut slot = self.toast.borrow_mut();
         let panel = slot.get_or_insert_with(|| Panel::new(mtm, TOAST_SIZE, 15.0));
-        panel.show(mtm, text);
+        panel.show(mtm, text, TOAST_SIZE.1);
     }
 
     pub fn hide_toast(&self) {
@@ -137,7 +163,7 @@ impl MacOverlay {
         let Some(mtm) = self.mtm else { return };
         let mut slot = self.recap.borrow_mut();
         let panel = slot.get_or_insert_with(|| Panel::new(mtm, RECAP_SIZE, 13.0));
-        panel.show(mtm, &lines.join("\n"));
+        panel.show(mtm, &lines.join("\n"), RECAP_SIZE.1);
         self.recap_hides_at.set(Some(Instant::now() + for_how_long));
     }
 

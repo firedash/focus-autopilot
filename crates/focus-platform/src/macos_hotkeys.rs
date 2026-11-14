@@ -66,6 +66,16 @@ unsafe extern "C" {
         options: u32,
         out_ref: *mut *mut c_void,
     ) -> OsStatus;
+    fn GetEventDispatcherTarget() -> *mut c_void;
+    fn ReceiveNextEvent(
+        num_types: u32,
+        types: *const EventTypeSpec,
+        timeout_seconds: f64,
+        pull: bool,
+        out_event: *mut *mut c_void,
+    ) -> OsStatus;
+    fn SendEventToEventTarget(event: *mut c_void, target: *mut c_void) -> OsStatus;
+    fn ReleaseEvent(event: *mut c_void);
     fn GetEventParameter(
         event: *mut c_void,
         name: u32,
@@ -180,6 +190,30 @@ pub fn register(chord: &Chord, id: u32) -> Result<(), String> {
         Err(format!(
             "the OS refused the hotkey (error {status}); another app may use it"
         ))
+    }
+}
+
+/// Delivers any pending Carbon events to their handlers, without waiting.
+///
+/// Hotkey presses reach `on_hot_key` only when something services the event queue. `AppKit`'s
+/// event loop does, but a daemon that never calls `NSApplication.run` is not guaranteed to, so
+/// this is a second, explicit path: pull each event and send it to the dispatcher, which is
+/// what a Carbon application's own run loop does.
+pub fn pump() {
+    loop {
+        let mut event: *mut c_void = ptr::null_mut();
+        // SAFETY: no event types are filtered, the timeout is zero (never blocks), and `event`
+        // is a valid out pointer. On success the event is ours to release.
+        let status = unsafe { ReceiveNextEvent(0, ptr::null(), 0.0, true, &raw mut event) };
+        if status != 0 || event.is_null() {
+            return;
+        }
+        // SAFETY: `event` came from `ReceiveNextEvent` above and is released exactly once,
+        // after it has been handed to the dispatcher target.
+        unsafe {
+            SendEventToEventTarget(event, GetEventDispatcherTarget());
+            ReleaseEvent(event);
+        }
     }
 }
 

@@ -297,7 +297,7 @@ fn sessions_waiting_at_different_windows_are_returned_to_one_at_a_time() {
     // Needs-input first: back to Terminal, and the card names what else is waiting.
     assert_eq!(sim.activations()[1], (63_000, TERMINAL));
     assert_eq!(sim.recaps()[0][2], "Needs:   approval to run cargo test");
-    assert_eq!(sim.recaps()[0][3], "Also waiting: app");
+    assert_eq!(sim.recaps()[0][3], "Also:    app - Refactored.");
     // Then the finished session at the other window, by prompt because the user is working.
     let kinds: Vec<ToastKind> = sim.toasts().into_iter().map(|(_, kind)| kind).collect();
     assert_eq!(

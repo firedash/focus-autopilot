@@ -137,6 +137,22 @@ pub(crate) fn project_name(cwd: &str) -> String {
     shorten(&clean_text(name, 80), 32)
 }
 
+/// `parent/name` for a project folder, used when two sessions' folders share a last name.
+pub(crate) fn project_name_with_parent(cwd: &str) -> String {
+    let parts: Vec<&str> = cwd
+        .trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .filter(|p| !p.is_empty())
+        .take(2)
+        .collect();
+    let label = match parts.as_slice() {
+        [name, parent] => format!("{parent}/{name}"),
+        [name] => (*name).to_owned(),
+        _ => String::new(),
+    };
+    shorten(&clean_text(&label, 120), 40)
+}
+
 /// Makes outside text safe to keep and show: drops ANSI escape sequences and control
 /// characters, turns line breaks and tabs into spaces, and keeps at most `max_chars`.
 pub fn clean_text(raw: &str, max_chars: usize) -> String {

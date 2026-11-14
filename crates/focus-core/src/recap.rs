@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use crate::events::{project_name, shorten};
+use crate::events::shorten;
 use crate::redact::redact;
 use crate::run::{Need, Outcome, Run};
 use crate::session::{Session, SessionState};
@@ -20,11 +20,56 @@ pub struct RecapCard {
     pub lines: Vec<String>,
 }
 
-/// `others` names the other sessions also waiting for the user.
-pub(crate) fn build(session: &Session, others: &[String]) -> RecapCard {
+/// Another session that is also waiting: its project, and what happened in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Waiting {
+    pub(crate) name: String,
+    pub(crate) what: String,
+}
+
+impl Waiting {
+    pub(crate) fn of(session: &Session, name: String) -> Self {
+        let run = &session.run;
+        let what = match (session.state, &run.need, &run.outcome) {
+            (SessionState::NeedsInput, Some(need), _) => format!("needs {}", need_text(need)),
+            (_, _, Some(Outcome::Done { message, .. })) if !message.is_empty() => message.clone(),
+            (_, _, Some(Outcome::Done { .. })) => "finished".to_owned(),
+            (_, _, Some(Outcome::Error(error))) => format!("stopped with an error ({error})"),
+            _ => "still working".to_owned(),
+        };
+        Self { name, what }
+    }
+}
+
+/// How many other waiting sessions get a line of their own before the rest are counted.
+const OTHERS_SHOWN: usize = 2;
+
+/// One line for each other waiting session, so a result is never reduced to a name: when the
+/// user returns to an app, sessions waiting in that app are settled, and this is the only
+/// place their outcome is shown.
+pub(crate) fn also_lines(others: &[Waiting]) -> Vec<String> {
+    let mut lines: Vec<String> = others
+        .iter()
+        .take(OTHERS_SHOWN)
+        .map(|w| {
+            if w.name.is_empty() {
+                format!("Also:    {}", w.what)
+            } else {
+                format!("Also:    {} - {}", w.name, w.what)
+            }
+        })
+        .collect();
+    if others.len() > OTHERS_SHOWN {
+        let more = u32::try_from(others.len() - OTHERS_SHOWN).unwrap_or(u32::MAX);
+        lines.push(format!("Also:    {}", count(more, "more session")));
+    }
+    lines
+}
+
+/// `project` is the label for this session; `others` are the other sessions also waiting.
+pub(crate) fn build(session: &Session, project: &str, others: &[Waiting]) -> RecapCard {
     let run = &session.run;
     let mut lines = Vec::new();
-    let project = project_name(&run.cwd);
     if !project.is_empty() {
         lines.push(format!("Project: {project}"));
     }
@@ -38,33 +83,11 @@ pub(crate) fn build(session: &Session, others: &[String]) -> RecapCard {
     if let Some(stats) = stats_line(run) {
         lines.push(stats);
     }
-    if !others.is_empty() {
-        lines.push(also_waiting(others));
-    }
+    lines.extend(also_lines(others));
     // Redact what is shown, not only what is sent to the LLM: a card on a shared screen must
     // not display a key that was typed into a prompt.
     RecapCard {
         lines: lines.iter().map(|line| fit(&redact(line))).collect(),
-    }
-}
-
-/// Names up to three other waiting projects; a session with no folder counts as unnamed.
-fn also_waiting(others: &[String]) -> String {
-    let named: Vec<&str> = others
-        .iter()
-        .map(String::as_str)
-        .filter(|name| !name.is_empty())
-        .take(3)
-        .collect();
-    let total = u32::try_from(others.len()).unwrap_or(u32::MAX);
-    if named.is_empty() {
-        return format!("Also waiting: {}", count(total, "other session"));
-    }
-    let more = others.len().saturating_sub(named.len());
-    if more == 0 {
-        format!("Also waiting: {}", named.join(", "))
-    } else {
-        format!("Also waiting: {} (+{more} more)", named.join(", "))
     }
 }
 

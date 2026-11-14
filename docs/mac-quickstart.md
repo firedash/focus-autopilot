@@ -46,6 +46,17 @@ there (`--verbose` forces this when output goes to a file). The window you promp
 VS Code, JetBrains, Cursor and so on; list in `crates/focus-platform/src/known_apps.rs`). Add
 others under `[home] extra_apps` in `config.toml`.
 
+**Check the hotkey first.** It has never been seen working, and this takes a minute:
+
+```bash
+./target/release/focusd --test-hotkeys
+```
+
+It registers your hotkeys and prints `pressed: focus key` each time you press one, from any
+app, for 60 seconds. If it prints a `problem:` line, macOS refused the chord (another app may
+own it). If it registers cleanly but shows no presses, tell us: that means the event loop is
+not delivering them, and the typed `click` command is the workaround until it is fixed.
+
 Change the hotkeys in `config.toml`; an empty string turns one off. A chord needs at least one
 of Control, Option, Shift, Command:
 
@@ -106,9 +117,13 @@ event names only, never prompt text. Stop it with `focusctl uninstall-agent` and
 ## Several sessions
 
 Every toast and recap names the project (the last folder of where Claude is running), for
-example "Claude is done in api. Go back?", and the recap card lists the other waiting projects.
-The key takes you back to the app, not a particular window, so with several windows of one app
-you land in whichever macOS raises.
+example "Claude is done in api. Go back?". If two projects share a folder name, both show as
+`parent/name`. The key takes you back to the app, not a particular window, so with several
+windows of one app you land in whichever macOS raises.
+
+When you return, every other session waiting in that app is settled too, so the card has one
+line for each of them with what happened, for example `Also:    web - Header fixed.` (two at
+most, then a count). That line is the only place their result is shown, so read it.
 
 ## Privacy
 
@@ -169,9 +184,10 @@ away_requires_idle_seconds = 3
 - **No box appears when Claude finishes.** Check that `focusd` printed `front: <id>` for your
   terminal and that id is a home app. If you were still in that window when Claude finished,
   nothing is shown, by design.
-- **The hotkey does nothing.** `focusd` prints `hotkey problem: ...` at startup if the OS refused
-  the chord (another app may own it); pick another in `[hotkeys]`, or type `click` in the
-  `focusd` window.
+- **The hotkey does nothing.** Run `focusd --test-hotkeys`. A `problem:` line means the OS
+  refused the chord (another app may own it): pick another in `[hotkeys]`. Registered but no
+  presses means the events are not being delivered; type `click` in the `focusd` window
+  meanwhile, and report it.
 - **Away app doesn't come forward.** macOS 14+ may refuse a background process activating
   another app. The core notices (it verifies after `verify_after_ms`) and falls back to a
   prompt; if so, that is the M2 finding to record.

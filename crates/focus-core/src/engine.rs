@@ -216,6 +216,27 @@ impl Core {
         pending
     }
 
+    /// The project name for a toast or card. Normally the folder's last name; if another live
+    /// session is in a different folder with the same last name, `parent/name` for both, so
+    /// two `api` projects can be told apart.
+    pub(crate) fn project_label(&self, session: &str) -> String {
+        let Some(this) = self.sessions.get(session) else {
+            return String::new();
+        };
+        let name = crate::events::project_name(&this.run.cwd);
+        let clash = !name.is_empty()
+            && self.sessions.iter().any(|(id, other)| {
+                id != session
+                    && other.run.cwd != this.run.cwd
+                    && crate::events::project_name(&other.run.cwd) == name
+            });
+        if clash {
+            crate::events::project_name_with_parent(&this.run.cwd)
+        } else {
+            name
+        }
+    }
+
     pub(crate) fn mark_handled(&mut self, session: &str) {
         if let Some(s) = self.sessions.get_mut(session) {
             s.run.return_handled = true;

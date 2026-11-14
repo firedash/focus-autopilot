@@ -326,7 +326,7 @@ fn with_two_sessions_waiting_needs_input_goes_first_and_the_card_lists_the_rest(
             "Project: app",
             "Asked:   Run the tests and fix failures",
             "Needs:   approval to run cargo test",
-            "Also waiting: app",
+            "Also:    app - Refactored.",
         ]]
     );
     // One switch settles both; no second toast for the finished session.

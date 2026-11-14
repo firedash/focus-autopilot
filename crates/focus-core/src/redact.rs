@@ -50,13 +50,13 @@ pub fn redact(text: &str) -> String {
             continue;
         }
         if std::mem::take(&mut hide_next) {
-            out.push_str(REDACTED);
+            out.push_str(&hide(word));
             after_name = false;
         } else if let Some(name) = secret_assignment(word) {
             out.push_str(name);
-            out.push_str(REDACTED);
+            out.push_str(&hide(&word[name.len()..]));
         } else if looks_like_key(word) {
-            out.push_str(REDACTED);
+            out.push_str(&hide(word));
         } else {
             out.push_str(word);
             // `Bearer <token>`, `--password <value>`, `token: <value>` and `API_KEY = <value>`
@@ -68,6 +68,20 @@ pub fn redact(text: &str) -> String {
         out.push_str(space);
     }
     out
+}
+
+const LEADING: [char; 4] = ['\'', '"', '(', '['];
+const TRAILING: [char; 7] = ['\'', '"', ')', ']', ',', ';', '.'];
+
+/// `[redacted]` in place of `word`, keeping the quotes and punctuation around it, so a
+/// redacted command still reads as one (`'Bearer x'` becomes `'Bearer [redacted]'`).
+fn hide(word: &str) -> String {
+    let lead = word.len() - word.trim_start_matches(LEADING).len();
+    let trail = word.len() - word.trim_end_matches(TRAILING).len();
+    if lead + trail >= word.len() {
+        return REDACTED.to_owned();
+    }
+    format!("{}{REDACTED}{}", &word[..lead], &word[word.len() - trail..])
 }
 
 /// For `name=value` or `name:value` with a secret name, the part to keep (`name=`).
@@ -127,7 +141,7 @@ mod tests {
         let text = "use sk-abcdefghijklmnopqrstuv and ghp_0123456789abcdefghij, then AKIAABCDEFGHIJKLMNOP.";
         assert_eq!(
             redact(text),
-            "use [redacted] and [redacted] then [redacted]"
+            "use [redacted] and [redacted], then [redacted]."
         );
         assert_eq!(
             redact("the sk-8 wrench and eyJ are fine"),
@@ -152,8 +166,13 @@ mod tests {
         );
         assert_eq!(
             redact("curl -H 'Authorization: Bearer abc.def' x"),
-            "curl -H 'Authorization: Bearer [redacted] x"
+            "curl -H 'Authorization: Bearer [redacted]' x"
         );
+        assert_eq!(
+            redact(r#"run --token="abc123", then (key sk-abcdefghijklmnopqrstuv)"#),
+            r#"run --token="[redacted]", then (key [redacted])"#
+        );
+        assert_eq!(redact("\"sk-abcdefghijklmnopqrstuv\""), "\"[redacted]\"");
         assert_eq!(redact("reset your password now"), "reset your password now");
         assert_eq!(redact("tokenizer=fast"), "tokenizer=fast");
     }

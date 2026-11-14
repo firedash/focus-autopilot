@@ -13,8 +13,9 @@ Nov 14, 2026 · firedash
 > only the terminal has been tested, and each would need its app in the home-app list. (4) Secrets are redacted at the receiver and again on the recap card, not only before the LLM
 > recap; every toast and the recap card name the project; `runs.jsonl` is written and loaded;
 > `focusctl install-agent` provides launch at login; `focusd` logs event names only when its
-> output is a file. (5) Exact-window return, the Tauri shell, the menu-bar icon and an installer
-> are not built.
+> output is a file. (5) The recap card carries every other waiting session's outcome, not just its name, and
+> same-named folders show as `parent/name`. (6) Exact-window return, the Tauri shell, the
+> menu-bar icon and an installer are not built; ADR 0003 item 16 lays out the routes.
 
 ## 1. Overview
 

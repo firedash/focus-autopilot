@@ -75,9 +75,9 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
 
 12. **Toasts and the recap name the project.** The last folder of the session's `cwd` appears
     on every toast ("Claude is done in api. Go back?"), on the recap card as `Project:`, and
-    in `Also waiting:`, which now lists names instead of a count. With several sessions in
-    one app and no exact-window return, the key still lands in the app, not the session; the
-    name at least says which one is waiting.
+    in the `Also:` lines for other waiting sessions (item 17). With several sessions in one
+    app and no exact-window return, the key still lands in the app, not the session; the name
+    at least says which one is waiting.
 
 13. **Run history is written and read.** `runs.jsonl` gets one metadata line per finished
     run, in the design's format and with mode 0600; it is loaded at startup into the
@@ -94,9 +94,52 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     is saved in the plist, because a launch agent has none of the shell's, and `claude` for
     LLM recaps must stay findable. There is still no tray icon or installer.
 
-16. **Exact-window return stays unbuilt.** macOS cannot raise a specific window of another app
-    without the Accessibility permission (design item C5, opt-in by design), or by starting
-    other programs, which the design's threat model rules out. The no-permission route for
-    editors would be to run the editor's own command line with the project folder, which
-    focuses the window that has it open; that is left for a later decision because it spawns
-    a process on every return.
+16. **Exact-window return stays unbuilt, and is not a two-way choice.** An earlier version of
+    this record said macOS offers only the Accessibility permission or launching the editor's
+    command line. That framing was too narrow, and it missed the real blocker: the hook says
+    which *project* a session is in, not which *window*, so any route needs a way to tie a
+    session to a window. The routes, none of them built:
+    - **Editors:** open `vscode://file/<project folder>` (and `cursor://...`) through the
+      normal macOS open-URL call. No permission and no spawned process; VS Code should focus
+      the window that already has the folder open. Untested. A 10-minute check on a Mac:
+      `open "vscode://file/<a folder open in VS Code>"` and see whether that window comes
+      forward.
+    - **Terminals:** carry the terminal's own session id in the hook. Anthropic's hooks page
+      documents `allowedEnvVars` for HTTP hooks, which lets a header take a value from an
+      environment variable, so a header such as `X-Focus-Term: $ITERM_SESSION_ID` is plausible
+      (also `TERM_SESSION_ID`, `TMUX_PANE`, `KITTY_WINDOW_ID`). Unverified in practice. With
+      the id, iTerm2 and Terminal.app can be told to select that session through Apple
+      Events, which costs a one-time per-app Automation prompt, milder than Accessibility.
+    - **Accessibility:** a later opt-in catch-all (design item C5), or never; on its own it
+      does not say which window belongs to a session.
+    Spawning a process is not a principled objection (the LLM recap already runs `claude`);
+    the cost of the terminal route is per-app code and a soft permission prompt, against the
+    "asks for no OS permission" pitch. Order if built: editor URL route first, terminals as an
+    opt-in second.
+
+17. **A finished session's result is never reduced to a name.** Returning to an app settles
+    every session waiting in that app, because with no window identity the core cannot tell
+    which window the user is looking at. An earlier build then showed the others only as
+    `Also waiting: web`, so a session that finished while the user was away could vanish with
+    its result unseen. The card now has one line per other waiting session with its outcome
+    (`Also:    web - Header fixed.`, or what it needs), two lines at most and then a count, and
+    the lines are kept under an LLM summary too. Stepping through one card per session was
+    the alternative; the lines were chosen because they lose nothing and need no new
+    interaction.
+
+18. **Same folder name, different projects.** When two live sessions are in different
+    folders with the same last name, both are labelled `parent/name` (`team-a/api`,
+    `team-b/api`); otherwise the short name is used.
+
+19. **Redaction keeps the quotes.** Redacting a value now leaves the quotes and punctuation
+    around it, so `'Authorization: Bearer x'` becomes `'Authorization: Bearer [redacted]'`
+    instead of swallowing the closing quote. Known gaps, accepted as best-effort: a secret in
+    plain prose (`my password is hunter2xyz`) and attached short flags (`mysql -pSecret`), the
+    latter because `-p` is a common harmless flag.
+
+20. **The hotkey has a second delivery path and a self-test.** Carbon hotkey presses are
+    delivered only when something services the event queue. Besides `AppKit`'s event
+    dispatch, the shell now also pulls pending Carbon events and sends them to the dispatcher.
+    `focusd --test-hotkeys` registers the configured chords and prints each press for 60
+    seconds, so "the key does nothing" can be separated from the rest of the app. Neither has
+    been run on a Mac.

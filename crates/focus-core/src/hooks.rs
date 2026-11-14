@@ -125,18 +125,19 @@ impl Core {
         let Some(shown) = self.sessions.get(session) else {
             return;
         };
-        let others: Vec<String> = self
+        let others: Vec<crate::recap::Waiting> = self
             .pending(now)
             .iter()
             .filter(|p| p.session != session)
-            .map(|p| {
-                self.sessions
-                    .get(&p.session)
-                    .map(|s| crate::events::project_name(&s.run.cwd))
-                    .unwrap_or_default()
+            .filter_map(|p| {
+                let other = self.sessions.get(&p.session)?;
+                Some(crate::recap::Waiting::of(
+                    other,
+                    self.project_label(&p.session),
+                ))
             })
             .collect();
-        let card = crate::recap::build(shown, &others);
+        let card = crate::recap::build(shown, &self.project_label(session), &others);
         if self.cfg.recap.mode != RecapMode::Llm {
             fx.push(Effect::ShowRecap(card));
             return;
@@ -149,6 +150,7 @@ impl Core {
             id: self.recap_seq,
             issued: now,
             card,
+            also: crate::recap::also_lines(&others),
         });
         fx.push(Effect::SummarizeRecap {
             id: self.recap_seq,
@@ -165,7 +167,10 @@ impl Core {
         };
         let in_time = now.saturating_duration_since(pending.issued) <= self.cfg.recap.llm_timeout;
         match recap_llm::parse(text).filter(|_| in_time) {
-            Some(card) => fx.push(Effect::ShowRecap(card)),
+            Some(mut card) => {
+                card.lines.extend(pending.also);
+                fx.push(Effect::ShowRecap(card));
+            }
             None => fx.push(Effect::ShowRecap(pending.card)),
         }
     }
@@ -201,4 +206,6 @@ pub(crate) struct PendingRecap {
     pub(crate) id: u64,
     pub(crate) issued: Instant,
     pub(crate) card: crate::recap::RecapCard,
+    /// The other waiting sessions' lines, added under a summary so their results are not lost.
+    pub(crate) also: Vec<String>,
 }

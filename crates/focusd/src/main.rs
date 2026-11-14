@@ -110,6 +110,50 @@ mod mac {
         }
     }
 
+    /// `focusd --test-hotkeys`: registers the configured hotkeys and prints every press for 60
+    /// seconds, and nothing else, so a hotkey that does nothing can be told apart from the rest
+    /// of the app. Uses the config's chords if there is a config, else the defaults.
+    fn test_hotkeys(platform: &MacPlatform, config_path: &PathBuf) -> Result<(), String> {
+        use focus_platform::{HotkeyAction, Overlay as _};
+        let config = std::fs::read_to_string(config_path)
+            .ok()
+            .and_then(|text| config_file::parse(&text).ok())
+            .unwrap_or_default();
+        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
+        for problem in &problems {
+            println!("problem: {problem}");
+        }
+        if !platform.active() {
+            return Err("no hotkey could be registered, so there is nothing to test".into());
+        }
+        println!(
+            "Registered focus = `{}`, pause = `{}`. Press them now, from any app. Stops in 60 s.",
+            config.hotkeys.focus_key, config.hotkeys.pause
+        );
+        let end = Instant::now() + std::time::Duration::from_secs(60);
+        let mut presses = 0;
+        while Instant::now() < end {
+            platform.tick(Instant::now());
+            for pressed in platform.take_pressed() {
+                presses += 1;
+                match pressed {
+                    HotkeyAction::Focus => println!("pressed: focus key"),
+                    HotkeyAction::TogglePause => println!("pressed: pause key"),
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        if presses == 0 {
+            println!(
+                "No presses seen. Registration reported no error, so macOS accepted the chord"
+            );
+            println!("but nothing was delivered: the event loop is the likely cause.");
+        } else {
+            println!("{presses} press(es) seen: the hotkeys work.");
+        }
+        Ok(())
+    }
+
     /// Built-in and configured home apps, with the same matching the core uses.
     fn home_match(apps: &[String], config: &Config, id: &str) -> bool {
         apps.iter()
@@ -136,6 +180,7 @@ mod mac {
         let mut port = None;
         let mut list_apps = false;
         let mut force_verbose = false;
+        let mut test_hotkeys_only = false;
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -152,14 +197,20 @@ mod mac {
                 }
                 "--list-apps" => list_apps = true,
                 "--verbose" => force_verbose = true,
+                "--test-hotkeys" => test_hotkeys_only = true,
                 "--help" | "-h" => {
-                    println!("usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose]");
+                    println!(
+                        "usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose] [--test-hotkeys]"
+                    );
                     return Ok(());
                 }
                 other => return Err(format!("unknown argument {other}")),
             }
         }
         let platform = MacPlatform::new();
+        if test_hotkeys_only {
+            return test_hotkeys(&platform, &config_path);
+        }
         if list_apps {
             for app in platform.running_apps().map_err(|e| format!("{e:?}"))? {
                 println!("{}\t{}", app.id, app.name);

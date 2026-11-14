@@ -92,8 +92,9 @@ impl Core {
             return Mode::Idle;
         };
         let length = self.cfg.countdown.length;
+        let label = self.project_label(&session);
         fx.push(Effect::ShowToast(toast::return_countdown(
-            waiting, &home, length,
+            waiting, &label, &home, length,
         )));
         fx.push(log("return_countdown", &session));
         let step = ReturnStep::Countdown(Phase::Counting { ends: now + length });
@@ -115,7 +116,8 @@ impl Core {
         let Some(waiting) = self.sessions.get(&session) else {
             return Mode::Idle;
         };
-        fx.push(Effect::ShowToast(toast::return_prompt(waiting)));
+        let label = self.project_label(&session);
+        fx.push(Effect::ShowToast(toast::return_prompt(waiting, &label)));
         fx.push(log("return_prompt", &session));
         Mode::Return {
             session,
