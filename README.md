@@ -22,7 +22,7 @@ Windows)". Section numbers in code comments refer to that document. The design a
 call the app you switch to the "away app".
 
 **This repository is at an early stage. Read [STATUS.md](STATUS.md) before anything else:**
-only the decision core is built. There is no runnable app yet.
+the decision core and a headless runner are built. There is no app that switches real windows yet.
 
 ## Layout
 
@@ -30,8 +30,22 @@ only the decision core is built. There is no runnable app yet.
 crates/
   focus-core/      every decision; no I/O, no unsafe, no dependencies
   focus-platform/  the Platform trait, built-in home apps, and a fake for tests
+  focus-receiver/  hardened loopback hook receiver, payload parsing, config.toml loading
+  focus-headless/  dev runner: receiver + core + fake platform, effects printed
 docs/adr/          architecture decision records
 ```
+
+## Try it
+
+```
+cargo run -p focus-headless -- --port 47821
+```
+
+It prints a token. Send hooks with `curl -H "X-Focus-Token: <token>" -H "Content-Type:
+application/json" -d '{"hook_event_name":"UserPromptSubmit","session_id":"s1","cwd":"/w","prompt":"hi"}'
+http://127.0.0.1:47821/hook`, then a `Stop` event, and watch the toasts and recap. A config
+with short thresholds (`switching.away_after_seconds`, `short_grace_seconds`, `countdown.seconds`)
+makes the away switch happen in seconds.
 
 ## Check it
 

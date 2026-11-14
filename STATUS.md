@@ -31,14 +31,29 @@ items that are pure decision logic.
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --all-targets` with
 the workspace lints from section 13 (warnings denied, pedantic, no `unwrap`, `expect`, `panic`
-or `todo` outside tests), and `cargo test`: 84 tests, all passing. The integration tests
+or `todo` outside tests), and `cargo test`: 84 tests in the first two crates, all passing; the new crates add 20 more (`cargo test --workspace`). The integration tests
 replay the design's first fixture and 59 scripted scenarios through a fake clock and a fake
 shell.
 
 The V1 items were built before the MVP has run on a real machine, which is out of the
 design's order. If the M2 platform spike changes the switching model, they may need rework.
 
-## Not measured
+## Runnable now (headless)
+
+`focus-receiver` (M0, partly) and `focus-headless` exist. `cargo run -p focus-headless` listens
+on 127.0.0.1, takes real hook POSTs, runs them through `focus-core` with a real clock and a fake
+platform, and prints every effect (toasts, activation, recap, sound). Type `front <id>`, `idle
+<s>`, `click`, `pause`, `resume` or `quit` to play the user and the OS. There is still no real
+window switching: that needs the M2 adapters.
+
+| Item | Where | State |
+| --- | --- | --- |
+| Receiver checks: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver/src/check.rs`, `server.rs` | done, negative tests over a real socket |
+| Payload parsing, truncation, ANSI stripping, project hash | `payload.rs` | done; unknown field types read as absent |
+| `config.toml` loading, every key; unknown keys are errors | `config_file.rs` | done |
+| Fuzz targets, strace test, `focusctl record`, CI, repository files (rest of M0) | | not built |
+
+
 
 - Line coverage on `focus-core`. The target is 90%; `cargo-llvm-cov` wasn't available where
   this was built, so the number is unknown.
@@ -48,8 +63,7 @@ design's order. If the M2 platform spike changes the switching model, they may n
 
 Nothing below exists yet, so there is no app to run.
 
-- **M0** `focus-receiver` (HTTP receiver, payload parsing, threat-model checks), config
-  loading from TOML, `focusctl record`, CI, and the repository files from section 13
+- **M0 (rest)** `focusctl record`, CI, and the repository files from section 13
   (SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, CODEOWNERS, THREAT_MODEL.md,
   PERMISSIONS.md, AUDIT.md, REPRODUCIBLE.md, deny.toml, workflows).
 - **M2** macOS and Windows adapters and the platform spike. Needs real machines.
@@ -57,12 +71,10 @@ Nothing below exists yet, so there is no app to run.
 - **M4** `focusctl install-hooks`, `uninstall-hooks`, `rotate-token`.
 - **M5** overlay windows, tray, wizard, launch at login, `focusctl doctor`.
 - **M6** release engineering.
-- `focus-headless`, fuzz targets, the strace integration test.
+- Fuzz targets and the strace integration test for `focus-headless`.
 
-Why it stops here: the first part was built in a Linux sandbox with no access to crates.io,
-so nothing that needs a dependency (hyper, serde, toml, sha2, tauri, objc2, windows) could be
-compiled, and nothing could be run on macOS or Windows. `focus-core` has no dependencies by
-design, which is why it could be finished and tested.
+Why the platform work stops here: nothing could be run on macOS or Windows. The receiver and
+headless runner were added later, once crates.io was reachable.
 
 ## Before continuing
 
@@ -72,6 +84,7 @@ design, which is why it could be finished and tested.
    were written from memory.
 4. Read the records in `docs/adr/`: they list where the design left a choice open and what
    was chosen.
-5. The trace tests read fixtures with a small test-only JSON reader
-   (`crates/focus-core/tests/support/json.rs`). Once `focus-receiver` exists, load fixtures
-   through its parser instead so the tests exercise the real one.
+5. The core's trace tests still read fixtures with a test-only JSON reader
+   (`crates/focus-core/tests/support/json.rs`). `focus-receiver/tests/http.rs` parses the same
+   fixture with the real parser; moving the core tests onto it would make `focus-core` depend
+   on the receiver in dev, which was left undone.

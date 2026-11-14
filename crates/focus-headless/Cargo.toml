@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "focus-headless"
+description = "Dev-only runner: wires the receiver and core to the fake platform and prints every effect."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+focus-core = { path = "../focus-core" }
+focus-platform = { path = "../focus-platform" }
+focus-receiver = { path = "../focus-receiver" }
+
+[lints]
+workspace = true
