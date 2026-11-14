@@ -15,8 +15,9 @@ Nov 14, 2026 · firedash
 > `focusctl install-agent` provides launch at login; `focusd` logs event names only when its
 > output is a file. (5) The recap card carries every other waiting session's outcome, not just its name, and
 > same-named folders show as `parent/name`. (6) Returns to VS Code and Cursor can open the session's project folder through the
-> editor's URL scheme (opt-in, unsafe `[return] open_project_in_editor`; in a test it lost the running Claude
-> session, so it is not merged to `main`);
+> editor's URL scheme (opt-in, experimental `[return] open_project_in_editor`; in a test the right window came
+> forward without the terminal holding the running Claude session, cause unknown, so it is not
+> merged to `main`);
 > exact-window return for terminals, the Tauri shell, the menu-bar icon and an installer are not
 > built; ADR 0003 items 16 and 21 lay out the routes.
 
@@ -596,7 +597,7 @@ salt = "<random, written on first run>"
 cwd_globs = []
 
 [return]
-open_project_in_editor = false  # UNSAFE, do not enable: in a test it lost the running Claude session (ADR 0003 item 21)
+open_project_in_editor = false  # experimental, do not rely on it: in a test the right window came forward without the Claude terminal, cause unknown (ADR 0003 item 21)
 ```
 
 Unknown keys produce a warning in the tray and log and are ignored. An invalid value on reload keeps the last good config and shows the error; on first start the default is used for that key. focusd checks the file's modification time every 2 s, so no file-watching dependency is needed.

@@ -116,13 +116,13 @@ return then opens `vscode://file/<project folder>` (or `cursor://...`) through m
 is meant to bring forward the window that already has that folder open. It starts no process
 and needs no permission.
 
-**Do not use this yet: in a test it lost the running Claude session.** It did bring the right
-VS Code window forward, with VS Code's confirmation dialog, but that window's terminal was
-gone, and a new terminal had none of the history, so the Claude session running in it appears
-to have been killed. The likeliest cause is that VS Code treats the URL as "open this folder"
-and reloads the window, which restarts its integrated terminals; that is a guess. If it
-happens, `claude --continue` in the project folder resumes the last conversation. `focusd`
-prints a warning when the option is on.
+**Do not rely on this: in a test it brought the right window forward but the Claude session was
+not visible there.** VS Code showed its confirmation dialog and the right window came up, but
+that window had no terminal with the history, and showing the terminal opened an empty one. The
+Claude process itself was still running in the project folder (checked with `ps` and `lsof`),
+so the session was not killed, only out of reach, and why is not understood. It was not a
+subfolder problem (the window's folder was exactly Claude's folder). `focusd` prints a warning
+when the option is on.
 
 *Earlier, less important finding:* a first test with two VS Code windows
 brought forward the previously active window, but it was inconclusive: VS Code shows a

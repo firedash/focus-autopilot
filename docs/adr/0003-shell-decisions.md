@@ -182,16 +182,17 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     at the price of spawning a process, which would need the design's threat model (spawned
     programs: `focusctl` and `claude` only) amended first.
 
-    **Second test: the route works, and it lost the Claude session.** With the option on, the
-    return printed the route line, VS Code showed its confirmation dialog, and the right window
-    came forward, but that window's integrated terminal was gone, and a new terminal had none
-    of the history, so the Claude process that had been running in it appears to have been
-    killed. The cause is not established. Candidate: VS Code handles a `vscode://file/<folder>`
-    URL as "open this folder" and, for the window that already has it, reloads it, which
-    restarts its terminals. Another: a second window opened and the original is still there.
-    Either way a feature that can end the user's running session is unacceptable, even opt-in.
-    It stays off by default, `focusd` prints a warning when it is enabled, and the code is not
-    merged to `main`. Next: find out which candidate it is (window count after a return;
-    whether `claude` is still running), and whether `code <folder>` behaves differently.
-    A lesson for this record: a focus action must never be able to destroy work, and "it
-    focused the right window" was not the whole test.
+    **Second test: the route works, and the Claude session was out of reach.** With the option on,
+    the return printed the route line, VS Code showed its confirmation dialog, and the right
+    window came forward, but that window had no terminal with the history, and showing the
+    terminal opened an empty one. The Claude process was still running in the project folder
+    (confirmed with `ps` and `lsof`, attached to a real terminal device), so the session was not
+    killed. It was not a subfolder problem: the window's folder was exactly Claude's folder, and
+    there was no second window for the same folder. Why the window did not show the session is
+    not established. Open questions: which terminal host owns that process (VS Code's, or
+    Terminal.app), and how VS Code treats the URL for a folder that is already open. Earlier
+    versions of this record said the session was "lost" or "killed", and then blamed a subfolder;
+    both were guesses that the evidence did not support.
+    The option stays off by default, `focusd` warns when it is on, and the code is not merged to
+    `main`. A lesson for this record: a focus action must never leave the user unable to reach
+    their running session, and "it focused the right window" is not the whole test.

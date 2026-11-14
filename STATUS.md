@@ -34,7 +34,7 @@ optional.
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
-| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Unsafe: do not enable.** In a real test (option on, two VS Code windows) it brought the right window forward but that window's terminal was gone and a new one had no history, so the running Claude session appears to have been killed. Off by default; `focusd` warns when it is on. Not merged to `main` |
+| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Unexplained: do not rely on it.** In a real test (option on, two VS Code windows, exact folders) it brought the right window forward, but that window showed no terminal with the Claude session; the process was still running (checked with `ps`/`lsof`), so the session was out of reach, not killed. Off by default; `focusd` warns when it is on. Not merged to `main` |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
@@ -85,10 +85,10 @@ sessions in one app the key lands in the app; the project name on the toast says
 ## Next steps, in order
 
 1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
-2. Understand why the editor URL route lost the Claude session before anything else is built on
-   it: after a return, were there two VS Code windows, and was the `claude` process still running
-   (`pgrep -fl claude`)? Until then the route stays off and unmerged. `code <folder>` (documented
-   to focus the window that has the folder) is the alternative, and needs a spawned process.
+2. Understand why the editor window showed no Claude terminal although the process was alive:
+   walk the process's ancestors (is it under VS Code's terminal host or under Terminal.app?) and
+   check how VS Code treats the URL for a folder that is already open. Until then the route stays
+   off and unmerged. `code <folder>` is the alternative and needs a spawned process.
 3. Decide on terminals: carrying the terminal's session id in the hook (documented
    `allowedEnvVars`), then selecting that session through Apple Events with a one-time
    Automation prompt per app.

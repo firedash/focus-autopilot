@@ -71,9 +71,9 @@ mod mac {
         }
         if config.returns.open_project_in_editor {
             println!(
-                "WARNING: open_project_in_editor is experimental. In one test it brought the right \
-                 VS Code window forward but left its terminal without the running Claude session. \
-                 Do not use it with work you care about."
+                "WARNING: open_project_in_editor is experimental and unexplained. In one test it brought \
+                 the right VS Code window forward, but that window showed no terminal with the \
+                 Claude session (which was still running). Do not rely on it."
             );
         }
         if config.recap.mode == focus_core::RecapMode::Llm {
