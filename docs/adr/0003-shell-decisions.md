@@ -100,9 +100,9 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     which *project* a session is in, not which *window*, so any route needs a way to tie a
     session to a window. The routes, none of them built:
     - **Editors:** open `vscode://file/<project folder>` (and `cursor://...`) through the
-      normal macOS open-URL call. No permission and no spawned process. Checked by hand on a
-      Mac with one folder open in VS Code: the URL brought that window forward. Built (item
-      21), opt-in.
+      normal macOS open-URL call. No permission and no spawned process. A first check with one folder open
+      showed VS Code coming forward, but a later check with two windows open showed the
+      wrong window (item 21).
     - **Terminals:** carry the terminal's own session id in the hook. Anthropic's hooks page
       documents `allowedEnvVars` for HTTP hooks, which lets a header take a value from an
       environment variable, so a header such as `X-Focus-Term: $ITERM_SESSION_ID` is plausible
@@ -160,3 +160,14 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     typo cannot leave a setting silently at its default, and the file is read once at startup:
     changes need a restart. The design's behaviour may return with the tray, which has
     somewhere to show a warning.
+
+    **Outcome of the first real test:** with two VS Code windows open, a return with the option on
+    brought forward the previously active window, not the one that had the project. The cause is
+    not established. Candidates: VS Code raises its last-active window for a `vscode://` URL; the
+    folder in the hook (`cwd`) is not the folder that window has open (a subfolder, a
+    `.code-workspace` window, a symlinked path). The option stays off by default and the
+    quickstart says it is unreliable. `focusd` prints the URL it opened (in a terminal) so the two
+    can be compared. If the URL handler is the cause, the editor's own command line
+    (`code <folder>`, which focuses the window with the folder) would work, at the price of
+    spawning a process, which would need the design's threat model (spawned programs: `focusctl`
+    and `claude` only) amended first.

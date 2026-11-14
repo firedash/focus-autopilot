@@ -34,7 +34,7 @@ optional.
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
-| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested; the OS call is compiled for macOS only. Checked by hand for VS Code with one open folder (the URL focused it); not checked with several windows or with Cursor |
+| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested. **Does not work reliably: with two VS Code windows open, a return showed the previously active window, not the one with the project (reported on a Mac; cause unknown).** Off by default |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
@@ -85,9 +85,10 @@ sessions in one app the key lands in the app; the project name on the toast says
 ## Next steps, in order
 
 1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
-2. Try `[return] open_project_in_editor = true` with two VS Code windows open on different
-   folders and check the right one comes forward; then try Cursor, and a subfolder of an open
-   workspace (which may open a new window). If it holds up, consider making it the default.
+2. Find out why the editor URL focuses the wrong window. With two windows open, run
+   `open "vscode://file/<folder of the window that is NOT in front>"`: does that window come
+   forward? If not, the URL handler just raises the last-active window and this route is
+   dead. Then compare `code <folder>` (ADR 0003 item 21), which would need a spawned process.
 3. Decide on terminals: carrying the terminal's session id in the hook (documented
    `allowedEnvVars`), then selecting that session through Apple Events with a one-time
    Automation prompt per app.

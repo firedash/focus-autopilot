@@ -113,12 +113,16 @@ open_project_in_editor = true
 
 Restart `focusd`. When the app you prompted from is VS Code, VS Code Insiders or Cursor, the
 return then opens `vscode://file/<project folder>` (or `cursor://...`) through macOS, which
-brings forward the window that already has that folder open. It starts no process and needs no
-permission. Checked by hand for VS Code with one folder; not checked with several windows.
+is meant to bring forward the window that already has that folder open. It starts no process
+and needs no permission.
 
-One caveat is why it is off by default: if you ran `claude` in a *subfolder* of the folder open
-in VS Code, the editor may open a new window for the subfolder instead of focusing the existing
-one. If you see that, turn it off. Terminals have no such route yet.
+**This does not work reliably yet.** On a Mac with two VS Code windows open, the return brought
+forward the previously active window, not the one `claude` was run in. Why is not known: VS
+Code may simply raise its last-active window for a URL, or the folder Claude reports may not be
+the folder that window has open (a subfolder, a `.code-workspace`, a symlinked path). It stays
+off by default, and you probably shouldn't turn it on. When it is on, `focusd` prints
+`OPEN project in <app>: <url>` so the URL it used can be compared with what each window has
+open. Terminals have no such route yet.
 
 ## Start at login (optional)
 

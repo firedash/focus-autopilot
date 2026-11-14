@@ -50,8 +50,9 @@ something verified here. Each one also needs its app in the home-app list; if it
 Returns go to the app, not a specific window: with several windows of one app you land in
 whichever one the OS raises. The exception is VS Code and Cursor: with
 `[return] open_project_in_editor = true` a return opens the project folder through the editor's
-URL scheme, which focuses the window that has it open (off by default; terminals have no such
-route yet).
+URL scheme. That is meant to focus the window that has it open, but it did not in a first
+test with two VS Code windows, so it is off by default and experimental; terminals have no such
+route yet.
 
 ## Layout
 
@@ -72,8 +73,8 @@ docs/adr/          architecture decision records
 See [docs/mac-quickstart.md](docs/mac-quickstart.md): build, install the hooks, run `focusd`.
 The switching, the on-screen boxes and the recap have run on a Mac; the global hotkey and the
 VS Code, Cursor and Desktop paths have not. Optional extras: start at login
-(`focusctl install-agent`), three-line LLM recaps, returning to the right VS Code or Cursor
-window, and an away app.
+(`focusctl install-agent`), three-line LLM recaps, an experimental VS Code or Cursor
+window option, and an away app.
 
 ## Try it anywhere (fake platform)
 

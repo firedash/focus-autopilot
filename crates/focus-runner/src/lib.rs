@@ -263,7 +263,15 @@ fn open_in_editor<P: Platform>(
     };
     match platform.open_project(target, folder) {
         Ok(true) => {
-            println!("OPEN project in {}", target.id);
+            if options.verbose
+                && let Some(url) = focus_platform::editor_url::editor_url(&target.id, folder)
+            {
+                // The exact URL, so a wrong window can be compared against the folder each
+                // window really has open. Only in a terminal: the path is the user's.
+                println!("OPEN project in {}: {url}", target.id);
+            } else {
+                println!("OPEN project in {}", target.id);
+            }
             true
         }
         Ok(false) => false,
