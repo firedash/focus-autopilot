@@ -43,14 +43,18 @@ Date: 2026-11-14. Status: accepted, open to revision with real traces.
    with no log line.
 
 9. **LLM recap.** The core builds the prompt text and redacts it; the shell runs the CLI and
-   reports the reply with the id it was given. The reply replaces the basic card only if it
-   is for the latest card, arrives within `llm_timeout_seconds`, and has at least one
-   non-empty line; at most three lines are kept and cleaned like any outside text.
+   reports the reply with the id it was given. The reply is used only if it is for the latest
+   card, arrives within `llm_timeout_seconds`, and has at least one non-empty line; at most
+   three lines are kept and cleaned like any outside text. *Amended by ADR 0003 item 4: the
+   basic card is no longer shown first and replaced; it is held back and shown only if the
+   summary fails or times out. Lines are cut at 120 characters.*
 
 10. **Redaction is deliberately narrow about bare words.** `password=x`, `token: x`,
     `--password x`, `API_KEY = x`, bearer tokens, known key prefixes and PEM blocks are
     hidden. A bare word such as "token" in a sentence is not treated as announcing a secret,
     so "fix the token refresh bug" is left alone.
+    *Amended by ADR 0003 item 11: the same redaction now also runs at the receiver, before
+    anything is stored, and on the recap card, not only before text is sent to the LLM.*
 
 11. **Run statistics** join the recap as one line (duration, tool calls, sub-agents,
     background tasks still running), which keeps the card within six lines.

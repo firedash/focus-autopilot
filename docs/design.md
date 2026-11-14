@@ -10,7 +10,11 @@ Nov 14, 2026 · firedash
 > when `away.apps` is set. (2) The LLM recap holds back the basic card instead of replacing
 > it (section 10). (3) Anthropic's docs say Claude Code fires the same hooks in IDE extensions
 > and the Desktop app as in the terminal, so those surfaces should need no receiver change;
-> only the terminal has been tested, and each would need its app in the home-app list. (4) Exact-window return and the Tauri shell are not built.
+> only the terminal has been tested, and each would need its app in the home-app list. (4) Secrets are redacted at the receiver and again on the recap card, not only before the LLM
+> recap; every toast and the recap card name the project; `runs.jsonl` is written and loaded;
+> `focusctl install-agent` provides launch at login; `focusd` logs event names only when its
+> output is a file. (5) Exact-window return, the Tauri shell, the menu-bar icon and an installer
+> are not built.
 
 ## 1. Overview
 

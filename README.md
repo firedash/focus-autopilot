@@ -26,7 +26,9 @@ call the optional app it switches you to the "away app". Where the build departs
 design, [docs/adr/0003-shell-decisions.md](docs/adr/0003-shell-decisions.md) records why and wins.
 
 **This repository is at an early stage. Read [STATUS.md](STATUS.md) before anything else:**
-the decision core, a headless runner and a first macOS daemon are built; the daemon has not run on a Mac yet.
+a developer build of the macOS daemon runs: the switching, the on-screen boxes and the recap have
+been run on a Mac with Claude Code in a terminal. The global hotkey and every other Claude Code
+surface are untested, and there is no menu-bar icon or installer yet.
 
 ## Where it runs
 
@@ -58,7 +60,7 @@ crates/
   focus-runner/    the shell loop shared by the two runners
   focus-headless/  dev runner: receiver + core + fake platform, effects printed
   focusd/          the daemon (macOS): receiver + core + real platform adapter
-  focusctl/        install and remove the Claude Code hooks, rotate the token
+  focusctl/        install and remove the Claude Code hooks, rotate the token, launch at login
 docs/adr/          architecture decision records
 ```
 
@@ -66,7 +68,8 @@ docs/adr/          architecture decision records
 
 See [docs/mac-quickstart.md](docs/mac-quickstart.md): build, install the hooks, run `focusd`.
 The switching, the on-screen boxes and the recap have run on a Mac; the global hotkey and the
-VS Code, Cursor and Desktop paths have not.
+VS Code, Cursor and Desktop paths have not. Optional extras: start at login
+(`focusctl install-agent`), three-line LLM recaps, and an away app.
 
 ## Try it anywhere (fake platform)
 
@@ -85,8 +88,12 @@ written by your own `claude` CLI (each line cut at 120 characters).
 
 ```
 cargo fmt --check
-cargo clippy --all-targets
-cargo test
+cargo clippy --workspace --all-targets
+cargo test --workspace
 ```
+
+The macOS code only builds on a Mac, but can be type-checked from Linux:
+`rustup target add aarch64-apple-darwin`, then
+`cargo clippy -p focusd -p focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 License: Apache-2.0, see [LICENSE](LICENSE).

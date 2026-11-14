@@ -19,7 +19,7 @@ optional.
 
 | Part | Crate | State |
 | --- | --- | --- |
-| Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; 84 original tests plus manual-mode and recap-fallback tests |
+| Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; scripted scenarios replayed through a fake clock, plus manual mode, recap fallback, project names and redaction |
 | Hook receiver: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver` | done; negative tests over a real socket |
 | Payload parsing, truncation, ANSI stripping, project hash; `config.toml` loading (unknown keys are errors) | `focus-receiver` | done |
 | `focusctl install-hooks`, `uninstall-hooks`, `rotate-token` (dry run, backup, atomic write, symlinks, strict JSON, idempotent; uninstall restores the original bytes) | `focusctl` | done and tested |

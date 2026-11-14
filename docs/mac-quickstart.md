@@ -1,14 +1,13 @@
 # Running Focus Autopilot on your Mac (developer build)
 
-This is a developer build. The switching, hooks and on-screen boxes have run on a Mac; the
-global hotkey has not yet. Expect to find and fix problems; the notes at the
-end say where to look first.
+This is a developer build. The switching, hooks, on-screen boxes and recap have run on a Mac
+with Claude Code in a terminal; the global hotkey and other Claude Code surfaces have not.
+Expect to find and fix problems; the last section says where to look first.
 
 ## 1. Build
 
 ```bash
 git clone https://github.com/firedash/focus-autopilot && cd focus-autopilot
-git checkout claude/wonderful-faraday-gxop6h
 cargo build --release -p focusd -p focusctl
 ```
 
@@ -42,7 +41,8 @@ and the box says which key takes you back. Press it and you land in the window y
 from, with a recap card for a few seconds. If you go back on your own, the box goes away.
 
 Commands typed in the `focusd` window still work: `click` (same as the hotkey), `pause`,
-`resume`, `quit`. The window you prompted from must be a known home app (Terminal, iTerm2,
+`resume`, `quit`. When `focusd` runs from a terminal it also prints toasts, prompts and recaps
+there (`--verbose` forces this when output goes to a file). The window you prompted from must be a known home app (Terminal, iTerm2,
 VS Code, JetBrains, Cursor and so on; list in `crates/focus-platform/src/known_apps.rs`). Add
 others under `[home] extra_apps` in `config.toml`.
 
@@ -55,7 +55,7 @@ focus_key = "Control+Option+Space"
 pause = "Control+Option+P"
 ```
 
-## Using it from VS Code, Cursor or the Claude app
+## Using it from VS Code, Cursor or the Claude app (untested)
 
 Only the terminal has been tested. The hooks belong to Claude Code, not to the terminal,
 and Anthropic's docs say they fire wherever Claude Code runs, so the hooks you installed
@@ -88,7 +88,7 @@ app, so `focusd` knows where to send you back to. Try them one at a time:
 Two limits to know about. Returns go to the app, not a specific window, so with several
 editor windows open you land in whichever one macOS raises. And Cursor's, VS Code's and the
 Claude app's ids in the built-in list were written from memory: the `front:` line shows the
-real one, and if it differs from the list, tell me so I can correct it.
+real one, and if it differs from the list, please open an issue so the list can be corrected.
 
 ## Start at login (optional)
 
@@ -145,7 +145,7 @@ or the transcript. It uses a little of your Claude usage per recap. If it fails 
 command isn't found on `focusd`'s PATH, a flag your version doesn't know, or a 20 second
 timeout), `focusd` prints `LLM recap failed: ...` and you keep the plain card.
 
-## 4. Optional: switch away automatically
+## Switch away automatically (optional)
 
 If you also want focusd to move you to a chosen app when a run gets long, name it. This is
 the old behaviour, with a countdown and an automatic return:
