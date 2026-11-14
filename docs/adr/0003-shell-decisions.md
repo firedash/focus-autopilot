@@ -37,8 +37,9 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
 5. **Which Claude Code surfaces work.** Hooks are Claude Code's, not the terminal's. The
    hooks reference says Claude Code fires the same events in terminals, IDE extensions and
    the Desktop app; the VS Code page says the extension shares `~/.claude/settings.json`
-   with the CLI, and it installs in Cursor and other VS Code forks. So the receiver needs no
-   change per surface. What each surface needs is its app in the home-app list. `focusd`
+   with the CLI, and it installs in Cursor and other VS Code forks. So the receiver should need no
+   change per surface. Only the terminal has been tested; the Desktop app in particular has
+   user reports of events not firing, and the hooks page does not mention JetBrains. What each surface needs is its app in the home-app list. `focusd`
    now prints a note, with the exact config line, when a prompt arrives from an app that
    is not a home app. Cursor's own agent, Copilot and other agents have different hook
    systems and remain out of scope. Cloud sessions fire no local hooks.

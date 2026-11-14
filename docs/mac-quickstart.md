@@ -57,8 +57,10 @@ pause = "Control+Option+P"
 
 ## Using it from VS Code, Cursor or the Claude app
 
-The hooks belong to Claude Code, not to the terminal, so the hooks you installed already
-cover Claude Code wherever it runs. What each place needs is its app recognised as a "home"
+Only the terminal has been tested. The hooks belong to Claude Code, not to the terminal,
+and Anthropic's docs say they fire wherever Claude Code runs, so the hooks you installed
+should cover other places too. Nobody has checked that here yet, which is what this section
+is for. What each place needs is its app recognised as a "home"
 app, so `focusd` knows where to send you back to. Try them one at a time:
 
 1. Start `focusd` and leave it running.
@@ -67,8 +69,9 @@ app, so `focusd` knows where to send you back to. Try them one at a time:
      terminal, so no extra setup).
    - **Cursor:** install the same extension in Cursor, or run `claude` in Cursor's terminal.
      Cursor's own built-in agent is a different product and is not supported.
-   - **Claude desktop app:** use the Code tab. The chat tab has no hooks. Anthropic's docs
-     say the Code tab fires the same hooks; some users report certain events missing there.
+   - **Claude desktop app:** use the Code tab. The chat tab isn't Claude Code and sends no
+     hooks. Anthropic's docs say the Code tab fires the same hooks, but some users report
+     certain events missing there, so this one may only partly work.
 3. Send a prompt, then click into another app.
 4. Watch the `focusd` window. It prints `front: <bundle id>` as the front app changes, and
    `hook: UserPromptSubmit ...` when your prompt arrives.

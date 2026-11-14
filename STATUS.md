@@ -37,18 +37,18 @@ focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 ## Which Claude Code surfaces
 
-Hooks are Claude Code's, so one install covers every place it runs. Only the terminal has
-been tested. Each other surface needs its app in the home-app list (`focusd` prints the line
-to add).
+Only the terminal has been tested. Anthropic's docs say Claude Code fires the same hooks
+wherever it runs, so one install *should* cover other surfaces, but that is unverified here.
+Each also needs its app in the home-app list (`focusd` prints the line to add).
 
-| Surface | Expectation |
-| --- | --- |
-| Terminal | works |
-| VS Code, Claude Code extension | should work: shares `~/.claude/settings.json` with the CLI |
-| Cursor, same extension or `claude` in its terminal | should work as VS Code does; Cursor's own agent is not supported |
-| Claude Desktop, Code tab | should work per Anthropic's docs; some users report certain hook events not firing there |
-| JetBrains | should work; untested |
-| Cloud sessions | not supported: no local hooks |
+| Surface | Tested | What is known |
+| --- | --- | --- |
+| Terminal | yes | works |
+| VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
+| Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
+| Claude Desktop, Code tab | no | docs say hooks fire; users report some events not firing, so it may not work fully |
+| JetBrains | no | not mentioned in the hooks docs; unknown |
+| Cloud sessions | n/a | not supported: no local hooks |
 
 Returns go to the app, not the window. Exact-window return (backlog C5) is not built.
 

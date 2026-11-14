@@ -8,9 +8,9 @@ Nov 14, 2026 · firedash
 > the user away, and when Claude finishes or needs approval they get a toast and one key
 > takes them back; the automatic away and return switches in sections 7 and 8 apply only
 > when `away.apps` is set. (2) The LLM recap holds back the basic card instead of replacing
-> it (section 10). (3) Claude Code in VS Code, Cursor and the Claude Desktop app's Code tab
-> uses the same hooks as the terminal, so the receiver needs no change for them; each needs
-> its app in the home-app list. (4) Exact-window return and the Tauri shell are not built.
+> it (section 10). (3) Anthropic's docs say Claude Code fires the same hooks in IDE extensions
+> and the Desktop app as in the terminal, so those surfaces should need no receiver change;
+> only the terminal has been tested, and each would need its app in the home-app list. (4) Exact-window return and the Tauri shell are not built.
 
 ## 1. Overview
 
@@ -32,7 +32,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 
 **Non-goals for v1**
 
-- Support for agents other than Claude Code (Codex, Cursor's own agent, Antigravity are later). Claude Code itself runs in terminals, VS Code, Cursor, JetBrains and the Desktop app, and all of those are in scope.
+- Support for agents other than Claude Code (Codex, Cursor's own agent, Antigravity are later). Claude Code itself also runs in IDE extensions and the Desktop app; those are targets, not yet verified (see ADR 0003).
 - Linux support (planned for V2).
 - Pausing or controlling the away app, or any app-specific integration.
 - Auto-approving permission prompts or answering Claude's questions.

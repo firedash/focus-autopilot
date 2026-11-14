@@ -26,20 +26,22 @@ design, [docs/adr/0003-shell-decisions.md](docs/adr/0003-shell-decisions.md) rec
 **This repository is at an early stage. Read [STATUS.md](STATUS.md) before anything else:**
 the decision core, a headless runner and a first macOS daemon are built; the daemon has not run on a Mac yet.
 
-## Works with
+## Where it runs
 
-Focus Autopilot listens to Claude Code's hooks, and Claude Code fires the same hooks wherever
-it runs, so one install covers every surface that runs it. Each needs its app in the home-app
-list; if it is missing, `focusd` says so and prints the line to add.
+Only **Claude Code in a terminal** has been tested. Focus Autopilot listens to Claude Code's
+hooks, and Anthropic's documentation says Claude Code fires the same hooks wherever it runs,
+so other places *should* work with the same install. That is a reading of the docs, not
+something verified here. Each one also needs its app in the home-app list; if it is missing,
+`focusd` says so and prints the line to add.
 
-| Where you run Claude Code | Status |
-| --- | --- |
-| Terminal (Terminal, iTerm2, Ghostty, Warp, ...) | works; tested on a Mac |
-| VS Code, via the Claude Code extension | expected to work: the extension shares `~/.claude/settings.json`. Not yet tested here |
-| Cursor, via the same extension or `claude` in its terminal | expected to work, same as VS Code. Cursor's own built-in agent is a different product with its own hooks and is not supported |
-| Claude Desktop app, Code tab | expected to work per Anthropic's docs; users have reported some hook events not firing there. The chat tab has no hooks and is not supported |
-| JetBrains IDEs | expected to work; not tested |
-| Claude Code on the web or other cloud sessions | not supported: they fire no local hooks |
+| Where you run Claude Code | Tested | What is known |
+| --- | --- | --- |
+| Terminal (Terminal, iTerm2, Ghostty, Warp, ...) | yes, on a Mac | works |
+| VS Code, Claude Code extension | no | Anthropic's docs say the extension shares `~/.claude/settings.json` with the CLI, hooks included |
+| Cursor, same extension or `claude` in its terminal | no | the docs offer the extension for Cursor; `claude` in a terminal inside it is the terminal case. Cursor's own built-in agent is a different product with its own hooks and is not supported |
+| Claude Desktop app, Code tab | no, and uncertain | the docs say hooks fire there, but users have reported some events not firing in Desktop, so it may not work fully. The chat tab is not Claude Code and sends no hooks |
+| JetBrains IDEs | no | Anthropic's hooks page does not mention JetBrains, so nothing is known |
+| Claude Code on the web or other cloud sessions | not supported | they fire no local hooks |
 
 Returns go to the app, not a specific window: with several windows of one editor you land in
 whichever one the OS raises.
