@@ -10,10 +10,11 @@ use std::time::{Duration, Instant};
 use objc2::MainThreadMarker;
 use objc2::rc::Retained;
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSFont, NSPanel,
-    NSScreen, NSStatusWindowLevel, NSTextField, NSWindowCollectionBehavior, NSWindowStyleMask,
+    NSApplication, NSApplicationActivationPolicy, NSBackingStoreType, NSColor, NSEventMask, NSFont,
+    NSPanel, NSScreen, NSStatusWindowLevel, NSTextField, NSWindowCollectionBehavior,
+    NSWindowStyleMask,
 };
-use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSPoint, NSRect, NSSize, NSString};
 
 const TOAST_SIZE: (f64, f64) = (460.0, 64.0);
 const RECAP_SIZE: (f64, f64) = (520.0, 170.0);
@@ -146,6 +147,25 @@ impl MacOverlay {
             if let Some(panel) = self.recap.borrow().as_ref() {
                 panel.hide();
             }
+        }
+    }
+
+    /// Hands pending events to `AppKit`. Carbon hotkey presses are delivered while the
+    /// application's event queue is serviced, and nothing else here services it.
+    pub fn dispatch_events(&self) {
+        let Some(mtm) = self.mtm else { return };
+        let app = NSApplication::sharedApplication(mtm);
+        let until = NSDate::dateWithTimeIntervalSinceNow(0.005);
+        // SAFETY: the default run loop mode constant is valid and `until` is a live date.
+        while let Some(event) = unsafe {
+            app.nextEventMatchingMask_untilDate_inMode_dequeue(
+                NSEventMask::Any,
+                Some(&until),
+                NSDefaultRunLoopMode,
+                true,
+            )
+        } {
+            app.sendEvent(&event);
         }
     }
 

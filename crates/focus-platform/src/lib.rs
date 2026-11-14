@@ -8,11 +8,16 @@
 //! or synthesize input.
 
 pub mod fake;
+pub mod hotkey;
 pub mod known_apps;
 #[cfg(target_os = "macos")]
 pub mod macos;
 #[cfg(target_os = "macos")]
+mod macos_hotkeys;
+#[cfg(target_os = "macos")]
 mod macos_overlay;
+
+pub use hotkey::{HotkeyAction, Hotkeys};
 
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};

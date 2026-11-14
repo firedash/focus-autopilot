@@ -1,0 +1,193 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Hotkey strings from `config.toml` (design section 11), parsed into a chord, plus the
+//! [`Hotkeys`] trait the shell uses. The parser is plain Rust so it is tested everywhere; only
+//! registering a chord with the OS is platform code.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyAction {
+    /// Acts on the visible toast: go back, switch now, or snooze.
+    Focus,
+    TogglePause,
+}
+
+/// Four independent modifier flags read naturally as bools here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct Chord {
+    pub ctrl: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub cmd: bool,
+    /// Upper case: `A`..`Z`, `0`..`9`, `SPACE`, `RETURN`, `ESCAPE`, `TAB`.
+    pub key: String,
+}
+
+/// Parses `"Control+Option+Command+Space"` style strings. An empty string turns the hotkey
+/// off. At least one modifier is required, so a bare key can't swallow typing everywhere.
+///
+/// # Errors
+/// An unknown modifier or key, a missing key or modifier, or more than one key.
+pub fn parse(text: &str) -> Result<Option<Chord>, String> {
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    let mut chord = Chord {
+        ctrl: false,
+        alt: false,
+        shift: false,
+        cmd: false,
+        key: String::new(),
+    };
+    for part in text.split('+').map(str::trim) {
+        match part.to_ascii_lowercase().as_str() {
+            "control" | "ctrl" => chord.ctrl = true,
+            "option" | "alt" => chord.alt = true,
+            "shift" => chord.shift = true,
+            "command" | "cmd" | "super" | "meta" => chord.cmd = true,
+            key => {
+                if !chord.key.is_empty() {
+                    return Err(format!("`{text}` has more than one key"));
+                }
+                let upper = key.to_ascii_uppercase();
+                let upper = match upper.as_str() {
+                    "ENTER" => "RETURN".to_owned(),
+                    "ESC" => "ESCAPE".to_owned(),
+                    _ => upper,
+                };
+                if mac_keycode(&upper).is_none() {
+                    return Err(format!("`{part}` in `{text}` is not a key I know"));
+                }
+                chord.key = upper;
+            }
+        }
+    }
+    if chord.key.is_empty() {
+        return Err(format!("`{text}` has no key"));
+    }
+    if !(chord.ctrl || chord.alt || chord.shift || chord.cmd) {
+        return Err(format!("`{text}` needs at least one modifier"));
+    }
+    Ok(Some(chord))
+}
+
+/// How a chord reads on a Mac menu: `⌃⌥⇧⌘Space`.
+pub fn pretty(chord: &Chord) -> String {
+    let mut out = String::new();
+    for (on, symbol) in [
+        (chord.ctrl, '⌃'),
+        (chord.alt, '⌥'),
+        (chord.shift, '⇧'),
+        (chord.cmd, '⌘'),
+    ] {
+        if on {
+            out.push(symbol);
+        }
+    }
+    let key = match chord.key.as_str() {
+        "SPACE" => "Space",
+        "RETURN" => "Return",
+        "ESCAPE" => "Esc",
+        "TAB" => "Tab",
+        other => other,
+    };
+    out.push_str(key);
+    out
+}
+
+/// macOS virtual key codes (ANSI layout) for the keys `parse` accepts.
+pub fn mac_keycode(key: &str) -> Option<u32> {
+    Some(match key {
+        "A" => 0,
+        "S" => 1,
+        "D" => 2,
+        "F" => 3,
+        "H" => 4,
+        "G" => 5,
+        "Z" => 6,
+        "X" => 7,
+        "C" => 8,
+        "V" => 9,
+        "B" => 11,
+        "Q" => 12,
+        "W" => 13,
+        "E" => 14,
+        "R" => 15,
+        "Y" => 16,
+        "T" => 17,
+        "1" => 18,
+        "2" => 19,
+        "3" => 20,
+        "4" => 21,
+        "6" => 22,
+        "5" => 23,
+        "9" => 25,
+        "7" => 26,
+        "8" => 28,
+        "0" => 29,
+        "O" => 31,
+        "U" => 32,
+        "I" => 34,
+        "P" => 35,
+        "RETURN" => 36,
+        "L" => 37,
+        "J" => 38,
+        "K" => 40,
+        "TAB" => 48,
+        "SPACE" => 49,
+        "ESCAPE" => 53,
+        "N" => 45,
+        "M" => 46,
+        _ => return None,
+    })
+}
+
+/// Global hotkeys. Registering one must not trigger an OS permission prompt.
+pub trait Hotkeys {
+    /// Registers the two hotkeys. An empty string leaves one off. Returns one message for
+    /// each hotkey that couldn't be registered (bad string, or another app owns the chord).
+    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String>;
+
+    /// Presses since the last call, oldest first.
+    fn take_pressed(&self) -> Vec<HotkeyAction>;
+
+    /// True once at least one hotkey is registered, so the shell knows to poll for presses.
+    fn active(&self) -> bool;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_chords_parse() {
+        let mac = parse("Control+Option+Command+Space").unwrap().unwrap();
+        assert!(mac.ctrl && mac.alt && mac.cmd && !mac.shift);
+        assert_eq!(mac.key, "SPACE");
+        assert_eq!(pretty(&mac), "⌃⌥⌘Space");
+        let win = parse("Ctrl+Alt+Shift+P").unwrap().unwrap();
+        assert_eq!(pretty(&win), "⌃⌥⇧P");
+        assert_eq!(mac_keycode("SPACE"), Some(49));
+        assert_eq!(mac_keycode("P"), Some(35));
+    }
+
+    #[test]
+    fn empty_means_off_and_bad_strings_are_errors() {
+        assert_eq!(parse(""), Ok(None));
+        assert_eq!(parse("  "), Ok(None));
+        assert!(parse("Space").is_err());
+        assert!(parse("Control+").is_err());
+        assert!(parse("Control+A+B").is_err());
+        assert!(parse("Control+Banana").is_err());
+        assert!(parse("Cmd+Enter").is_ok());
+        assert_eq!(parse("cmd+esc").unwrap().unwrap().key, "ESCAPE");
+    }
+
+    #[test]
+    fn every_accepted_letter_and_digit_has_a_distinct_keycode() {
+        let mut seen = std::collections::BTreeSet::new();
+        for key in ('A'..='Z').chain('0'..='9') {
+            let code = mac_keycode(&key.to_string()).unwrap();
+            assert!(seen.insert(code), "{key} repeats code {code}");
+        }
+    }
+}

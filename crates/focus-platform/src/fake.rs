@@ -6,6 +6,7 @@ use std::sync::mpsc::Sender;
 
 use focus_core::{AppRef, Sound};
 
+use crate::hotkey::{self, HotkeyAction, Hotkeys};
 use crate::{Overlay, Platform, PlatformError, Result};
 
 #[derive(Debug, Default)]
@@ -16,6 +17,8 @@ struct State {
     refuse_activation: bool,
     sounds: usize,
     toast: Option<String>,
+    pressed: Vec<HotkeyAction>,
+    hotkeys_on: bool,
     recap: Option<Vec<String>>,
     watchers: Vec<Sender<Option<AppRef>>>,
 }
@@ -60,6 +63,11 @@ impl FakePlatform {
     /// Makes the OS ignore activation requests, as macOS and Windows sometimes do.
     pub fn refuse_activation(&self, refuse: bool) {
         self.with(|s| s.refuse_activation = refuse);
+    }
+
+    /// The user presses a hotkey.
+    pub fn press(&self, action: HotkeyAction) {
+        self.with(|s| s.pressed.push(action));
     }
 
     /// The toast text now on screen, if any.
@@ -112,6 +120,30 @@ impl Platform for FakePlatform {
 
     fn play_sound(&self, _sound: Sound) {
         self.with(|s| s.sounds += 1);
+    }
+}
+
+impl Hotkeys for FakePlatform {
+    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String> {
+        let mut problems = Vec::new();
+        let mut any = false;
+        for key in [focus_key, pause_key] {
+            match hotkey::parse(key) {
+                Ok(Some(_)) => any = true,
+                Ok(None) => {}
+                Err(e) => problems.push(e),
+            }
+        }
+        self.with(|s| s.hotkeys_on = any);
+        problems
+    }
+
+    fn take_pressed(&self) -> Vec<HotkeyAction> {
+        self.with(|s| std::mem::take(&mut s.pressed))
+    }
+
+    fn active(&self) -> bool {
+        self.with(|s| s.hotkeys_on)
     }
 }
 

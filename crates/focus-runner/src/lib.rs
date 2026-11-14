@@ -10,8 +10,8 @@ use std::io::BufRead as _;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
-use focus_core::{AppRef, Core, Effect, Input, Observation, ProbeKind};
-use focus_platform::{Overlay, Platform};
+use focus_core::{AppRef, Core, Effect, Input, Observation, ProbeKind, UserAction};
+use focus_platform::{HotkeyAction, Hotkeys, Overlay, Platform};
 use focus_receiver::Received;
 
 pub enum Msg {
@@ -24,6 +24,18 @@ pub enum Control {
     Quit,
     Continue(Vec<Effect>),
 }
+
+/// How the shell is set up, beyond the core's own config.
+pub struct Options {
+    /// How long the recap card stays on screen.
+    pub recap_for: Duration,
+    /// The focus hotkey as it reads on screen (`⌃⌥⌘Space`), or `None` if it is off or failed
+    /// to register. Shown under each toast so the user knows what to press.
+    pub focus_hint: Option<String>,
+}
+
+/// How often hotkey presses are collected while any hotkey is registered.
+const POLL_HOTKEYS: Duration = Duration::from_millis(100);
 
 /// How often the front app is read. Interim: the macOS adapter has no change notification yet.
 const POLL_FRONT: Duration = Duration::from_millis(500);
@@ -56,11 +68,11 @@ struct PendingVerify {
 }
 
 /// Runs until `commands` returns [`Control::Quit`] or the input queue closes.
-pub fn run<P: Platform + Overlay>(
+pub fn run<P: Platform + Overlay + Hotkeys>(
     core: &mut Core,
     platform: &P,
     rx: &Receiver<Msg>,
-    recap_for: Duration,
+    options: &Options,
     mut commands: impl FnMut(&str, &mut Core, Instant) -> Control,
 ) {
     // Like a real shell: say what is in front before any hook arrives, so the next prompt
@@ -75,8 +87,15 @@ pub fn run<P: Platform + Overlay>(
     let mut pending: Option<PendingVerify> = None;
     let mut next_poll = Instant::now() + POLL_FRONT;
     loop {
-        drain(core, platform, recap_for, &mut effects, &mut pending);
+        drain(core, platform, options, &mut effects, &mut pending);
         platform.tick(Instant::now());
+        for pressed in platform.take_pressed() {
+            let action = match pressed {
+                HotkeyAction::Focus => UserAction::ToastAction,
+                HotkeyAction::TogglePause => UserAction::TogglePause,
+            };
+            effects.extend(core.handle(Input::User(action), Instant::now()));
+        }
         let now = Instant::now();
         let mut wake = next_poll;
         if let Some(at) = core.next_deadline() {
@@ -87,6 +106,9 @@ pub fn run<P: Platform + Overlay>(
         }
         if let Some(at) = platform.next_deadline() {
             wake = wake.min(at);
+        }
+        if platform.active() {
+            wake = wake.min(now + POLL_HOTKEYS);
         }
         let msg = rx.recv_timeout(wake.saturating_duration_since(now));
         let now = Instant::now();
@@ -125,6 +147,14 @@ pub fn run<P: Platform + Overlay>(
     }
 }
 
+/// The toast text, with a second line saying which key does what.
+fn toast_text(text: &str, action: &str, options: &Options) -> String {
+    match (&options.focus_hint, action.is_empty()) {
+        (Some(key), false) => format!("{text}\n{key}: {action}"),
+        _ => text.to_owned(),
+    }
+}
+
 /// Printed so a user can see which app id the shell reads, and compare it with the home-app
 /// list when a switch doesn't happen.
 fn announce_front(app: Option<&AppRef>) {
@@ -134,10 +164,10 @@ fn announce_front(app: Option<&AppRef>) {
     }
 }
 
-fn drain<P: Platform + Overlay>(
+fn drain<P: Platform + Overlay + Hotkeys>(
     core: &mut Core,
     platform: &P,
-    recap_for: Duration,
+    options: &Options,
     effects: &mut Vec<Effect>,
     pending: &mut Option<PendingVerify>,
 ) {
@@ -145,15 +175,15 @@ fn drain<P: Platform + Overlay>(
         let batch = std::mem::take(effects);
         let now = Instant::now();
         for effect in batch {
-            carry_out(effect, platform, recap_for, core, effects, pending, now);
+            carry_out(effect, platform, options, core, effects, pending, now);
         }
     }
 }
 
-fn carry_out<P: Platform + Overlay>(
+fn carry_out<P: Platform + Overlay + Hotkeys>(
     effect: Effect,
     platform: &P,
-    recap_for: Duration,
+    options: &Options,
     core: &mut Core,
     out: &mut Vec<Effect>,
     pending: &mut Option<PendingVerify>,
@@ -162,7 +192,7 @@ fn carry_out<P: Platform + Overlay>(
     match effect {
         Effect::ShowToast(toast) => {
             println!("TOAST [{:?}] {}", toast.kind, toast.text);
-            platform.show_toast(&toast.text);
+            platform.show_toast(&toast_text(&toast.text, toast.action, options));
         }
         Effect::HideToast => {
             println!("toast hidden");
@@ -201,7 +231,7 @@ fn carry_out<P: Platform + Overlay>(
             for line in &card.lines {
                 println!("  {line}");
             }
-            platform.show_recap(&card.lines, recap_for);
+            platform.show_recap(&card.lines, options.recap_for);
         }
         Effect::PlaySound(sound) => {
             platform.play_sound(sound);
@@ -210,5 +240,35 @@ fn carry_out<P: Platform + Overlay>(
         Effect::AppendRun(record) => println!("run recorded: {record:?}"),
         Effect::SummarizeRecap { .. } => println!("(LLM recap requested; not supported yet)"),
         Effect::Log(log) => println!("log: {}", log.name),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn options(hint: Option<&str>) -> Options {
+        Options {
+            recap_for: Duration::from_secs(10),
+            focus_hint: hint.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn a_toast_names_the_key_that_acts_on_it() {
+        let with_key = options(Some("⌃⌥⌘Space"));
+        assert_eq!(
+            toast_text("Claude is done. Go back?", "Go back now", &with_key),
+            "Claude is done. Go back?\n⌃⌥⌘Space: Go back now"
+        );
+    }
+
+    #[test]
+    fn without_a_hotkey_the_text_is_unchanged() {
+        assert_eq!(
+            toast_text("Claude is done.", "Go back now", &options(None)),
+            "Claude is done."
+        );
+        assert_eq!(toast_text("Hi", "", &options(Some("K"))), "Hi");
     }
 }

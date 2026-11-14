@@ -16,12 +16,18 @@ use objc2_app_kit::{
 use objc2_core_graphics::{CGEventSource, CGEventSourceStateID, CGEventType};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop, ns_string};
 
+use std::cell::Cell;
+
+use crate::hotkey::{self, HotkeyAction, Hotkeys};
+use crate::macos_hotkeys;
 use crate::macos_overlay::MacOverlay;
 use crate::{Overlay, Platform, PlatformError, Result};
 
 /// Create it on the main thread: `AppKit` windows need it.
 pub struct MacPlatform {
     overlay: MacOverlay,
+    /// Hotkey ids: 1 is the focus key, 2 is pause. Set once registration succeeds.
+    hotkeys_on: Cell<bool>,
 }
 
 impl MacPlatform {
@@ -30,6 +36,7 @@ impl MacPlatform {
     pub fn new() -> Self {
         Self {
             overlay: MacOverlay::new(),
+            hotkeys_on: Cell::new(false),
         }
     }
 
@@ -120,10 +127,49 @@ impl Overlay for MacPlatform {
 
     fn tick(&self, now: std::time::Instant) {
         Self::pump();
+        self.overlay.dispatch_events();
         self.overlay.tick(now);
     }
 
     fn next_deadline(&self) -> Option<std::time::Instant> {
         self.overlay.next_deadline()
+    }
+}
+
+const FOCUS_ID: u32 = 1;
+const PAUSE_ID: u32 = 2;
+
+impl Hotkeys for MacPlatform {
+    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String> {
+        let mut problems = Vec::new();
+        for (text, id, name) in [
+            (focus_key, FOCUS_ID, "focus"),
+            (pause_key, PAUSE_ID, "pause"),
+        ] {
+            match hotkey::parse(text) {
+                Ok(None) => {}
+                Ok(Some(chord)) => match macos_hotkeys::register(&chord, id) {
+                    Ok(()) => self.hotkeys_on.set(true),
+                    Err(e) => problems.push(format!("{name} hotkey `{text}`: {e}")),
+                },
+                Err(e) => problems.push(format!("{name} hotkey: {e}")),
+            }
+        }
+        problems
+    }
+
+    fn take_pressed(&self) -> Vec<HotkeyAction> {
+        macos_hotkeys::take()
+            .into_iter()
+            .filter_map(|id| match id {
+                FOCUS_ID => Some(HotkeyAction::Focus),
+                PAUSE_ID => Some(HotkeyAction::TogglePause),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn active(&self) -> bool {
+        self.hotkeys_on.get()
     }
 }

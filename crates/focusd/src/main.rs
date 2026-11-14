@@ -27,9 +27,10 @@ mod mac {
     use std::time::Instant;
 
     use focus_core::{Config, Core, Input, UserAction};
-    use focus_platform::Platform as _;
+    use focus_platform::hotkey;
     use focus_platform::known_apps;
     use focus_platform::macos::MacPlatform;
+    use focus_platform::{Hotkeys as _, Platform as _};
     use focus_receiver::{Settings, config_file, random_hex};
     use focus_runner::{Control, paths};
 
@@ -59,14 +60,6 @@ mod mac {
         config
             .validate(is_home)
             .map_err(|e| format!("invalid config: {e:?}"))?;
-        if config.away.apps.is_empty() {
-            return Err(
-                "no away app: set `away.apps = [\"<bundle id>\"]` in config.toml. \
-                        `focusd --list-apps` shows the ids of running apps."
-                    .into(),
-            );
-        }
-
         Ok((config, apps))
     }
 
@@ -122,19 +115,38 @@ mod mac {
         )
         .map_err(|e| format!("can't listen on 127.0.0.1:{}: {e}", config.receiver.port))?;
         println!("focusd listening on http://{}/hook", listener.addr);
-        println!(
-            "away apps: {}. Commands: click, pause, resume, quit.",
-            config.away.apps.join(", ")
-        );
+        if config.away.apps.is_empty() {
+            println!("manual mode: no away app, so nothing switches you away on its own.");
+        } else {
+            println!("away apps: {}.", config.away.apps.join(", "));
+        }
+        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
+        for problem in &problems {
+            println!("hotkey problem: {problem}");
+        }
+        let focus_hint = match hotkey::parse(&config.hotkeys.focus_key) {
+            Ok(Some(chord)) if !problems.iter().any(|p| p.starts_with("focus")) => {
+                Some(hotkey::pretty(&chord))
+            }
+            _ => None,
+        };
+        match &focus_hint {
+            Some(key) => println!("press {key} to act on a toast."),
+            None => println!("no focus hotkey: type `click` here to act on a toast."),
+        }
+        println!("Commands: click, pause, resume, quit.");
 
         let rx = focus_runner::inputs(hook_rx);
-        let recap_for = config.ui.recap_shown_for;
+        let options = focus_runner::Options {
+            recap_for: config.ui.recap_shown_for,
+            focus_hint,
+        };
         let mut core = Core::new(config, apps);
         focus_runner::run(
             &mut core,
             &platform,
             &rx,
-            recap_for,
+            &options,
             |line: &str, core: &mut Core, now: Instant| {
                 let action = match line.trim() {
                     "quit" | "exit" => return Control::Quit,

@@ -129,7 +129,10 @@ fn run() -> Result<(), String> {
         &mut core,
         &platform,
         &rx,
-        std::time::Duration::from_secs(10),
+        &focus_runner::Options {
+            recap_for: std::time::Duration::from_secs(10),
+            focus_hint: None,
+        },
         |line, core, now| command(line, &platform, core, now),
     );
     drop(listener);
