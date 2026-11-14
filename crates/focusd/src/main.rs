@@ -70,7 +70,11 @@ mod mac {
             None => println!("no focus hotkey: type `click` here to act on a toast."),
         }
         if config.returns.open_project_in_editor {
-            println!("returns to VS Code or Cursor open the session's project folder there.");
+            println!(
+                "WARNING: open_project_in_editor is experimental. In one test it brought the right \
+                 VS Code window forward but left its terminal without the running Claude session. \
+                 Do not use it with work you care about."
+            );
         }
         if config.recap.mode == focus_core::RecapMode::Llm {
             println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");

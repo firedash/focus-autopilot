@@ -116,7 +116,15 @@ return then opens `vscode://file/<project folder>` (or `cursor://...`) through m
 is meant to bring forward the window that already has that folder open. It starts no process
 and needs no permission.
 
-**This is experimental and not yet shown to work.** A first test with two VS Code windows
+**Do not use this yet: in a test it lost the running Claude session.** It did bring the right
+VS Code window forward, with VS Code's confirmation dialog, but that window's terminal was
+gone, and a new terminal had none of the history, so the Claude session running in it appears
+to have been killed. The likeliest cause is that VS Code treats the URL as "open this folder"
+and reloads the window, which restarts its integrated terminals; that is a guess. If it
+happens, `claude --continue` in the project folder resumes the last conversation. `focusd`
+prints a warning when the option is on.
+
+*Earlier, less important finding:* a first test with two VS Code windows
 brought forward the previously active window, but it was inconclusive: VS Code shows a
 confirmation dialog for any `vscode://file/...` URL ("An external application wants to open
 ...") and that dialog did not appear, which suggests `focusd` never took this route and only

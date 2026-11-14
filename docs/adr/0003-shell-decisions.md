@@ -181,3 +181,17 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     command line (`code <folder>`, documented to focus the window with the folder) would work,
     at the price of spawning a process, which would need the design's threat model (spawned
     programs: `focusctl` and `claude` only) amended first.
+
+    **Second test: the route works, and it lost the Claude session.** With the option on, the
+    return printed the route line, VS Code showed its confirmation dialog, and the right window
+    came forward, but that window's integrated terminal was gone, and a new terminal had none
+    of the history, so the Claude process that had been running in it appears to have been
+    killed. The cause is not established. Candidate: VS Code handles a `vscode://file/<folder>`
+    URL as "open this folder" and, for the window that already has it, reloads it, which
+    restarts its terminals. Another: a second window opened and the original is still there.
+    Either way a feature that can end the user's running session is unacceptable, even opt-in.
+    It stays off by default, `focusd` prints a warning when it is enabled, and the code is not
+    merged to `main`. Next: find out which candidate it is (window count after a return;
+    whether `claude` is still running), and whether `code <folder>` behaves differently.
+    A lesson for this record: a focus action must never be able to destroy work, and "it
+    focused the right window" was not the whole test.

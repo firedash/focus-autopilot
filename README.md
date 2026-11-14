@@ -50,10 +50,9 @@ something verified here. Each one also needs its app in the home-app list; if it
 Returns go to the app, not a specific window: with several windows of one app you land in
 whichever one the OS raises. The exception is VS Code and Cursor: with
 `[return] open_project_in_editor = true` a return opens the project folder through the editor's
-URL scheme. That is meant to focus the window that has it open, but it is not yet shown to
-work (a first test with two VS Code windows was inconclusive), and VS Code asks for
-confirmation on these URLs, so it is off by default and experimental; terminals have no such
-route yet.
+URL scheme. That is meant to focus the window that has it open, but in a test it brought the
+right window forward and lost the Claude session running in its terminal, so it is **unsafe,
+off by default and not merged to `main`**; terminals have no such route yet.
 
 ## Layout
 
