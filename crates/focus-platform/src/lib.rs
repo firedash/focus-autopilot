@@ -11,8 +11,11 @@ pub mod fake;
 pub mod known_apps;
 #[cfg(target_os = "macos")]
 pub mod macos;
+#[cfg(target_os = "macos")]
+mod macos_overlay;
 
 use std::sync::mpsc::Sender;
+use std::time::{Duration, Instant};
 
 use focus_core::{AppRef, Sound};
 
@@ -56,4 +59,19 @@ pub trait Platform {
     fn activate(&self, target: &AppRef) -> Result<()>;
 
     fn play_sound(&self, sound: Sound);
+}
+
+/// The on-screen toast and recap card (design section 8). Nothing here may take keyboard focus:
+/// a toast that stole a keystroke would defeat its own purpose. Called from the shell thread,
+/// which on macOS is the main thread.
+pub trait Overlay {
+    /// Shows this text as the toast, replacing any other.
+    fn show_toast(&self, text: &str);
+    fn hide_toast(&self);
+    /// Shows the recap card for `for_how_long`, then hides it on a later `tick`.
+    fn show_recap(&self, lines: &[String], for_how_long: Duration);
+    /// Lets the overlay run its timers and draw. Call it every loop iteration.
+    fn tick(&self, now: Instant);
+    /// When `tick` must next be called for a timer to fire.
+    fn next_deadline(&self) -> Option<Instant>;
 }

@@ -16,14 +16,21 @@ use objc2_app_kit::{
 use objc2_core_graphics::{CGEventSource, CGEventSourceStateID, CGEventType};
 use objc2_foundation::{NSDate, NSDefaultRunLoopMode, NSRunLoop, ns_string};
 
-use crate::{Platform, PlatformError, Result};
+use crate::macos_overlay::MacOverlay;
+use crate::{Overlay, Platform, PlatformError, Result};
 
-#[derive(Debug, Default)]
-pub struct MacPlatform;
+/// Create it on the main thread: `AppKit` windows need it.
+pub struct MacPlatform {
+    overlay: MacOverlay,
+}
 
 impl MacPlatform {
+    /// Deliberately no `Default`: building one has side effects and a thread requirement.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self
+        Self {
+            overlay: MacOverlay::new(),
+        }
     }
 
     /// `NSWorkspace` only refreshes `frontmostApplication` while the main run loop turns, and a
@@ -95,5 +102,28 @@ impl Platform for MacPlatform {
         if let Some(sound) = NSSound::soundNamed(ns_string!("Glass")) {
             sound.play();
         }
+    }
+}
+
+impl Overlay for MacPlatform {
+    fn show_toast(&self, text: &str) {
+        self.overlay.show_toast(text);
+    }
+
+    fn hide_toast(&self) {
+        self.overlay.hide_toast();
+    }
+
+    fn show_recap(&self, lines: &[String], for_how_long: std::time::Duration) {
+        self.overlay.show_recap(lines, for_how_long);
+    }
+
+    fn tick(&self, now: std::time::Instant) {
+        Self::pump();
+        self.overlay.tick(now);
+    }
+
+    fn next_deadline(&self) -> Option<std::time::Instant> {
+        self.overlay.next_deadline()
     }
 }

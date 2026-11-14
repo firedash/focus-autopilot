@@ -128,11 +128,13 @@ mod mac {
         );
 
         let rx = focus_runner::inputs(hook_rx);
+        let recap_for = config.ui.recap_shown_for;
         let mut core = Core::new(config, apps);
         focus_runner::run(
             &mut core,
             &platform,
             &rx,
+            recap_for,
             |line: &str, core: &mut Core, now: Instant| {
                 let action = match line.trim() {
                     "quit" | "exit" => return Control::Quit,

@@ -6,7 +6,7 @@ use std::sync::mpsc::Sender;
 
 use focus_core::{AppRef, Sound};
 
-use crate::{Platform, PlatformError, Result};
+use crate::{Overlay, Platform, PlatformError, Result};
 
 #[derive(Debug, Default)]
 struct State {
@@ -15,6 +15,8 @@ struct State {
     idle_seconds: f64,
     refuse_activation: bool,
     sounds: usize,
+    toast: Option<String>,
+    recap: Option<Vec<String>>,
     watchers: Vec<Sender<Option<AppRef>>>,
 }
 
@@ -60,6 +62,16 @@ impl FakePlatform {
         self.with(|s| s.refuse_activation = refuse);
     }
 
+    /// The toast text now on screen, if any.
+    pub fn toast(&self) -> Option<String> {
+        self.with(|s| s.toast.clone())
+    }
+
+    /// The last recap card shown.
+    pub fn recap(&self) -> Option<Vec<String>> {
+        self.with(|s| s.recap.clone())
+    }
+
     pub fn sounds_played(&self) -> usize {
         self.with(|s| s.sounds)
     }
@@ -100,6 +112,26 @@ impl Platform for FakePlatform {
 
     fn play_sound(&self, _sound: Sound) {
         self.with(|s| s.sounds += 1);
+    }
+}
+
+impl Overlay for FakePlatform {
+    fn show_toast(&self, text: &str) {
+        self.with(|s| s.toast = Some(text.to_owned()));
+    }
+
+    fn hide_toast(&self) {
+        self.with(|s| s.toast = None);
+    }
+
+    fn show_recap(&self, lines: &[String], _for_how_long: std::time::Duration) {
+        self.with(|s| s.recap = Some(lines.to_vec()));
+    }
+
+    fn tick(&self, _now: std::time::Instant) {}
+
+    fn next_deadline(&self) -> Option<std::time::Instant> {
+        None
     }
 }
 

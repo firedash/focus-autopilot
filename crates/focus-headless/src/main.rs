@@ -125,9 +125,13 @@ fn run() -> Result<(), String> {
     println!("token (header X-Focus-Token): {token}");
     println!("home app: {home}, away app: {away}; you are in {home}. Type `quit` to stop.");
 
-    focus_runner::run(&mut core, &platform, &rx, |line, core, now| {
-        command(line, &platform, core, now)
-    });
+    focus_runner::run(
+        &mut core,
+        &platform,
+        &rx,
+        std::time::Duration::from_secs(10),
+        |line, core, now| command(line, &platform, core, now),
+    );
     drop(listener);
     Ok(())
 }

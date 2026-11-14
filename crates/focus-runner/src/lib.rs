@@ -11,7 +11,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
 use focus_core::{AppRef, Core, Effect, Input, Observation, ProbeKind};
-use focus_platform::Platform;
+use focus_platform::{Overlay, Platform};
 use focus_receiver::Received;
 
 pub enum Msg {
@@ -56,10 +56,11 @@ struct PendingVerify {
 }
 
 /// Runs until `commands` returns [`Control::Quit`] or the input queue closes.
-pub fn run<P: Platform>(
+pub fn run<P: Platform + Overlay>(
     core: &mut Core,
     platform: &P,
     rx: &Receiver<Msg>,
+    recap_for: Duration,
     mut commands: impl FnMut(&str, &mut Core, Instant) -> Control,
 ) {
     // Like a real shell: say what is in front before any hook arrives, so the next prompt
@@ -74,7 +75,8 @@ pub fn run<P: Platform>(
     let mut pending: Option<PendingVerify> = None;
     let mut next_poll = Instant::now() + POLL_FRONT;
     loop {
-        drain(core, platform, &mut effects, &mut pending);
+        drain(core, platform, recap_for, &mut effects, &mut pending);
+        platform.tick(Instant::now());
         let now = Instant::now();
         let mut wake = next_poll;
         if let Some(at) = core.next_deadline() {
@@ -82,6 +84,9 @@ pub fn run<P: Platform>(
         }
         if let Some(p) = &pending {
             wake = wake.min(p.at);
+        }
+        if let Some(at) = platform.next_deadline() {
+            wake = wake.min(at);
         }
         let msg = rx.recv_timeout(wake.saturating_duration_since(now));
         let now = Instant::now();
@@ -129,9 +134,10 @@ fn announce_front(app: Option<&AppRef>) {
     }
 }
 
-fn drain<P: Platform>(
+fn drain<P: Platform + Overlay>(
     core: &mut Core,
     platform: &P,
+    recap_for: Duration,
     effects: &mut Vec<Effect>,
     pending: &mut Option<PendingVerify>,
 ) {
@@ -139,22 +145,29 @@ fn drain<P: Platform>(
         let batch = std::mem::take(effects);
         let now = Instant::now();
         for effect in batch {
-            carry_out(effect, platform, core, effects, pending, now);
+            carry_out(effect, platform, recap_for, core, effects, pending, now);
         }
     }
 }
 
-fn carry_out<P: Platform>(
+fn carry_out<P: Platform + Overlay>(
     effect: Effect,
     platform: &P,
+    recap_for: Duration,
     core: &mut Core,
     out: &mut Vec<Effect>,
     pending: &mut Option<PendingVerify>,
     now: Instant,
 ) {
     match effect {
-        Effect::ShowToast(toast) => println!("TOAST [{:?}] {}", toast.kind, toast.text),
-        Effect::HideToast => println!("toast hidden"),
+        Effect::ShowToast(toast) => {
+            println!("TOAST [{:?}] {}", toast.kind, toast.text);
+            platform.show_toast(&toast.text);
+        }
+        Effect::HideToast => {
+            println!("toast hidden");
+            platform.hide_toast();
+        }
         Effect::Activate {
             target,
             verify_after,
@@ -185,9 +198,10 @@ fn carry_out<P: Platform>(
         }
         Effect::ShowRecap(card) => {
             println!("RECAP");
-            for line in card.lines {
+            for line in &card.lines {
                 println!("  {line}");
             }
+            platform.show_recap(&card.lines, recap_for);
         }
         Effect::PlaySound(sound) => {
             platform.play_sound(sound);

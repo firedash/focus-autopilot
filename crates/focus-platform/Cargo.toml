@@ -12,8 +12,12 @@ focus-core = { path = "../focus-core" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSRunLoop", "NSDate"] }
-objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSRunningApplication", "NSSound"] }
+objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSRunLoop", "NSDate", "NSGeometry", "NSThread"] }
+objc2-app-kit = { version = "0.3", features = [
+  "NSWorkspace", "NSRunningApplication", "NSSound", "NSApplication", "NSPanel", "NSWindow",
+  "NSResponder", "NSView", "NSControl", "NSTextField", "NSText", "NSColor", "NSFont",
+  "NSScreen", "NSGraphics", "NSBox", "NSTextFieldCell", "NSCell",
+] }
 objc2-core-graphics = { version = "0.3", features = ["CGEventSource", "CGEventTypes"] }
 
 [lints]
