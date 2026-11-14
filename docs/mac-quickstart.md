@@ -55,6 +55,32 @@ focus_key = "Control+Option+Space"
 pause = "Control+Option+P"
 ```
 
+## Shorter recaps (optional)
+
+By default the recap is built from the hook fields: your prompt and the start of Claude's last
+message, which can be long. For a three-line synthesis, let your own `claude` CLI write it:
+
+```toml
+[recap]
+mode = "llm"
+```
+
+Restart `focusd`. The plain card shows first and is replaced within a few seconds by:
+
+```text
+Asked: <what you asked>
+Did: <what Claude did>
+Needs: <what you must decide, or "nothing">
+```
+
+How it works: `focusd` runs `claude -p --model haiku` with no tools, no MCP servers and no
+hooks, in an empty folder (`recap-workdir` in the data folder), and the text goes only to the
+provider your Claude Code already uses. Only your prompt, the commands and file names from the
+run, and the end of Claude's last message are sent, with secrets redacted; never file contents
+or the transcript. It uses a little of your Claude usage per recap. If it fails (the `claude`
+command isn't found on `focusd`'s PATH, a flag your version doesn't know, or a 20 second
+timeout), `focusd` prints `LLM recap failed: ...` and you keep the plain card.
+
 ## 4. Optional: switch away automatically
 
 If you also want focusd to move you to a chosen app when a run gets long, name it. This is

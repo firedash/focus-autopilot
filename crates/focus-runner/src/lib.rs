@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod paths;
+pub mod recap_cli;
 
 use std::io::BufRead as _;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -17,6 +18,11 @@ use focus_receiver::Received;
 pub enum Msg {
     Hook(Received),
     Line(String),
+    /// A finished LLM recap, from the thread that ran the CLI.
+    Summary {
+        id: u64,
+        text: String,
+    },
 }
 
 /// What a terminal command asks of the loop.
@@ -32,6 +38,14 @@ pub struct Options {
     /// The focus hotkey as it reads on screen (`⌃⌥⌘Space`), or `None` if it is off or failed
     /// to register. Shown under each toast so the user knows what to press.
     pub focus_hint: Option<String>,
+    /// Where to run the Claude CLI for LLM recaps, and the channel its replies come back on.
+    pub recap: Option<RecapRunner>,
+}
+
+/// Everything needed to run LLM recaps off the shell thread.
+pub struct RecapRunner {
+    pub dir: std::path::PathBuf,
+    pub replies: Sender<Msg>,
 }
 
 /// How often hotkey presses are collected while any hotkey is registered.
@@ -42,9 +56,10 @@ const POLL_FRONT: Duration = Duration::from_millis(500);
 
 /// Forwards hooks and stdin lines into one queue. Stdin closing is not an error: a daemon may
 /// run without a terminal.
-pub fn inputs(hooks: Receiver<Received>) -> Receiver<Msg> {
+pub fn inputs(hooks: Receiver<Received>) -> (Receiver<Msg>, Sender<Msg>) {
     let (tx, rx) = mpsc::channel();
     let hook_tx: Sender<Msg> = tx.clone();
+    let handle = tx.clone();
     std::thread::spawn(move || {
         while let Ok(received) = hooks.recv() {
             if hook_tx.send(Msg::Hook(received)).is_err() {
@@ -59,7 +74,7 @@ pub fn inputs(hooks: Receiver<Received>) -> Receiver<Msg> {
             }
         }
     });
-    rx
+    (rx, handle)
 }
 
 struct PendingVerify {
@@ -121,6 +136,9 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
                 Control::Quit => return,
                 Control::Continue(more) => effects.extend(more),
             },
+            Ok(Msg::Summary { id, text }) => {
+                effects.extend(core.handle(Input::Summary { id, text }, now));
+            }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => effects.extend(core.tick(now)),
         }
@@ -145,6 +163,25 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
             }
         }
     }
+}
+
+/// Runs the CLI on its own thread so the shell loop never waits for it; the reply comes back
+/// as a message.
+fn summarize(options: &Options, id: u64, prompt: String, timeout: Duration) {
+    let Some(runner) = &options.recap else {
+        println!("(LLM recap requested, but no working folder is set)");
+        return;
+    };
+    let dir = runner.dir.clone();
+    let replies = runner.replies.clone();
+    std::thread::spawn(move || {
+        match recap_cli::run_cli("claude", recap_cli::CLAUDE_ARGS, &dir, &prompt, timeout) {
+            Ok(text) => {
+                let _ = replies.send(Msg::Summary { id, text });
+            }
+            Err(e) => println!("LLM recap failed: {e}"),
+        }
+    });
 }
 
 /// The toast text, with a second line saying which key does what.
@@ -238,7 +275,11 @@ fn carry_out<P: Platform + Overlay + Hotkeys>(
             println!("sound: {sound:?}");
         }
         Effect::AppendRun(record) => println!("run recorded: {record:?}"),
-        Effect::SummarizeRecap { .. } => println!("(LLM recap requested; not supported yet)"),
+        Effect::SummarizeRecap {
+            id,
+            prompt,
+            timeout,
+        } => summarize(options, id, prompt, timeout),
         Effect::Log(log) => println!("log: {}", log.name),
     }
 }
@@ -251,6 +292,7 @@ mod tests {
         Options {
             recap_for: Duration::from_secs(10),
             focus_hint: hint.map(str::to_owned),
+            recap: None,
         }
     }
 

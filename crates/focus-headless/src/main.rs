@@ -110,7 +110,7 @@ fn run() -> Result<(), String> {
         hook_tx,
     )
     .map_err(|e| format!("can't listen on 127.0.0.1:{port}: {e}"))?;
-    let rx = focus_runner::inputs(hook_rx);
+    let (rx, replies) = focus_runner::inputs(hook_rx);
 
     let platform = FakePlatform::new(vec![app(&home), app(&away)], Some(app(&home)));
     platform.set_idle_seconds(60.0);
@@ -132,6 +132,10 @@ fn run() -> Result<(), String> {
         &focus_runner::Options {
             recap_for: std::time::Duration::from_secs(10),
             focus_hint: None,
+            recap: Some(focus_runner::RecapRunner {
+                dir: std::env::temp_dir().join("focus-headless-recap"),
+                replies,
+            }),
         },
         |line, core, now| command(line, &platform, core, now),
     );

@@ -63,6 +63,20 @@ mod mac {
         Ok((config, apps))
     }
 
+    /// Registers the hotkeys, reports problems, and returns the focus key as it reads on screen.
+    fn setup_hotkeys(platform: &MacPlatform, config: &Config) -> Option<String> {
+        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
+        for problem in &problems {
+            println!("hotkey problem: {problem}");
+        }
+        match hotkey::parse(&config.hotkeys.focus_key) {
+            Ok(Some(chord)) if !problems.iter().any(|p| p.starts_with("focus")) => {
+                Some(hotkey::pretty(&chord))
+            }
+            _ => None,
+        }
+    }
+
     pub fn run() -> Result<(), String> {
         let mut config_path = paths::config_path().ok_or("no HOME")?;
         let mut port = None;
@@ -120,26 +134,24 @@ mod mac {
         } else {
             println!("away apps: {}.", config.away.apps.join(", "));
         }
-        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
-        for problem in &problems {
-            println!("hotkey problem: {problem}");
-        }
-        let focus_hint = match hotkey::parse(&config.hotkeys.focus_key) {
-            Ok(Some(chord)) if !problems.iter().any(|p| p.starts_with("focus")) => {
-                Some(hotkey::pretty(&chord))
-            }
-            _ => None,
-        };
+        let focus_hint = setup_hotkeys(&platform, &config);
         match &focus_hint {
             Some(key) => println!("press {key} to act on a toast."),
             None => println!("no focus hotkey: type `click` here to act on a toast."),
         }
+        if config.recap.mode == focus_core::RecapMode::Llm {
+            println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");
+        }
         println!("Commands: click, pause, resume, quit.");
 
-        let rx = focus_runner::inputs(hook_rx);
+        let (rx, replies) = focus_runner::inputs(hook_rx);
         let options = focus_runner::Options {
             recap_for: config.ui.recap_shown_for,
             focus_hint,
+            recap: paths::data_dir().map(|dir| focus_runner::RecapRunner {
+                dir: dir.join("recap-workdir"),
+                replies,
+            }),
         };
         let mut core = Core::new(config, apps);
         focus_runner::run(
