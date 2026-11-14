@@ -4,11 +4,11 @@ Nov 14, 2026 · @Avinash
 
 ## 1. Overview
 
-Focus Autopilot (working name) is a local background app that moves a developer between a coding agent and something else, driven by the agent's state. v1 supports Claude Code only, on macOS and Windows: when a prompt runs long enough, it switches you to your chosen away app (for example Terraria); when Claude finishes or needs permission, it switches you back and shows a short recap of where you left off.
+Focus Autopilot (working name) is a local background app that moves a developer between intermittent prompting work with a coding agent and steady work in an app they choose, driven by the agent's state. v1 supports Claude Code only, on macOS and Windows: when a prompt runs long enough, it switches you to your chosen away app; when Claude finishes or needs permission, it switches you back and shows a short recap of where you left off.
 
-**Problem.** Prompt-and-wait coding leaves idle gaps that vary from seconds to 20 minutes. Pomodoro timers don't fit that rhythm, and starting an unrelated serious task costs context-switching time. Existing tools cover only half the loop: they bring you back, or they entertain you while you wait, but none does both with real apps and a recap (see section 3).
+**Problem.** Prompt-and-wait coding leaves idle gaps that vary from seconds to 20 minutes. Pomodoro timers don't fit that rhythm, and moving to other work means either checking back constantly or forgetting to return. Existing tools cover only half the loop: they bring you back, or they entertain you while you wait, but none does both with real apps and a recap (see section 3).
 
-**Target user.** A developer running Claude Code who wants to use wait time for something restful, such as a game or reading, without forgetting to return.
+**Target user.** A developer running Claude Code who wants to use wait time for steady work of their own choosing, such as writing, reading, another project or a break, without forgetting to return.
 
 **v1 goals**
 
@@ -24,7 +24,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 
 - Support for agents other than Claude Code (Codex, Cursor, Antigravity are later).
 - Linux support (planned for V2).
-- Pausing or controlling the away app, or any game-specific integration.
+- Pausing or controlling the away app, or any app-specific integration.
 - Auto-approving permission prompts or answering Claude's questions.
 - Reading keystrokes, screen contents or Claude Code transcripts.
 - Claude Code sessions running in the cloud, which fire no local hooks.
@@ -40,7 +40,7 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 | Session | One Claude Code conversation, identified by `session_id` |
 | Run | One prompt and everything Claude does until it stops, identified by `prompt_id` |
 | Home window | The terminal, IDE or Claude app window the prompt was sent from |
-| Away app | An app the user chose to spend waits in, such as a game |
+| Away app | An app the user chose for steady work during waits; what counts as steady work is up to them |
 | Switch | An automatic focus change, always announced by a countdown toast |
 | Fallback prompt | The one-click or one-key toast shown when the OS refuses a switch or an automatic one would be unsafe |
 | Focus key | The hotkey that acts on whichever toast is showing |
@@ -63,7 +63,7 @@ The unit of work is the dispatch, wait, review loop, not a clock block. Focused 
 
 1. **Never surprise the user.** Every automatic switch is preceded by a visible countdown (default 3 s) that a click or the focus key cancels or snoozes. This is the biggest risk, because people already complain about apps stealing focus.
 2. **React to elapsed time first, predict second.** Agents give no ETA, so v1 decides from elapsed time and refines with history and live tool events (section 9).
-3. **Away activity must be easy to leave.** Pausable, low-stakes activities fit best (building, mining, card games). Real-time boss fights do not. The app warns before switching into an app marked as immersive.
+3. **Steady work must be easy to leave.** Work that can be put down at any moment fits best (reading, writing, review, planning). Anything that punishes interruption, such as a live call or a real-time game, does not. The app warns before switching into an app marked as immersive.
 4. **Return with context.** Coming back should take seconds: a recap card names the last prompt, what Claude did, and any decision needed.
 5. **Stay out of the agent's way.** Hooks must be fast and fail-safe: if the app is down, Claude Code works exactly as before.
 6. **The user is always in control.** The tray and one global hotkey pause all automation.
@@ -398,8 +398,8 @@ Built-in home apps live in `focus-platform/src/known_apps.rs` as bundle ids and 
 
 | Toast | Example text | Click or focus key |
 | --- | --- | --- |
-| Away countdown | Claude will take a while. Switching to Terraria in 3 s. | Not now: no away switch this run |
-| Away prompt | Claude will take a while. Switch to Terraria? | Switch now |
+| Away countdown | Claude will take a while. Switching to Obsidian in 3 s. | Not now: no away switch this run |
+| Away prompt | Claude will take a while. Switch to Obsidian? | Switch now |
 | Return countdown | Claude is done. Back to your terminal in 3 s. | Snooze 60 s |
 | Return prompt | Claude needs your approval. Go back? | Go back now |
 
@@ -422,7 +422,7 @@ For a needs-input return, the second line reads "Needs: approval to run npm test
 
 1. What focusd does and never does: no keystrokes, no screen reading, no network.
 2. Install hooks: show the `focusctl install-hooks --dry-run` diff, apply on confirm.
-3. Choose away apps from the running apps, with advice to run games borderless windowed.
+3. Choose away apps from the running apps, with advice to run any full-screen app, such as a game, borderless windowed.
 4. Test: a real away switch and return with countdowns; if the OS refuses, the wizard shows the one-key prompt working.
 5. Launch at login (off by default) and sound on return (on by default).
 6. Done: restart open Claude Code sessions, then send any prompt.
@@ -531,7 +531,7 @@ token = "<written by focusctl install-hooks>"
 extra_apps = []               # bundle ids (macOS) or executable names (Windows) treated as home apps
 
 [away]
-apps = []                     # ordered; the first running app wins, e.g. ["Terraria.exe"]
+apps = []                     # ordered; the first running app wins, e.g. ["Obsidian.exe"]
 immersive = []                # subset of apps that get a longer countdown with a warning (V1)
 
 [switching]
@@ -746,7 +746,7 @@ focus-autopilot/
 **Prompt to paste into the coding LLM**
 
 ```text
-You are building the MVP of Focus Autopilot, an open-source desktop app for macOS and Windows that switches a developer between Claude Code and an away app such as a game, with countdowns, a one-key fallback and a recap.
+You are building the MVP of Focus Autopilot, an open-source desktop app for macOS and Windows that switches a developer between prompting work in Claude Code and steady work in an away app they choose, with countdowns, a one-key fallback and a recap.
 
 Read the attached design document fully before writing code. Section 15 lists decisions that are final; don't reopen them. Start from an empty repository.
 
@@ -778,7 +778,7 @@ Every earlier open question is decided here so the build can start without block
 | License | Apache-2.0 | Explicit patent grant and OSI approval; one license keeps the SignPath application simple | Never, once published |
 | Switching model | Try automatic, verify, fall back to one click or key; no OS workarounds | Trust, and honesty about OS limits | The spike shows Windows refuses nearly every switch; then consider C6 |
 | Home window | The frontmost known home app at prompt submit | Zero configuration and no process inspection | Many real runs end up with no home |
-| Away apps | A user-chosen ordered list; focusd never launches them | Launching a game is slow and surprising | Users ask for launching |
+| Away apps | A user-chosen ordered list; focusd never launches them | Launching an app is slow and surprising | Users ask for launching |
 | Away guards | Home window in front, 8 s idle, tier threshold reached | Never yank an active user | Reports of missed or unwanted switches |
 | Permission prompts | Return right away, after debounce and countdown | Claude is blocked until the user answers | Users find it too eager |
 | Claude Code surfaces | Any local surface that loads user settings: CLI, IDE extensions, desktop app | The same hooks fire everywhere | A surface fires no hooks; doctor reports it |
