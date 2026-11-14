@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The return half of the switch controller, plus the inputs that act on whichever toast is
-//! showing: idle readings during the input-quiet wait, activation results, and toast actions.
+//! The return half of the switch controller: countdown, snooze, fallback prompt, and the
+//! recap when the user is back.
 
 use std::time::{Duration, Instant};
 
+use crate::actions::return_how;
 use crate::engine::{Core, Pending, log};
 use crate::events::AppRef;
 use crate::io::{Effect, Sound};
 use crate::mode::{Mode, Phase, QUIET_SLACK, ReturnStep};
 use crate::recap;
+use crate::run::ReturnHow;
 use crate::session::WaitKind;
 use crate::toast;
 
@@ -57,6 +59,7 @@ impl Core {
         }
         for session in &waiting_here {
             self.mark_handled(session);
+            self.set_return_how(session, ReturnHow::Manual);
         }
         true
     }
@@ -103,7 +106,7 @@ impl Core {
         }
     }
 
-    fn show_return_prompt(
+    pub(crate) fn show_return_prompt(
         &self,
         session: String,
         home: AppRef,
@@ -157,7 +160,9 @@ impl Core {
                 fx.push(Effect::HideToast);
             }
             if still_waiting {
-                self.complete_return(&session, now, fx);
+                // In front because focusd asked, or because the user came back themselves.
+                let how = return_how(&step).unwrap_or(ReturnHow::Manual);
+                self.complete_return(&session, how, now, fx);
             }
             return Mode::Idle;
         }
@@ -196,17 +201,38 @@ impl Core {
         }
     }
 
-    /// The user is back at the home window: show the recap and settle every waiting session.
-    fn complete_return(&mut self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
+    /// The user is back at a home window: show the recap and settle the sessions waiting
+    /// there. Sessions waiting at another window stay queued and get their own return next
+    /// (backlog H1).
+    pub(crate) fn complete_return(
+        &mut self,
+        session: &str,
+        how: ReturnHow,
+        now: Instant,
+        fx: &mut Vec<Effect>,
+    ) {
         fx.push(log("returned", session));
         self.show_recap(session, now, fx);
-        for pending in self.pending(now) {
-            self.mark_handled(&pending.session);
+        let here: Vec<String> = self
+            .pending(now)
+            .into_iter()
+            .filter(|p| p.session == session || self.front_is(&p.home))
+            .map(|p| p.session)
+            .collect();
+        for id in &here {
+            self.mark_handled(id);
         }
+        self.set_return_how(session, how);
         self.away = None;
     }
 
-    fn show_recap(&self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
+    fn set_return_how(&mut self, session: &str, how: ReturnHow) {
+        if let Some(s) = self.sessions.get_mut(session) {
+            s.run.return_how = how;
+        }
+    }
+
+    fn show_recap(&mut self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
         let Some(shown) = self.sessions.get(session) else {
             return;
         };
@@ -216,190 +242,6 @@ impl Core {
             .filter(|p| p.session != session)
             .count();
         fx.push(Effect::ShowRecap(recap::build(shown, others)));
-    }
-
-    /// The input-quiet guard: once a countdown has ended, switch only after a moment with no
-    /// keyboard or mouse input; if input continues, the prompt replaces the switch.
-    pub(crate) fn quiet_check(&mut self, idle: Duration, now: Instant, fx: &mut Vec<Effect>) {
-        let quiet = idle >= self.cfg.switching.input_quiet;
-        let quiet_max = self.cfg.switching.input_quiet_max;
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            Mode::AwayCountdown {
-                session,
-                target,
-                phase: Phase::Quiet { since },
-            } => {
-                if quiet {
-                    let until = self.request_activation(&target, now, fx);
-                    Mode::AwayCountdown {
-                        session,
-                        target,
-                        phase: Phase::Verifying { until },
-                    }
-                } else if now >= since + quiet_max {
-                    self.show_away_prompt(session, target, now, fx)
-                } else {
-                    Mode::AwayCountdown {
-                        session,
-                        target,
-                        phase: Phase::Quiet { since },
-                    }
-                }
-            }
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Countdown(Phase::Quiet { since }),
-            } => {
-                if quiet {
-                    let until = self.request_activation(&home, now, fx);
-                    let step = ReturnStep::Countdown(Phase::Verifying { until });
-                    Mode::Return {
-                        session,
-                        home,
-                        snoozes,
-                        step,
-                    }
-                } else if now >= since + quiet_max {
-                    self.show_return_prompt(session, home, snoozes, fx)
-                } else {
-                    let step = ReturnStep::Countdown(Phase::Quiet { since });
-                    Mode::Return {
-                        session,
-                        home,
-                        snoozes,
-                        step,
-                    }
-                }
-            }
-            mode => mode,
-        };
-    }
-
-    /// The shell's report on the last activation request.
-    pub(crate) fn on_activation(&mut self, verified: bool, now: Instant, fx: &mut Vec<Effect>) {
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            Mode::AwayCountdown {
-                session,
-                target,
-                phase: Phase::Verifying { .. },
-            } => {
-                if verified {
-                    self.away_verified(session, now, fx);
-                    Mode::Idle
-                } else {
-                    self.show_away_prompt(session, target, now, fx)
-                }
-            }
-            Mode::AwayPrompt {
-                session,
-                target,
-                until,
-                verifying: Some(_),
-            } => {
-                if verified {
-                    self.away_verified(session, now, fx);
-                    Mode::Idle
-                } else {
-                    fx.push(Effect::ShowToast(toast::away_prompt(&target)));
-                    Mode::AwayPrompt {
-                        session,
-                        target,
-                        until,
-                        verifying: None,
-                    }
-                }
-            }
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step:
-                    ReturnStep::Countdown(Phase::Verifying { .. })
-                    | ReturnStep::Prompt { verifying: Some(_) },
-            } => {
-                if verified {
-                    self.complete_return(&session, now, fx);
-                    Mode::Idle
-                } else {
-                    self.show_return_prompt(session, home, snoozes, fx)
-                }
-            }
-            mode => mode,
-        };
-    }
-
-    /// A click on the toast or the focus key: the thing that won't happen on its own.
-    pub(crate) fn on_toast_action(&mut self, now: Instant, fx: &mut Vec<Effect>) {
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            // "Not now": no away switch for the rest of this run.
-            Mode::AwayCountdown {
-                session,
-                phase: Phase::Counting { .. } | Phase::Quiet { .. },
-                ..
-            } => {
-                self.spend_away(&session);
-                fx.push(Effect::HideToast);
-                fx.push(log("away_cancelled", &session));
-                Mode::Idle
-            }
-            // "Switch now".
-            Mode::AwayPrompt {
-                session,
-                target,
-                until,
-                verifying: None,
-            } => {
-                let deadline = self.request_activation(&target, now, fx);
-                Mode::AwayPrompt {
-                    session,
-                    target,
-                    until,
-                    verifying: Some(deadline),
-                }
-            }
-            // "Snooze".
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Countdown(Phase::Counting { .. } | Phase::Quiet { .. }),
-            } => {
-                fx.push(Effect::HideToast);
-                fx.push(log("return_snoozed", &session));
-                let step = ReturnStep::Snoozed {
-                    until: now + self.cfg.countdown.snooze,
-                };
-                Mode::Return {
-                    session,
-                    home,
-                    snoozes: snoozes + 1,
-                    step,
-                }
-            }
-            // "Go back now".
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Prompt { verifying: None },
-            } => {
-                let deadline = self.request_activation(&home, now, fx);
-                let step = ReturnStep::Prompt {
-                    verifying: Some(deadline),
-                };
-                Mode::Return {
-                    session,
-                    home,
-                    snoozes,
-                    step,
-                }
-            }
-            mode => mode,
-        };
+        self.request_summary(session, now, fx);
     }
 }

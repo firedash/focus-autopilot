@@ -37,7 +37,7 @@ settle, and what the core does.
    game can't answer a permission prompt, so it must not clear NEEDS_INPUT and withdraw the
    return prompt.
 
-9. **Returning settles every waiting session.** The MVP returns for the first waiting session
+9. **Returning settles every waiting session.** (Superseded by ADR 0002, item 5.) The MVP returns for the first waiting session
    (needs-input before done, then oldest) and lists the others on the recap card. After that
    return the others are considered handled; there is no second toast. V1's queue (H1)
    replaces this.
@@ -48,7 +48,8 @@ settle, and what the core does.
 11. **Paused means no toasts at all.** Sessions keep updating. A session that finished during
     the pause triggers its return when automation resumes, if the user is still away.
 
-12. **Normalized events carry only what the MVP decides on.** `permission_mode`, `effort` and
+12. **Normalized events carry only what the MVP decides on.** (Superseded by ADR 0002,
+    item 1.) `permission_mode`, `effort` and
     `agent_id` are in the payload table for V1 history and estimation; `AgentEvent` doesn't
     carry them yet.
 

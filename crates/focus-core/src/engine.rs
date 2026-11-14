@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use crate::config::Config;
-use crate::events::{AgentEvent, AppRef, EventKind, Observation, UserAction};
+use crate::estimator::History;
+use crate::events::{AppRef, Observation, UserAction};
 use crate::io::{Effect, Input, LogEvent, Note, PauseFor, ProbeKind, Status};
 use crate::mode::{AwayInfo, Mode};
 use crate::session::{Change, Session, SessionState, WaitKind};
@@ -15,7 +16,7 @@ const GUARD_PROBE_EVERY: Duration = Duration::from_secs(1);
 /// How often idle time is read while waiting for a quiet moment before a switch.
 const QUIET_PROBE_EVERY: Duration = Duration::from_millis(100);
 /// Sessions tracked at once; events from further new sessions are dropped.
-const MAX_SESSIONS: usize = 256;
+pub(crate) const MAX_SESSIONS: usize = 256;
 /// A settle pass normally ends after one or two steps; this bounds it.
 const MAX_SETTLE_STEPS: usize = 8;
 
@@ -48,6 +49,10 @@ pub struct Core {
     /// Set when a step changed something other than the mode, so settling continues.
     pub(crate) touched: bool,
     pause: Pause,
+    pub(crate) history: History,
+    pub(crate) recap_seq: u64,
+    /// The id and time of the latest summary request.
+    pub(crate) last_recap: Option<(u64, Instant)>,
     last_probe: Option<Instant>,
     clock: Option<Instant>,
 }
@@ -68,6 +73,9 @@ impl Core {
             note: None,
             touched: false,
             pause: Pause::Off,
+            history: History::default(),
+            recap_seq: 0,
+            last_recap: None,
             last_probe: None,
             clock: None,
         }
@@ -81,6 +89,8 @@ impl Core {
             Input::Observed(observation) => self.on_observation(observation, now, &mut fx),
             Input::User(action) => self.on_user(action, now, &mut fx),
             Input::Config(config) => self.cfg = *config,
+            Input::History(samples) => self.history.replace(samples),
+            Input::Summary { id, text } => self.on_summary(id, &text, now, &mut fx),
         }
         self.settle(now, &mut fx);
         fx
@@ -214,32 +224,12 @@ impl Core {
         }
     }
 
-    fn on_hook(&mut self, ev: &AgentEvent, now: Instant, fx: &mut Vec<Effect>) {
-        if ev.kind == EventKind::SessionEnd {
-            if self.sessions.remove(&ev.session_id).is_some() {
-                fx.push(log("session_ended", &ev.session_id));
-            }
-            return;
-        }
-        let home = self.frontmost.clone().filter(|front| self.is_home(front));
-        let change = if let Some(session) = self.sessions.get_mut(&ev.session_id) {
-            session.apply(ev, home, now)
-        } else if self.sessions.len() < MAX_SESSIONS {
-            let (session, change) = Session::first(ev, home, now);
-            self.sessions.insert(ev.session_id.clone(), session);
-            change
-        } else {
-            fx.push(log("session_limit_reached", &ev.session_id));
-            return;
-        };
-        if let Some(name) = change_name(change) {
-            fx.push(log(name, &ev.session_id));
-        }
-    }
-
     fn on_observation(&mut self, observation: Observation, now: Instant, fx: &mut Vec<Effect>) {
         match observation {
-            Observation::Frontmost(app) => self.frontmost = app,
+            Observation::Frontmost(app) => {
+                self.frontmost = app;
+                self.note_manual_away();
+            }
             Observation::RunningApps(apps) => self.running_apps = Some((apps, now)),
             Observation::Idle(idle) => self.on_idle(idle, now, fx),
             Observation::Activation { verified } => self.on_activation(verified, now, fx),
@@ -276,6 +266,7 @@ impl Core {
             }
             UserAction::Pause(PauseFor::UntilResumed) => self.pause = Pause::Indefinite,
             UserAction::Resume => self.pause = Pause::Off,
+            UserAction::DeclareLong => self.declare_long(fx),
             UserAction::TogglePause => {
                 self.pause = if self.pause == Pause::Off {
                     Pause::Indefinite
@@ -306,6 +297,7 @@ impl Core {
                 break;
             }
         }
+        self.take_records(now, fx);
         self.schedule_probes(now, fx);
     }
 
@@ -381,7 +373,7 @@ pub(crate) fn log(name: &'static str, session: &str) -> Effect {
     })
 }
 
-fn change_name(change: Change) -> Option<&'static str> {
+pub(crate) fn change_name(change: Change) -> Option<&'static str> {
     match change {
         Change::None => None,
         Change::Ignored => Some("late_event_ignored"),

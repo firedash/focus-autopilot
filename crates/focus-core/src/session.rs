@@ -4,11 +4,11 @@
 use std::time::{Duration, Instant};
 
 use crate::config::Switching;
-use crate::estimator::{Tier, away_threshold};
+use crate::estimator::away_threshold;
 use crate::events::{
-    AgentEvent, AppRef, COMMAND_MAX_CHARS, EventKind, MESSAGE_MAX_CHARS, PATH_MAX_CHARS,
-    PROMPT_MAX_CHARS, clean_text,
+    AgentEvent, COMMAND_MAX_CHARS, EventKind, MESSAGE_MAX_CHARS, PATH_MAX_CHARS, clean_text,
 };
+use crate::run::{Need, Outcome, Run, RunRecord, Start};
 
 /// An event for a finished run within this window means another Stop hook made Claude continue.
 pub(crate) const CONTINUATION_WINDOW: Duration = Duration::from_secs(60);
@@ -20,9 +20,6 @@ const NEEDS_INPUT_NOTIFICATIONS: [&str; 3] = [
     "elicitation_dialog",
     "elicitation_url_dialog",
 ];
-/// Distinct touched files and commands remembered per run; the recap shows fewer.
-const MAX_FILES_KEPT: usize = 64;
-const MAX_COMMANDS_KEPT: usize = 3;
 const ERROR_MAX_CHARS: usize = 80;
 const NAME_MAX_CHARS: usize = 80;
 
@@ -32,26 +29,6 @@ pub enum SessionState {
     Running,
     NeedsInput,
     Done,
-}
-
-/// What Claude is waiting on.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Need {
-    /// Approval of a tool call, as a phrase such as "run npm test".
-    Approval(String),
-    Plan,
-    Question,
-    Mcp(String),
-    Input,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Outcome {
-    Done {
-        message: String,
-        background_tasks: u32,
-    },
-    Error(String),
 }
 
 /// Why a session is waiting for the user to come back.
@@ -74,99 +51,37 @@ pub(crate) enum Change {
     Continued,
 }
 
-/// One prompt and everything Claude does until it stops. Held in memory only.
-#[derive(Debug, Clone)]
-pub(crate) struct Run {
-    pub id: Option<String>,
-    pub started: Instant,
-    pub prompt: String,
-    pub cwd: String,
-    /// The window the prompt was sent from. `None` means focusd never switches for this run.
-    pub home: Option<AppRef>,
-    pub tier: Tier,
-    pub tools: u32,
-    pub subagents: u32,
-    pub files: Vec<String>,
-    pub commands: Vec<String>,
-    /// An away switch happened or was cancelled; there won't be another in this run.
-    pub away_spent: bool,
-    pub need: Option<Need>,
-    pub outcome: Option<Outcome>,
-    /// When the session last entered `NeedsInput` or `Done`.
-    pub waiting_since: Instant,
-    /// The user is back, or was never away, for the current wait.
-    pub return_handled: bool,
-    input_after_needs: bool,
-    last_event: Instant,
-    stopped_at: Option<Instant>,
-}
-
-impl Run {
-    fn new(ev: &AgentEvent, prompt: &str, home: Option<AppRef>, now: Instant) -> Self {
-        Self {
-            id: ev.prompt_id.clone(),
-            started: now,
-            prompt: clean_text(prompt, PROMPT_MAX_CHARS),
-            cwd: clean_text(&ev.cwd, PATH_MAX_CHARS),
-            home,
-            tier: Tier::default(),
-            tools: 0,
-            subagents: 0,
-            files: Vec::new(),
-            commands: Vec::new(),
-            away_spent: false,
-            need: None,
-            outcome: None,
-            waiting_since: now,
-            return_handled: false,
-            input_after_needs: false,
-            last_event: now,
-            stopped_at: None,
-        }
-    }
-
-    fn note_tool(&mut self, command: Option<&String>, file_path: Option<&String>) {
-        self.tools = self.tools.saturating_add(1);
-        if let Some(path) = file_path {
-            let path = clean_text(path, PATH_MAX_CHARS);
-            if !self.files.contains(&path) && self.files.len() < MAX_FILES_KEPT {
-                self.files.push(path);
-            }
-        }
-        if let Some(command) = command
-            && self.commands.len() < MAX_COMMANDS_KEPT
-        {
-            self.commands.push(clean_text(command, COMMAND_MAX_CHARS));
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct Session {
     pub state: SessionState,
     pub run: Run,
+    /// The history line of a run that was just replaced, for the core to emit.
+    pub outbox: Option<RunRecord>,
 }
 
 impl Session {
-    /// Creates the session from its first event. `home` is the frontmost window if it's a home
-    /// app; it is used only when the event is a prompt.
-    pub fn first(ev: &AgentEvent, home: Option<AppRef>, now: Instant) -> (Self, Change) {
+    /// Creates the session from its first event.
+    pub fn first(ev: &AgentEvent, start: &Start, now: Instant) -> (Self, Change) {
+        let run = Run::new(ev, start, now);
         let mut session = Self {
             state: SessionState::Running,
-            run: Run::new(ev, "", None, now),
+            run,
+            outbox: None,
         };
-        let change = match session.apply(ev, home, now) {
-            // focusd started mid-run: there is no home window, so it never switches.
+        if matches!(ev.kind, EventKind::UserPromptSubmit { .. }) {
+            return (session, Change::RunStarted);
+        }
+        // focusd started mid-run: there is no home window, so it never switches.
+        let change = match session.on_running(ev, now) {
             Change::None => Change::Adopted,
             change => change,
         };
         (session, change)
     }
 
-    pub fn apply(&mut self, ev: &AgentEvent, home: Option<AppRef>, now: Instant) -> Change {
-        if let EventKind::UserPromptSubmit { prompt } = &ev.kind {
-            self.run = Run::new(ev, prompt, home, now);
-            self.state = SessionState::Running;
+    pub fn apply(&mut self, ev: &AgentEvent, start: &Start, now: Instant) -> Change {
+        if matches!(ev.kind, EventKind::UserPromptSubmit { .. }) {
+            self.replace_run(Run::new(ev, start, now));
             return Change::RunStarted;
         }
         if self.is_from_another_run(ev) {
@@ -183,6 +98,12 @@ impl Session {
         } else {
             change
         }
+    }
+
+    fn replace_run(&mut self, run: Run) {
+        self.outbox = self.run.record();
+        self.run = run;
+        self.state = SessionState::Running;
     }
 
     fn is_from_another_run(&self, ev: &AgentEvent) -> bool {
@@ -204,8 +125,7 @@ impl Session {
             // A wake-up long after the run closed (a stale run, a background task): track it,
             // but with no home window, so it never switches.
             SessionState::Done | SessionState::Idle => {
-                self.run = Run::new(ev, "", None, now);
-                self.state = SessionState::Running;
+                self.replace_run(Run::new(ev, &Start::default(), now));
                 Change::Adopted
             }
         }
@@ -223,7 +143,7 @@ impl Session {
             .run
             .stopped_at
             .is_some_and(|at| now.saturating_duration_since(at) <= CONTINUATION_WINDOW);
-        stop_hook_active || recent
+        (stop_hook_active || recent) && !self.run.recorded
     }
 
     fn on_running(&mut self, ev: &AgentEvent, now: Instant) -> Change {
@@ -232,8 +152,10 @@ impl Session {
                 tool_name,
                 command,
                 file_path,
+                effort,
             } => {
-                self.run.note_tool(command.as_ref(), file_path.as_ref());
+                self.run
+                    .note_tool(command.as_ref(), file_path.as_ref(), effort.as_ref());
                 match tool_name.as_str() {
                     QUESTION_TOOL => self.enter_needs_input(Need::Question, now),
                     PLAN_TOOL => self.enter_needs_input(Need::Plan, now),
@@ -258,7 +180,7 @@ impl Session {
                 self.enter_needs_input(Need::Input, now)
             }
             EventKind::SubagentStart => {
-                self.run.subagents = self.run.subagents.saturating_add(1);
+                self.run.note_subagent();
                 Change::None
             }
             EventKind::Stop {
@@ -303,6 +225,7 @@ impl Session {
     fn enter_needs_input(&mut self, need: Need, now: Instant) -> Change {
         self.state = SessionState::NeedsInput;
         self.run.need = Some(need);
+        self.run.needed_input = true;
         self.run.waiting_since = now;
         self.run.return_handled = false;
         self.run.input_after_needs = false;
@@ -376,7 +299,34 @@ impl Session {
     pub fn away_threshold_at(&self, switching: &Switching) -> Option<Instant> {
         let eligible =
             self.state == SessionState::Running && self.run.home.is_some() && !self.run.away_spent;
-        eligible.then(|| self.run.started + away_threshold(self.run.tier, switching))
+        if !eligible {
+            return None;
+        }
+        if self.run.declared_long {
+            return Some(self.run.started);
+        }
+        Some(self.run.started + away_threshold(self.run.tier, switching))
+    }
+
+    /// When a finished run can no longer be continued by a Stop hook and nobody is waiting
+    /// on it, so its history line can be written.
+    fn record_due_at(&self) -> Option<Instant> {
+        let settled = self.run.home.is_none() || self.run.return_handled;
+        match self.state {
+            SessionState::Idle => Some(self.run.last_event),
+            SessionState::Done if settled => self.run.stopped_at.map(|at| at + CONTINUATION_WINDOW),
+            _ => None,
+        }
+        .filter(|_| !self.run.recorded)
+    }
+
+    /// The history line for a run that has closed for good, once.
+    pub fn take_record(&mut self, now: Instant) -> Option<RunRecord> {
+        if self.record_due_at().is_some_and(|at| now >= at) {
+            self.run.record()
+        } else {
+            None
+        }
     }
 
     /// Times at which `tick` has something to do for this session.
@@ -387,7 +337,9 @@ impl Session {
             .then(|| self.run.waiting_since + switching.needs_input_debounce)
             .filter(|at| *at > now);
         let threshold = self.away_threshold_at(switching).filter(|at| *at > now);
-        [stale, debounce, threshold].into_iter().flatten()
+        [stale, debounce, threshold, self.record_due_at()]
+            .into_iter()
+            .flatten()
     }
 }
 

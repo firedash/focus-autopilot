@@ -5,7 +5,8 @@
 use std::time::Duration;
 
 use crate::events::AppRef;
-use crate::session::{Need, Outcome, Session};
+use crate::run::{Need, Outcome};
+use crate::session::Session;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToastKind {
@@ -28,14 +29,17 @@ pub struct Toast {
 
 const AWAY_HEADLINE: &str = "Claude will take a while.";
 
-pub(crate) fn away_countdown(target: &AppRef, countdown: Duration) -> Toast {
+/// `immersive` adds the warning for apps that are hard to leave (backlog C4).
+pub(crate) fn away_countdown(target: &AppRef, countdown: Duration, immersive: bool) -> Toast {
+    let warning = if immersive {
+        " It may be hard to leave when Claude is done."
+    } else {
+        ""
+    };
+    let (name, secs) = (&target.name, countdown.as_secs());
     Toast {
         kind: ToastKind::AwayCountdown,
-        text: format!(
-            "{AWAY_HEADLINE} Switching to {} in {} s.",
-            target.name,
-            countdown.as_secs()
-        ),
+        text: format!("{AWAY_HEADLINE} Switching to {name} in {secs} s.{warning}"),
         action: "Not now",
         countdown: Some(countdown),
     }

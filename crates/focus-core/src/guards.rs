@@ -77,7 +77,12 @@ impl Core {
         now: Instant,
     ) -> Result<(String, AppRef), GuardFail> {
         let session = self.ready_run(now)?.to_owned();
-        if idle < self.cfg.switching.away_requires_idle {
+        // Pressing the declare-long hotkey is input, and it is the user asking to be switched.
+        let asked = self
+            .sessions
+            .get(&session)
+            .is_some_and(|s| s.run.declared_long);
+        if !asked && idle < self.cfg.switching.away_requires_idle {
             return Err(GuardFail::NotIdle);
         }
         let target = self.first_running_away_app(now)?;

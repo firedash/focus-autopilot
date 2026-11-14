@@ -26,13 +26,21 @@ fn event(payload: &Json) -> (u64, AgentEvent) {
     let tool_name = payload.text("tool_name").unwrap_or_default();
     let name = payload.text("hook_event_name").expect("hook_event_name");
     let kind = match name.as_str() {
-        "UserPromptSubmit" => EventKind::UserPromptSubmit {
-            prompt: payload.text("prompt").unwrap_or_default(),
-        },
+        "UserPromptSubmit" => {
+            let prompt = payload.text("prompt").unwrap_or_default();
+            EventKind::UserPromptSubmit {
+                prompt_chars: prompt.chars().count(),
+                prompt,
+                permission_mode: payload.text("permission_mode"),
+            }
+        }
         "PreToolUse" => EventKind::PreToolUse {
             tool_name,
             command: input.text("command"),
             file_path: input.text("file_path"),
+            effort: payload
+                .get("effort")
+                .and_then(|effort| effort.text("level")),
         },
         "PermissionRequest" => EventKind::PermissionRequest {
             tool_name,
@@ -63,6 +71,7 @@ fn event(payload: &Json) -> (u64, AgentEvent) {
         session_id: payload.text("session_id").expect("session_id"),
         prompt_id: payload.text("prompt_id"),
         cwd: payload.text("cwd").unwrap_or_default(),
+        project: "proj-a".to_owned(),
         kind,
     };
     (at, event)

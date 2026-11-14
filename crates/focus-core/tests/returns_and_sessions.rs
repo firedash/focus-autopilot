@@ -29,7 +29,8 @@ fn a_stop_right_after_an_away_switch_gets_the_prompt_not_a_flip_back() {
         sim.recaps(),
         vec![vec![
             "Asked:   Run the tests and fix failures",
-            "Claude:  Done."
+            "Claude:  Done.",
+            "36 s",
         ]]
     );
 }
@@ -115,11 +116,7 @@ fn coming_back_on_your_own_shows_the_recap_only_after_twenty_seconds_away() {
 
     let mut sim = Sim::away();
     sim.at(40_000);
-    sim.hook(EventKind::PreToolUse {
-        tool_name: "Edit".into(),
-        command: None,
-        file_path: Some("/work/app/src/a.rs".into()),
-    });
+    sim.hook(support::edit("/work/app/src/a.rs"));
     sim.at(60_000);
     sim.focus(TERMINAL);
     assert_eq!(
@@ -418,6 +415,7 @@ fn late_events_from_an_earlier_run_are_ignored() {
         session_id: "s1".into(),
         prompt_id: None,
         cwd: "/work/app".into(),
+        project: "proj-a".into(),
         kind: stop("Done."),
     }));
     assert_eq!(sim.core.session_state("s1"), Some(SessionState::Done));
@@ -465,11 +463,7 @@ fn recap_text_is_cleaned_and_bounded() {
     )));
     sim.at(34_000);
     for i in 0..8 {
-        sim.hook(EventKind::PreToolUse {
-            tool_name: "Write".into(),
-            command: None,
-            file_path: Some(format!("/work/app/f{i}.rs")),
-        });
+        sim.hook(support::edit(&format!("/work/app/f{i}.rs")));
     }
     sim.at(100_000);
     sim.hook(EventKind::Stop {
@@ -486,6 +480,9 @@ fn recap_text_is_cleaned_and_bounded() {
         recap[2],
         "Touched: f0.rs, f1.rs, f2.rs, f3.rs, f4.rs (+3 more)"
     );
-    assert_eq!(recap[3], "1 task still running in the background");
+    assert_eq!(
+        recap[3],
+        "2 min · 8 tool calls · 1 background task still running"
+    );
     assert!(recap.len() <= 6);
 }

@@ -5,8 +5,10 @@
 use std::time::{Duration, Instant};
 
 use crate::config::Config;
+use crate::estimator::RunSample;
 use crate::events::{AgentEvent, AppRef, Observation, UserAction};
 use crate::recap::RecapCard;
+use crate::run::RunRecord;
 use crate::toast::Toast;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +19,13 @@ pub enum Input {
     Observed(Observation),
     User(UserAction),
     Config(Box<Config>),
+    /// Past runs read from `runs.jsonl` at startup, oldest first. Replaces what the core holds.
+    History(Vec<RunSample>),
+    /// The reply to `Effect::SummarizeRecap`, if it arrived in time.
+    Summary {
+        id: u64,
+        text: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +43,15 @@ pub enum Effect {
     Probe(ProbeKind),
     ShowRecap(RecapCard),
     PlaySound(Sound),
+    /// Append this run to the history file.
+    AppendRun(RunRecord),
+    /// Opt-in: run the local Claude Code CLI with `prompt` on stdin and report its reply as
+    /// `Input::Summary` with the same id, unless it takes longer than `timeout`.
+    SummarizeRecap {
+        id: u64,
+        prompt: String,
+        timeout: Duration,
+    },
     Log(LogEvent),
 }
 

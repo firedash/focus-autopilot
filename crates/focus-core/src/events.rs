@@ -42,6 +42,8 @@ pub struct AgentEvent {
     /// session's current run.
     pub prompt_id: Option<String>,
     pub cwd: String,
+    /// Salted hash of `cwd`, computed by the shell; groups runs by project in history.
+    pub project: String,
     pub kind: EventKind,
 }
 
@@ -49,6 +51,9 @@ pub struct AgentEvent {
 pub enum EventKind {
     UserPromptSubmit {
         prompt: String,
+        /// Length of the full prompt, before the receiver truncated it.
+        prompt_chars: usize,
+        permission_mode: Option<String>,
     },
     PreToolUse {
         tool_name: String,
@@ -56,6 +61,8 @@ pub enum EventKind {
         command: Option<String>,
         /// `tool_input.file_path`, for Edit and Write only.
         file_path: Option<String>,
+        /// `effort.level`.
+        effort: Option<String>,
     },
     PermissionRequest {
         tool_name: String,
@@ -102,6 +109,8 @@ pub enum UserAction {
     Pause(crate::PauseFor),
     Resume,
     TogglePause,
+    /// The declare-long hotkey: this run will take a while, switch me away now.
+    DeclareLong,
 }
 
 /// Makes outside text safe to keep and show: drops ANSI escape sequences and control

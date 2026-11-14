@@ -3,7 +3,10 @@
 //! needs a decision. Built from hook payload fields only. The shell must show every line as
 //! plain text.
 
-use crate::session::{Need, Outcome, Session, SessionState};
+use std::time::Duration;
+
+use crate::run::{Need, Outcome, Run};
+use crate::session::{Session, SessionState};
 
 /// The card is small; a longer line is cut with an ellipsis.
 const LINE_MAX_CHARS: usize = 160;
@@ -26,15 +29,8 @@ pub(crate) fn build(session: &Session, others: usize) -> RecapCard {
     if let Some(touched) = touched_line(&run.files, &run.cwd) {
         lines.push(touched);
     }
-    if let Some(Outcome::Done {
-        background_tasks, ..
-    }) = &run.outcome
-        && *background_tasks > 0
-    {
-        lines.push(format!(
-            "{} still running in the background",
-            count(*background_tasks, "task")
-        ));
+    if let Some(stats) = stats_line(run) {
+        lines.push(stats);
     }
     if others > 0 {
         let others = u32::try_from(others).unwrap_or(u32::MAX);
@@ -67,6 +63,40 @@ pub(crate) fn need_text(need: &Need) -> String {
         Need::Question => "an answer to Claude's question".to_owned(),
         Need::Mcp(server) => format!("your input for {server}"),
         Need::Input => "your input".to_owned(),
+    }
+}
+
+/// Run statistics for a finished run (backlog F3): duration, tool calls, sub-agents, and
+/// background tasks still running.
+fn stats_line(run: &Run) -> Option<String> {
+    let outcome = run.outcome.as_ref()?;
+    let duration = run.stopped_at?.saturating_duration_since(run.started);
+    let mut parts = vec![duration_text(duration)];
+    if run.tools > 0 {
+        parts.push(count(run.tools, "tool call"));
+    }
+    if run.subagents > 0 {
+        parts.push(count(run.subagents, "sub-agent"));
+    }
+    if let Outcome::Done {
+        background_tasks, ..
+    } = outcome
+        && *background_tasks > 0
+    {
+        parts.push(format!(
+            "{} still running",
+            count(*background_tasks, "background task")
+        ));
+    }
+    Some(parts.join(" · "))
+}
+
+fn duration_text(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    if secs < 60 {
+        format!("{secs} s")
+    } else {
+        format!("{} min", (secs + 30) / 60)
     }
 }
 
@@ -150,5 +180,8 @@ mod tests {
             "Touched: f0.rs, f1.rs, f2.rs, f3.rs, f4.rs (+2 more)"
         );
         assert_eq!(touched_line(&[], "/p"), None);
+        assert_eq!(duration_text(Duration::from_secs(59)), "59 s");
+        assert_eq!(duration_text(Duration::from_secs(89)), "1 min");
+        assert_eq!(duration_text(Duration::from_secs(240)), "4 min");
     }
 }

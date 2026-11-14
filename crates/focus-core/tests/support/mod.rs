@@ -185,6 +185,7 @@ impl Sim {
             session_id: session.to_owned(),
             prompt_id: Some(run.to_owned()),
             cwd: "/work/app".to_owned(),
+            project: "proj-a".to_owned(),
             kind,
         }));
     }
@@ -251,6 +252,26 @@ impl Sim {
             .collect()
     }
 
+    pub fn records(&self) -> Vec<&focus_core::RunRecord> {
+        self.log
+            .iter()
+            .filter_map(|(_, fx)| match fx {
+                Effect::AppendRun(record) => Some(record),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn summary_requests(&self) -> Vec<(u64, &str)> {
+        self.log
+            .iter()
+            .filter_map(|(_, fx)| match fx {
+                Effect::SummarizeRecap { id, prompt, .. } => Some((*id, prompt.as_str())),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn sounds(&self) -> usize {
         self.count(|fx| matches!(fx, Effect::PlaySound(_)))
     }
@@ -280,6 +301,8 @@ impl Sim {
 pub fn prompt(text: &str) -> EventKind {
     EventKind::UserPromptSubmit {
         prompt: text.to_owned(),
+        prompt_chars: text.chars().count(),
+        permission_mode: Some("default".to_owned()),
     }
 }
 
@@ -288,6 +311,7 @@ pub fn tool(name: &str) -> EventKind {
         tool_name: name.to_owned(),
         command: None,
         file_path: None,
+        effort: None,
     }
 }
 
@@ -296,6 +320,16 @@ pub fn bash(command: &str) -> EventKind {
         tool_name: "Bash".to_owned(),
         command: Some(command.to_owned()),
         file_path: None,
+        effort: Some("high".to_owned()),
+    }
+}
+
+pub fn edit(path: &str) -> EventKind {
+    EventKind::PreToolUse {
+        tool_name: "Edit".to_owned(),
+        command: None,
+        file_path: Some(path.to_owned()),
+        effort: None,
     }
 }
 

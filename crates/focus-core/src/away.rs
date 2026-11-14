@@ -9,8 +9,12 @@ use crate::events::AppRef;
 use crate::guards::GuardFail;
 use crate::io::{Effect, Note};
 use crate::mode::{AwayInfo, Mode, Phase, QUIET_SLACK, VERIFY_GRACE};
+use crate::run::AwayHow;
 use crate::session::SessionState;
 use crate::toast;
+
+/// Apps flagged immersive get at least this long a countdown (backlog C4).
+const IMMERSIVE_COUNTDOWN: Duration = Duration::from_secs(5);
 
 impl Core {
     /// Starts the away countdown if every guard holds. Runs on each fresh idle reading.
@@ -20,14 +24,23 @@ impl Core {
         }
         match self.check_away(idle, now) {
             Ok((session, target)) => {
-                let length = self.cfg.countdown.length;
-                fx.push(Effect::ShowToast(toast::away_countdown(&target, length)));
+                let flagged = &self.cfg.away.immersive;
+                let immersive = flagged.iter().any(|id| id.eq_ignore_ascii_case(&target.id));
+                let length = if immersive {
+                    self.cfg.countdown.length.max(IMMERSIVE_COUNTDOWN)
+                } else {
+                    self.cfg.countdown.length
+                };
+                fx.push(Effect::ShowToast(toast::away_countdown(
+                    &target, length, immersive,
+                )));
                 fx.push(log("away_countdown", &session));
                 self.note = None;
+                let phase = Phase::Counting { ends: now + length };
                 self.mode = Mode::AwayCountdown {
                     session,
                     target,
-                    phase: Phase::Counting { ends: now + length },
+                    phase,
                 };
             }
             Err(GuardFail::NoAwayApp) => self.note = Some(Note::NoAwayAppRunning),
@@ -154,13 +167,26 @@ impl Core {
         now + verify_after + VERIFY_GRACE
     }
 
-    pub(crate) fn away_verified(&mut self, session: String, now: Instant, fx: &mut Vec<Effect>) {
+    pub(crate) fn away_verified(
+        &mut self,
+        session: String,
+        how: AwayHow,
+        now: Instant,
+        fx: &mut Vec<Effect>,
+    ) {
         self.spend_away(&session);
+        self.set_away_how(&session, how);
         fx.push(log("away_switched", &session));
         self.last_away_switch = Some(now);
         self.away = Some(AwayInfo {
             since: now,
             session,
         });
+    }
+
+    pub(crate) fn set_away_how(&mut self, session: &str, how: AwayHow) {
+        if let Some(s) = self.sessions.get_mut(session) {
+            s.run.away_how = how;
+        }
     }
 }

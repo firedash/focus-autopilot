@@ -9,6 +9,7 @@ use focus_core::{
 use support::{BROWSER, Sim, TERMINAL, TERRARIA, app, config, permission, stop, trace};
 
 /// The design's first fixture: approve a test run, play while it runs, come back to a recap.
+/// `npm test` is a slow command, so the run counts as long and the away switch comes early.
 #[test]
 fn replayed_trace_switches_away_and_back_with_a_recap() {
     let mut sim = Sim::new(config());
@@ -36,7 +37,7 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
     assert_eq!(
         sim.toasts(),
         vec![
-            (30_000, ToastKind::AwayCountdown),
+            (16_200, ToastKind::AwayCountdown),
             (131_000, ToastKind::ReturnCountdown)
         ]
     );
@@ -49,7 +50,7 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
     );
     assert_eq!(
         sim.activations(),
-        vec![(33_000, TERRARIA), (134_000, TERMINAL)]
+        vec![(19_200, TERRARIA), (134_000, TERMINAL)]
     );
     assert_eq!(sim.sounds(), 1);
     assert_eq!(
@@ -58,6 +59,7 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
             "Asked:   Run the tests and fix failures",
             "Claude:  Fixed the failing sum test; all 42 tests pass.",
             "Touched: src/sum.ts",
+            "2 min · 2 tool calls",
         ]]
     );
     assert_eq!(sim.core.session_state("s1"), Some(SessionState::Done));
