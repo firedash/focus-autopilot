@@ -51,8 +51,8 @@ pub struct Core {
     pause: Pause,
     pub(crate) history: History,
     pub(crate) recap_seq: u64,
-    /// The id and time of the latest summary request.
-    pub(crate) last_recap: Option<(u64, Instant)>,
+    /// The latest summary request, with the basic card held back until it is answered.
+    pub(crate) last_recap: Option<crate::hooks::PendingRecap>,
     last_probe: Option<Instant>,
     clock: Option<Instant>,
 }
@@ -91,6 +91,7 @@ impl Core {
             Input::Config(config) => self.cfg = *config,
             Input::History(samples) => self.history.replace(samples),
             Input::Summary { id, text } => self.on_summary(id, &text, now, &mut fx),
+            Input::SummaryFailed { id } => self.on_summary_failed(id, &mut fx),
         }
         self.settle(now, &mut fx);
         fx
@@ -118,8 +119,10 @@ impl Core {
             .sessions
             .values()
             .flat_map(|s| s.deadlines(now, switching));
+        let recap = self.recap_deadline();
         sessions
             .chain(pause)
+            .chain(recap)
             .chain(probe)
             .chain(self.mode.deadline(switching.input_quiet_max))
             .min()
@@ -278,6 +281,7 @@ impl Core {
     }
 
     fn settle(&mut self, now: Instant, fx: &mut Vec<Effect>) {
+        self.recap_timed_out(now, fx);
         if matches!(self.pause, Pause::Until(at) if now >= at) {
             self.pause = Pause::Off;
         }

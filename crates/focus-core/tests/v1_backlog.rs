@@ -353,9 +353,10 @@ fn llm_sim() -> Sim {
 }
 
 #[test]
-fn llm_mode_asks_for_a_summary_of_redacted_facts_and_shows_it_if_in_time() {
+fn llm_mode_holds_back_the_basic_card_and_shows_the_summary_if_in_time() {
     let mut sim = llm_sim();
-    assert_eq!(sim.recaps().len(), 1);
+    // The long basic card is not shown first: only the request goes out.
+    assert!(sim.recaps().is_empty());
     let (id, text) = sim.summary_requests()[0];
     assert!(text.starts_with("Summarize this coding-agent run"));
     assert!(text.contains("Prompt: Deploy with API_TOKEN=[redacted] and fix the tests"));
@@ -369,38 +370,69 @@ fn llm_mode_asks_for_a_summary_of_redacted_facts_and_shows_it_if_in_time() {
         text: reply.into(),
     });
     assert_eq!(
-        sim.recaps()[1],
-        vec![
+        sim.recaps(),
+        vec![vec![
             "Asked: deploy and fix tests",
             "Did: deployed, tests pass",
             "Needs: nothing"
-        ]
+        ]]
     );
-    // A second reply for the same card is ignored.
+    // A second reply for the same card is ignored, and the basic card never appears.
     sim.feed(Input::Summary {
         id,
         text: reply.into(),
     });
-    assert_eq!(sim.recaps().len(), 2);
+    sim.at(200_000);
+    assert_eq!(sim.recaps().len(), 1);
 }
 
 #[test]
-fn a_late_empty_or_mismatched_summary_leaves_the_basic_card() {
+fn an_unusable_or_mismatched_summary_falls_back_to_the_basic_card() {
     let mut sim = llm_sim();
     let (id, _) = sim.summary_requests()[0];
+    // A reply for some other request changes nothing.
     sim.feed(Input::Summary {
         id: id + 1,
         text: "Asked: x".into(),
     });
+    assert!(sim.recaps().is_empty());
+    // An empty reply for this one shows the basic card at once.
     sim.feed(Input::Summary {
         id,
         text: "  \n".into(),
     });
     assert_eq!(sim.recaps().len(), 1);
+    assert_eq!(
+        sim.recaps()[0][0],
+        "Asked:   Deploy with API_TOKEN=hunter2 and fix the tests"
+    );
+    // And a later real reply for it is ignored.
+    sim.feed(Input::Summary {
+        id,
+        text: "Asked: x".into(),
+    });
+    assert_eq!(sim.recaps().len(), 1);
+}
 
+#[test]
+fn a_failed_summary_shows_the_basic_card_at_once() {
     let mut sim = llm_sim();
     let (id, _) = sim.summary_requests()[0];
+    assert!(sim.recaps().is_empty());
+    sim.feed(Input::SummaryFailed { id });
+    assert_eq!(sim.recaps().len(), 1);
+    sim.feed(Input::SummaryFailed { id });
+    assert_eq!(sim.recaps().len(), 1);
+}
+
+#[test]
+fn no_answer_by_the_timeout_shows_the_basic_card_and_a_late_reply_is_ignored() {
+    let mut sim = llm_sim();
+    let (id, _) = sim.summary_requests()[0];
+    sim.at(120_000);
+    assert!(sim.recaps().is_empty());
     sim.at(130_000);
+    assert_eq!(sim.recaps().len(), 1);
     sim.feed(Input::Summary {
         id,
         text: "Asked: x".into(),

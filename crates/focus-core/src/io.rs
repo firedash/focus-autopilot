@@ -26,6 +26,10 @@ pub enum Input {
         id: u64,
         text: String,
     },
+    /// The CLI couldn't be run or failed; show the basic card now rather than at the timeout.
+    SummaryFailed {
+        id: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

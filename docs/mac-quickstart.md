@@ -65,7 +65,8 @@ message, which can be long. For a three-line synthesis, let your own `claude` CL
 mode = "llm"
 ```
 
-Restart `focusd`. The plain card shows first and is replaced within a few seconds by:
+Restart `focusd`. After a few seconds the card shows this instead of the long one (the long
+card is only a fallback if the summary fails):
 
 ```text
 Asked: <what you asked>

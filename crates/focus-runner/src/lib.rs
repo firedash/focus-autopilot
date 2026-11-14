@@ -23,6 +23,10 @@ pub enum Msg {
         id: u64,
         text: String,
     },
+    /// The CLI couldn't produce a summary.
+    SummaryFailed {
+        id: u64,
+    },
 }
 
 /// What a terminal command asks of the loop.
@@ -139,6 +143,9 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
             Ok(Msg::Summary { id, text }) => {
                 effects.extend(core.handle(Input::Summary { id, text }, now));
             }
+            Ok(Msg::SummaryFailed { id }) => {
+                effects.extend(core.handle(Input::SummaryFailed { id }, now));
+            }
             Err(RecvTimeoutError::Disconnected) => return,
             Err(RecvTimeoutError::Timeout) => effects.extend(core.tick(now)),
         }
@@ -179,7 +186,10 @@ fn summarize(options: &Options, id: u64, prompt: String, timeout: Duration) {
             Ok(text) => {
                 let _ = replies.send(Msg::Summary { id, text });
             }
-            Err(e) => println!("LLM recap failed: {e}"),
+            Err(e) => {
+                println!("LLM recap failed: {e}");
+                let _ = replies.send(Msg::SummaryFailed { id });
+            }
         }
     });
 }

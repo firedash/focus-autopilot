@@ -9,7 +9,6 @@ use crate::engine::{Core, Pending, log};
 use crate::events::AppRef;
 use crate::io::{Effect, Sound};
 use crate::mode::{Mode, Phase, QUIET_SLACK, ReturnStep};
-use crate::recap;
 use crate::run::ReturnHow;
 use crate::session::WaitKind;
 use crate::toast;
@@ -230,18 +229,5 @@ impl Core {
         if let Some(s) = self.sessions.get_mut(session) {
             s.run.return_how = how;
         }
-    }
-
-    fn show_recap(&mut self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
-        let Some(shown) = self.sessions.get(session) else {
-            return;
-        };
-        let others = self
-            .pending(now)
-            .iter()
-            .filter(|p| p.session != session)
-            .count();
-        fx.push(Effect::ShowRecap(recap::build(shown, others)));
-        self.request_summary(session, now, fx);
     }
 }

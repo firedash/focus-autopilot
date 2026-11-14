@@ -118,17 +118,32 @@ impl Core {
     }
 
     /// In LLM mode, asks the shell for a summary to replace the basic card just shown.
-    pub(crate) fn request_summary(&mut self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
-        if self.cfg.recap.mode != RecapMode::Llm {
-            return;
-        }
+    /// Shows the recap for `session`. In LLM mode the basic card is held back and shown only
+    /// if the summary doesn't arrive, fails, or is unusable: showing a long card first and
+    /// then replacing it is noisier than waiting a few seconds.
+    pub(crate) fn show_recap(&mut self, session: &str, now: Instant, fx: &mut Vec<Effect>) {
         let Some(shown) = self.sessions.get(session) else {
             return;
         };
+        let others = self
+            .pending(now)
+            .iter()
+            .filter(|p| p.session != session)
+            .count();
+        let card = crate::recap::build(shown, others);
+        if self.cfg.recap.mode != RecapMode::Llm {
+            fx.push(Effect::ShowRecap(card));
+            return;
+        }
         let prompt = recap_llm::prompt(shown);
         self.recap_seq += 1;
-        self.last_recap = Some((self.recap_seq, now));
         let timeout = self.cfg.recap.llm_timeout;
+        // A newer request replaces an older one that never got an answer.
+        self.last_recap = Some(PendingRecap {
+            id: self.recap_seq,
+            issued: now,
+            card,
+        });
         fx.push(Effect::SummarizeRecap {
             id: self.recap_seq,
             prompt,
@@ -136,18 +151,48 @@ impl Core {
         });
     }
 
-    /// The summary replaces the basic card only if it is for the latest card and in time.
+    /// The summary replaces the held card if it is for the latest request, in time and usable;
+    /// otherwise the held basic card is shown.
     pub(crate) fn on_summary(&mut self, id: u64, text: &str, now: Instant, fx: &mut Vec<Effect>) {
-        let Some((latest, issued)) = self.last_recap else {
+        let Some(pending) = self.last_recap.take_if(|p| p.id == id) else {
             return;
         };
-        if id != latest {
-            return;
-        }
-        self.last_recap = None;
-        let in_time = now.saturating_duration_since(issued) <= self.cfg.recap.llm_timeout;
-        if let Some(card) = recap_llm::parse(text).filter(|_| in_time) {
-            fx.push(Effect::ShowRecap(card));
+        let in_time = now.saturating_duration_since(pending.issued) <= self.cfg.recap.llm_timeout;
+        match recap_llm::parse(text).filter(|_| in_time) {
+            Some(card) => fx.push(Effect::ShowRecap(card)),
+            None => fx.push(Effect::ShowRecap(pending.card)),
         }
     }
+
+    pub(crate) fn on_summary_failed(&mut self, id: u64, fx: &mut Vec<Effect>) {
+        if let Some(pending) = self.last_recap.take_if(|p| p.id == id) {
+            fx.push(Effect::ShowRecap(pending.card));
+        }
+    }
+
+    /// No answer by the timeout: show the held basic card.
+    pub(crate) fn recap_timed_out(&mut self, now: Instant, fx: &mut Vec<Effect>) {
+        let timeout = self.cfg.recap.llm_timeout;
+        if let Some(pending) = self
+            .last_recap
+            .take_if(|p| now.saturating_duration_since(p.issued) > timeout)
+        {
+            fx.push(Effect::ShowRecap(pending.card));
+        }
+    }
+
+    pub(crate) fn recap_deadline(&self) -> Option<Instant> {
+        // One tick past the timeout, matching the strict comparison above.
+        self.last_recap
+            .as_ref()
+            .map(|p| p.issued + self.cfg.recap.llm_timeout + std::time::Duration::from_millis(1))
+    }
+}
+
+/// A summary request in flight, and the card to show if it comes to nothing.
+#[derive(Debug, Clone)]
+pub(crate) struct PendingRecap {
+    pub(crate) id: u64,
+    pub(crate) issued: Instant,
+    pub(crate) card: crate::recap::RecapCard,
 }

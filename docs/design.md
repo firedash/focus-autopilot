@@ -117,7 +117,7 @@ The MVP closes the loop on macOS and Windows: hooks in, state machines with guar
 | D9 | Switch policy | Suggest an away activity by tier | V2 | The suggestion appears in the countdown |
 | D10 | Switch policy | Optional pause integration for away apps | Later | Per-app opt-in; never sends keystrokes by default |
 | F1 | Recap | Basic recap card: prompt, start of the last message, files touched, what needs a decision | MVP | Appears within 1 s of returning; never takes focus; renders all text as plain text; closes after 10 s or soon after the user starts typing |
-| F2 | Recap | LLM recap through the local Claude Code CLI (section 10) | V1 | Off by default; replaces the basic text within 20 s or not at all; runs with no tools and no hooks; never reads the transcript |
+| F2 | Recap | LLM recap through the local Claude Code CLI (section 10) | V1 | Off by default; replaces the basic text within 20 s, and the basic text is shown if it does not; runs with no tools and no hooks; never reads the transcript |
 | F3 | Recap | Run statistics on the card: duration, tool calls, sub-agents, background tasks still running | V1 | Counts match the replayed trace |
 | E1 | Estimation | Append each run's metadata to a local JSON Lines file | V1 | One line per run with the fields in section 11; no prompt text, paths or commands |
 | E2 | Estimation | History-based estimate chooses the tier | V1 | With 5 or more similar runs, the predicted tier matches the actual one for most replayed runs; otherwise elapsed time decides |
@@ -480,14 +480,14 @@ claude -p --model haiku --tools "" --strict-mcp-config
 
 - Spawned directly with an argument array, never through a shell, with an empty folder in focusd's data directory as the working directory and the input on stdin.
 - `--tools ""` removes all built-in tools; `--strict-mcp-config` without `--mcp-config` loads no MCP servers; `disableAllHooks` stops the recap session from firing focusd's own hooks.
-- 20 s timeout. The basic card shows first and is replaced only if the summary arrives in time.
+- 20 s timeout. The basic card is held back while the summary is pending and shown only if the summary fails, is empty, or misses the timeout, so the user never sees a long card replaced by a short one.
 - `focusctl doctor` runs `claude auth status` before the option can be turned on.
 
 Recap prompt, sent on stdin:
 
 ```text
 Summarize this coding-agent run for a developer returning from a break.
-Reply with at most three short lines of plain text, no markdown:
+Reply with exactly three lines of plain text, no markdown, each under 100 characters:
 Asked: <what the developer asked>
 Did: <what the agent did>
 Needs: <the decision the developer must make, or "nothing">

@@ -11,7 +11,7 @@ use crate::session::Session;
 
 const INSTRUCTIONS: &str = "\
 Summarize this coding-agent run for a developer returning from a break.
-Reply with at most three short lines of plain text, no markdown:
+Reply with exactly three lines of plain text, no markdown, each under 100 characters:
 Asked: <what the developer asked>
 Did: <what the agent did>
 Needs: <the decision the developer must make, or \"nothing\">
@@ -51,11 +51,24 @@ pub(crate) fn prompt(session: &Session) -> String {
     format!("{INSTRUCTIONS}\n{}\n", redact(&facts.join("\n")))
 }
 
+/// Cuts at a word boundary and adds an ellipsis, rather than stopping mid-word.
+fn shorten(line: &str, max_chars: usize) -> String {
+    if line.chars().count() <= max_chars {
+        return line.to_owned();
+    }
+    let room: String = line.chars().take(max_chars - 1).collect();
+    let cut = room
+        .rfind(' ')
+        .filter(|&at| at > room.len() / 2)
+        .unwrap_or(room.len());
+    format!("{}…", room[..cut].trim_end())
+}
+
 /// Up to three non-empty lines, cleaned like any other outside text. `None` if there are none.
 pub(crate) fn parse(reply: &str) -> Option<RecapCard> {
     let lines: Vec<String> = reply
         .lines()
-        .map(|line| clean_text(line.trim(), REPLY_LINE_MAX_CHARS))
+        .map(|line| shorten(&clean_text(line.trim(), usize::MAX), REPLY_LINE_MAX_CHARS))
         .filter(|line| !line.is_empty())
         .take(REPLY_LINES)
         .collect();
@@ -77,5 +90,15 @@ mod tests {
         assert_eq!(parse(" \n\n"), None);
         let long = parse(&"x".repeat(500)).unwrap();
         assert_eq!(long.lines[0].chars().count(), REPLY_LINE_MAX_CHARS);
+        assert!(long.lines[0].ends_with('…'));
+    }
+
+    #[test]
+    fn long_lines_are_cut_at_a_word_not_mid_word() {
+        let line = format!("Did: {} supercalifragilistic tail", "word ".repeat(30));
+        let card = parse(&line).unwrap();
+        let shown = &card.lines[0];
+        assert!(shown.chars().count() <= REPLY_LINE_MAX_CHARS);
+        assert!(shown.ends_with("word…"), "{shown}");
     }
 }
