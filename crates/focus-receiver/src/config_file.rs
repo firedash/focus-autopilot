@@ -96,6 +96,12 @@ pub fn parse(text: &str) -> Result<Config, LoadError> {
         s.text("salt", &mut c.history.salt)
     })?;
     r.section("ignore", |s| s.list("cwd_globs", &mut c.ignore.cwd_globs))?;
+    r.section("return", |s| {
+        s.flag(
+            "open_project_in_editor",
+            &mut c.returns.open_project_in_editor,
+        )
+    })?;
     r.finish()?;
     Ok(c)
 }
@@ -256,6 +262,17 @@ mod tests {
         assert_eq!(c.switching.verify_after, Duration::from_millis(100));
         assert_eq!(c.switching.stale_after, Duration::from_secs(600));
         assert_eq!(c.recap.mode, focus_core::RecapMode::Llm);
+    }
+
+    #[test]
+    fn the_editor_window_option_is_off_unless_asked_for() {
+        assert!(!parse("").unwrap().returns.open_project_in_editor);
+        let on = parse("[return]\nopen_project_in_editor = true\n").unwrap();
+        assert!(on.returns.open_project_in_editor);
+        assert!(matches!(
+            parse("[return]\nopen_project_in_editor = \"yes\""),
+            Err(LoadError::Type(_))
+        ));
     }
 
     #[test]

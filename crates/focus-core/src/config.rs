@@ -17,6 +17,7 @@ pub struct Config {
     pub recap: Recap,
     pub history: History,
     pub ignore: Ignore,
+    pub returns: Returns,
 }
 
 impl Default for Config {
@@ -33,6 +34,7 @@ impl Default for Config {
             recap: Recap::default(),
             history: History::default(),
             ignore: Ignore::default(),
+            returns: Returns::default(),
         }
     }
 }
@@ -237,6 +239,16 @@ impl Default for History {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Ignore {
     pub cwd_globs: Vec<String>,
+}
+
+/// `[return]`: how the shell takes the user back.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Returns {
+    /// `open_project_in_editor`: when the home app is an editor that supports it (VS Code,
+    /// Cursor), ask it to open the session's project folder, which focuses the window that
+    /// already has it open, instead of just activating the app. Off by default: if Claude ran
+    /// in a subfolder of an open workspace, the editor opens a new window for the subfolder.
+    pub open_project_in_editor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

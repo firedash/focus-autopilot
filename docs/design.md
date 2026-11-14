@@ -14,8 +14,10 @@ Nov 14, 2026 · firedash
 > recap; every toast and the recap card name the project; `runs.jsonl` is written and loaded;
 > `focusctl install-agent` provides launch at login; `focusd` logs event names only when its
 > output is a file. (5) The recap card carries every other waiting session's outcome, not just its name, and
-> same-named folders show as `parent/name`. (6) Exact-window return, the Tauri shell, the
-> menu-bar icon and an installer are not built; ADR 0003 item 16 lays out the routes.
+> same-named folders show as `parent/name`. (6) Returns to VS Code and Cursor can open the session's project folder through the
+> editor's URL scheme to focus the right window (opt-in `[return] open_project_in_editor`);
+> exact-window return for terminals, the Tauri shell, the menu-bar icon and an installer are not
+> built; ADR 0003 items 16 and 21 lay out the routes.
 
 ## 1. Overview
 
@@ -591,6 +593,9 @@ salt = "<random, written on first run>"
 
 [ignore]                      # V1
 cwd_globs = []
+
+[return]
+open_project_in_editor = false  # on a return to VS Code or Cursor, open the project folder there to focus its window (see ADR 0003 item 21)
 ```
 
 Unknown keys produce a warning in the tray and log and are ignored. An invalid value on reload keeps the last good config and shows the error; on first start the default is used for that key. focusd checks the file's modification time every 2 s, so no file-watching dependency is needed.

@@ -142,6 +142,7 @@ fn run() -> Result<(), String> {
             }),
             is_home: Box::new(is_home),
             verbose: true,
+            open_project_in_editor: false,
             history: Some(focus_runner::HistoryFile {
                 path: std::env::temp_dir().join("focus-headless-history/runs.jsonl"),
                 retention_days: 90,

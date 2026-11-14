@@ -83,3 +83,29 @@ fn going_back_on_your_own_dismisses_the_prompt() {
     assert_eq!(sim.hides(), 1);
     assert!(sim.activations().is_empty());
 }
+
+#[test]
+fn a_return_carries_the_sessions_folder_so_an_editor_can_be_asked_for_its_window() {
+    let mut sim = Sim::new(Config::default());
+    sim.hook_in("s1", "p1", "/work/api", prompt("Add pagination"));
+    sim.at(5_000);
+    sim.focus(BROWSER);
+    sim.at(60_000);
+    sim.hook_in("s1", "p1", "/work/api", stop("Done."));
+    sim.at(61_000);
+    sim.toast_action();
+    sim.at(62_000);
+    assert_eq!(sim.activation_folders(), vec![Some("/work/api")]);
+}
+
+#[test]
+fn an_away_switch_carries_no_folder() {
+    let mut sim = Sim::away();
+    assert_eq!(sim.activation_folders(), vec![None]);
+    sim.at(60_000);
+    sim.hook(stop("Done."));
+    // Away was auto, so the return counts down and then switches by itself.
+    sim.at(75_000);
+    // The return that follows does carry it.
+    assert_eq!(sim.activation_folders(), vec![None, Some("/work/app")]);
+}

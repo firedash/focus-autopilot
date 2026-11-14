@@ -18,6 +18,7 @@ struct State {
     sounds: usize,
     toast: Option<String>,
     pressed: Vec<HotkeyAction>,
+    opened: Vec<(String, String)>,
     hotkeys_on: bool,
     recap: Option<Vec<String>>,
     watchers: Vec<Sender<Option<AppRef>>>,
@@ -63,6 +64,11 @@ impl FakePlatform {
     /// Makes the OS ignore activation requests, as macOS and Windows sometimes do.
     pub fn refuse_activation(&self, refuse: bool) {
         self.with(|s| s.refuse_activation = refuse);
+    }
+
+    /// `(app id, folder)` for each project opened in an editor, oldest first.
+    pub fn projects_opened(&self) -> Vec<(String, String)> {
+        self.with(|s| s.opened.clone())
     }
 
     /// The user presses a hotkey.
@@ -120,6 +126,15 @@ impl Platform for FakePlatform {
 
     fn play_sound(&self, _sound: Sound) {
         self.with(|s| s.sounds += 1);
+    }
+
+    fn open_project(&self, target: &AppRef, folder: &str) -> Result<bool> {
+        if crate::editor_url::scheme_for(&target.id).is_none() {
+            return Ok(false);
+        }
+        self.with(|s| s.opened.push((target.id.clone(), folder.to_owned())));
+        self.activate(target)?;
+        Ok(true)
     }
 }
 

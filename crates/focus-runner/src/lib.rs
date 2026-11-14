@@ -50,6 +50,9 @@ pub struct Options {
     /// Print prompts, commands, recap text and toast text. Off when output goes to a file, so
     /// a log never holds what was typed; then only event names and outcomes are printed.
     pub verbose: bool,
+    /// On a return to an editor that supports it, open the session's folder in it (which
+    /// focuses the window that has it) instead of only activating the app.
+    pub open_project_in_editor: bool,
     /// Where run history lives and how long to keep it, or `None` to keep none.
     pub history: Option<HistoryFile>,
 }
@@ -246,6 +249,31 @@ fn toast_text(text: &str, action: &str, options: &Options) -> String {
     }
 }
 
+/// Tries the editor route for a return: true if the editor was asked for the window that has
+/// the project open, false to activate the app the ordinary way (the option is off, there is
+/// no folder, the app is not such an editor, or the request failed).
+fn open_in_editor<P: Platform>(
+    platform: &P,
+    options: &Options,
+    target: &AppRef,
+    folder: Option<&str>,
+) -> bool {
+    let (true, Some(folder)) = (options.open_project_in_editor, folder) else {
+        return false;
+    };
+    match platform.open_project(target, folder) {
+        Ok(true) => {
+            println!("OPEN project in {}", target.id);
+            true
+        }
+        Ok(false) => false,
+        Err(e) => {
+            println!("could not open the project in {}: {e:?}", target.id);
+            false
+        }
+    }
+}
+
 /// The event's name without its fields, which can hold prompts and commands.
 fn kind_name(kind: &focus_core::EventKind) -> String {
     format!("{kind:?}")
@@ -305,10 +333,13 @@ fn carry_out<P: Platform + Overlay + Hotkeys>(
         Effect::Activate {
             target,
             verify_after,
+            folder,
         } => {
-            match platform.activate(&target) {
-                Ok(()) => println!("ACTIVATE {}", target.id),
-                Err(e) => println!("ACTIVATE {} failed: {e:?}", target.id),
+            if !open_in_editor(platform, options, &target, folder.as_deref()) {
+                match platform.activate(&target) {
+                    Ok(()) => println!("ACTIVATE {}", target.id),
+                    Err(e) => println!("ACTIVATE {} failed: {e:?}", target.id),
+                }
             }
             *pending = Some(PendingVerify {
                 at: now + verify_after,
@@ -375,6 +406,7 @@ mod tests {
             recap: None,
             is_home: Box::new(|_| true),
             verbose: true,
+            open_project_in_editor: false,
             history: None,
         }
     }
@@ -386,6 +418,58 @@ mod tests {
             toast_text("Claude is done. Go back?", "Go back now", &with_key),
             "Claude is done. Go back?\n⌃⌥⌘Space: Go back now"
         );
+    }
+
+    fn app(id: &str) -> AppRef {
+        AppRef {
+            id: id.to_owned(),
+            name: id.to_owned(),
+            pid: 1,
+            window: None,
+        }
+    }
+
+    fn fake() -> focus_platform::fake::FakePlatform {
+        focus_platform::fake::FakePlatform::new(
+            vec![app("com.microsoft.VSCode"), app("com.apple.Terminal")],
+            Some(app("com.apple.Terminal")),
+        )
+    }
+
+    #[test]
+    fn an_editor_return_opens_the_project_when_the_option_is_on() {
+        let platform = fake();
+        let mut on = options(None);
+        on.open_project_in_editor = true;
+        let vscode = app("com.microsoft.VSCode");
+        assert!(open_in_editor(&platform, &on, &vscode, Some("/work/api")));
+        assert_eq!(
+            platform.projects_opened(),
+            vec![("com.microsoft.VSCode".to_owned(), "/work/api".to_owned())]
+        );
+    }
+
+    #[test]
+    fn otherwise_the_app_is_activated_the_ordinary_way() {
+        let platform = fake();
+        let mut on = options(None);
+        on.open_project_in_editor = true;
+        let vscode = app("com.microsoft.VSCode");
+        // Option off, no folder, or not an editor: the editor route is not taken.
+        assert!(!open_in_editor(
+            &platform,
+            &options(None),
+            &vscode,
+            Some("/work/api")
+        ));
+        assert!(!open_in_editor(&platform, &on, &vscode, None));
+        assert!(!open_in_editor(
+            &platform,
+            &on,
+            &app("com.apple.Terminal"),
+            Some("/work/api")
+        ));
+        assert!(platform.projects_opened().is_empty());
     }
 
     #[test]

@@ -100,10 +100,9 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     which *project* a session is in, not which *window*, so any route needs a way to tie a
     session to a window. The routes, none of them built:
     - **Editors:** open `vscode://file/<project folder>` (and `cursor://...`) through the
-      normal macOS open-URL call. No permission and no spawned process; VS Code should focus
-      the window that already has the folder open. Untested. A 10-minute check on a Mac:
-      `open "vscode://file/<a folder open in VS Code>"` and see whether that window comes
-      forward.
+      normal macOS open-URL call. No permission and no spawned process. Checked by hand on a
+      Mac with one folder open in VS Code: the URL brought that window forward. Built (item
+      21), opt-in.
     - **Terminals:** carry the terminal's own session id in the hook. Anthropic's hooks page
       documents `allowedEnvVars` for HTTP hooks, which lets a header take a value from an
       environment variable, so a header such as `X-Focus-Term: $ITERM_SESSION_ID` is plausible
@@ -143,3 +142,21 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     `focusd --test-hotkeys` registers the configured chords and prints each press for 60
     seconds, so "the key does nothing" can be separated from the rest of the app. Neither has
     been run on a Mac.
+
+21. **Editor return by project URL, opt-in.** With `[return] open_project_in_editor = true`,
+    a return to VS Code, VS Code Insiders or Cursor opens `<scheme>://file/<percent-encoded
+    project folder>` through `NSWorkspace.openURL` instead of only activating the app. The
+    core attaches the session's folder to the activation for returns only (never for an away
+    switch), and the shell falls back to ordinary activation if the option is off, the app is
+    not such an editor, or the request fails. The activation is still verified afterwards.
+    Off by default because the URL cannot tell the editor to focus a window rather than open a
+    folder: when Claude ran in a *subfolder* of an open workspace, the editor may open a new
+    window for it. Only editors whose behaviour has been checked are in the scheme table
+    (`editor_url.rs`). Terminals still return to the app, not the window (item 16).
+
+22. **Config differences from the design.** The design says an unknown key in `config.toml`
+    produces a warning and is ignored, and that the file is re-read when it changes. As built,
+    an unknown key or a wrongly typed value is an error that stops `focusd` from starting, so a
+    typo cannot leave a setting silently at its default, and the file is read once at startup:
+    changes need a restart. The design's behaviour may return with the tray, which has
+    somewhere to show a warning.

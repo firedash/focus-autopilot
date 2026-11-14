@@ -101,6 +101,25 @@ editor windows open you land in whichever one macOS raises. And Cursor's, VS Cod
 Claude app's ids in the built-in list were written from memory: the `front:` line shows the
 real one, and if it differs from the list, please open an issue so the list can be corrected.
 
+## Return to the right editor window (optional)
+
+By default the key takes you back to the app. With several VS Code or Cursor windows open you
+land in whichever one macOS raises. To land in the window that has the project open:
+
+```toml
+[return]
+open_project_in_editor = true
+```
+
+Restart `focusd`. When the app you prompted from is VS Code, VS Code Insiders or Cursor, the
+return then opens `vscode://file/<project folder>` (or `cursor://...`) through macOS, which
+brings forward the window that already has that folder open. It starts no process and needs no
+permission. Checked by hand for VS Code with one folder; not checked with several windows.
+
+One caveat is why it is off by default: if you ran `claude` in a *subfolder* of the folder open
+in VS Code, the editor may open a new window for the subfolder instead of focusing the existing
+one. If you see that, turn it off. Terminals have no such route yet.
+
 ## Start at login (optional)
 
 ```bash

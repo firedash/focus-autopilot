@@ -69,6 +69,9 @@ mod mac {
             Some(key) => println!("press {key} to act on a toast."),
             None => println!("no focus hotkey: type `click` here to act on a toast."),
         }
+        if config.returns.open_project_in_editor {
+            println!("returns to VS Code or Cursor open the session's project folder there.");
+        }
         if config.recap.mode == focus_core::RecapMode::Llm {
             println!("recap: summarised by your `claude` CLI (recap.mode = \"llm\").");
         }
@@ -98,6 +101,7 @@ mod mac {
                 replies,
             }),
             verbose,
+            open_project_in_editor: config.returns.open_project_in_editor,
             history: paths::data_dir().map(|dir| focus_runner::HistoryFile {
                 path: dir.join("runs.jsonl"),
                 retention_days,

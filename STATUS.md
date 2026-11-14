@@ -34,12 +34,13 @@ optional.
 | Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
 | Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
 | Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
+| Return to the right editor window: on a return to VS Code, VS Code Insiders or Cursor, open `<scheme>://file/<project folder>` through the OS (opt-in `[return] open_project_in_editor`) | `focus-platform/src/editor_url.rs`, `macos.rs`, `focus-runner` | URL building, core plumbing and fallback tested; the OS call is compiled for macOS only. Checked by hand for VS Code with one open folder (the URL focused it); not checked with several windows or with Cursor |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
 --all-targets` with the workspace lints from section 13 of the design (warnings denied,
 pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests), and `cargo test
---workspace`: 156 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
+--workspace`: 165 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
 focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 ## Which Claude Code surfaces
@@ -57,9 +58,9 @@ Each also needs its app in the home-app list (`focusd` prints the line to add).
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
 
-Returns go to the app, not the window, so with several sessions in one app the key lands in
-the app; the project name on the toast says which session is waiting. Exact-window return
-(backlog C5) is not built.
+Returns go to the app, not the window (except the opt-in editor route above), so with several
+sessions in one app the key lands in the app; the project name on the toast says which session is waiting. Exact-window return exists only for VS Code and Cursor, behind
+`[return] open_project_in_editor`; terminals have none (backlog C5).
 
 ## Not built
 
@@ -74,18 +75,19 @@ the app; the project name on the toast says which session is waiting. Exact-wind
   visibility check.
 - **M6:** release engineering.
 - Known redaction gaps: a secret in plain prose and attached short flags (`mysql -pSecret`).
-- Front-app change notifications (polled instead), exact-window return (needs the opt-in
-  Accessibility permission or spawning the editor's command line; see ADR 0003 item 16), the
-  declare-long hotkey.
+- Config reload on edit (the file is read once; restart `focusd`), and warnings instead of
+  errors for unknown keys (ADR 0003 item 22).
+- Front-app change notifications (polled instead), exact-window return for terminals (editors
+  have the opt-in URL route; see ADR 0003 item 16), the declare-long hotkey.
 - Line coverage on `focus-core` is unmeasured; the target is 90%. No performance budgets
   measured.
 
 ## Next steps, in order
 
 1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested as this.
-2. Try the `vscode://file/<folder>` route for exact-window return in editors: with a folder
-   open in VS Code, run `open "vscode://file/<that folder>"` and see whether that window comes
-   forward. If so it needs no permission and no process; build it (ADR 0003 item 16).
+2. Try `[return] open_project_in_editor = true` with two VS Code windows open on different
+   folders and check the right one comes forward; then try Cursor, and a subfolder of an open
+   workspace (which may open a new window). If it holds up, consider making it the default.
 3. Decide on terminals: carrying the terminal's session id in the hook (documented
    `allowedEnvVars`), then selecting that session through Apple Events with a one-time
    Automation prompt per app.

@@ -24,7 +24,7 @@ impl Core {
                 phase: Phase::Quiet { since },
             } => {
                 if quiet {
-                    let until = self.request_activation(&target, now, fx);
+                    let until = self.request_activation(&target, None, now, fx);
                     Mode::AwayCountdown {
                         session,
                         target,
@@ -47,7 +47,7 @@ impl Core {
                 step: ReturnStep::Countdown(Phase::Quiet { since }),
             } => {
                 if quiet {
-                    let until = self.request_activation(&home, now, fx);
+                    let until = self.request_activation(&home, Some(&session), now, fx);
                     let step = ReturnStep::Countdown(Phase::Verifying { until });
                     Mode::Return {
                         session,
@@ -149,7 +149,7 @@ impl Core {
                 until,
                 verifying: None,
             } => {
-                let deadline = self.request_activation(&target, now, fx);
+                let deadline = self.request_activation(&target, None, now, fx);
                 Mode::AwayPrompt {
                     session,
                     target,
@@ -186,7 +186,7 @@ impl Core {
                 snoozes,
                 step: ReturnStep::Prompt { verifying: None },
             } => {
-                let deadline = self.request_activation(&home, now, fx);
+                let deadline = self.request_activation(&home, Some(&session), now, fx);
                 let step = ReturnStep::Prompt {
                     verifying: Some(deadline),
                 };

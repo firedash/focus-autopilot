@@ -152,17 +152,24 @@ impl Core {
         }
     }
 
+    /// `returning` is the session being returned to; its folder goes with the request.
     pub(crate) fn request_activation(
         &self,
         target: &AppRef,
+        returning: Option<&str>,
         now: Instant,
         fx: &mut Vec<Effect>,
     ) -> Instant {
         let verify_after = self.cfg.switching.verify_after;
         fx.push(Effect::HideToast);
+        let folder = returning
+            .and_then(|id| self.sessions.get(id))
+            .map(|s| s.run.cwd.clone())
+            .filter(|cwd| !cwd.is_empty());
         fx.push(Effect::Activate {
             target: target.clone(),
             verify_after,
+            folder,
         });
         now + verify_after + VERIFY_GRACE
     }
