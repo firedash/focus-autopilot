@@ -1,6 +1,6 @@
 # Focus Autopilot — Feature Backlog & Technical Design (v1: Claude Code on macOS and Windows)
 
-Nov 14, 2026 · @Avinash
+Nov 14, 2026 · firedash
 
 ## 1. Overview
 
