@@ -69,6 +69,7 @@ pub fn run<P: Platform>(
         Input::Observed(Observation::Frontmost(front.clone())),
         Instant::now(),
     );
+    announce_front(front.as_ref());
     let mut effects = startup;
     let mut pending: Option<PendingVerify> = None;
     let mut next_poll = Instant::now() + POLL_FRONT;
@@ -101,6 +102,7 @@ pub fn run<P: Platform>(
             let now_front = platform.frontmost().ok().flatten();
             if now_front != front {
                 front.clone_from(&now_front);
+                announce_front(now_front.as_ref());
                 effects
                     .extend(core.handle(Input::Observed(Observation::Frontmost(now_front)), now));
             }
@@ -115,6 +117,15 @@ pub fn run<P: Platform>(
                 );
             }
         }
+    }
+}
+
+/// Printed so a user can see which app id the shell reads, and compare it with the home-app
+/// list when a switch doesn't happen.
+fn announce_front(app: Option<&AppRef>) {
+    match app {
+        Some(app) => println!("front: {} ({})", app.id, app.name),
+        None => println!("front: unknown"),
     }
 }
 
