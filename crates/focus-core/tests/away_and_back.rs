@@ -45,7 +45,7 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
         sim.toast_texts(),
         vec![
             "Claude will take a while. Switching to Terraria in 3 s.",
-            "Claude is done. Back to Terminal in 3 s.",
+            "Claude is done in app. Back to Terminal in 3 s.",
         ]
     );
     assert_eq!(
@@ -56,6 +56,7 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
     assert_eq!(
         sim.recaps(),
         vec![vec![
+            "Project: app",
             "Asked:   Run the tests and fix failures",
             "Claude:  Fixed the failing sum test; all 42 tests pass.",
             "Touched: src/sum.ts",

@@ -39,6 +39,7 @@ pub use events::{
 pub use guards::GuardFail;
 pub use io::{Effect, Input, LogEvent, Note, PauseFor, ProbeKind, Sound, Status};
 pub use recap::RecapCard;
+pub use redact::redact;
 pub use run::{AwayHow, ReturnHow, RunOutcome, RunRecord};
 pub use session::SessionState;
 pub use toast::{Toast, ToastKind};

@@ -22,6 +22,7 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 mod mac {
+    use std::io::IsTerminal as _;
     use std::path::PathBuf;
     use std::sync::mpsc;
     use std::time::Instant;
@@ -74,6 +75,41 @@ mod mac {
         focus_hint
     }
 
+    /// The shell's settings: where to keep history and run the recap, and what to print.
+    /// Printing text is for a terminal; a launch agent's log file must not hold what was typed.
+    fn build_options(
+        config: &Config,
+        apps: &[String],
+        focus_hint: Option<String>,
+        replies: std::sync::mpsc::Sender<focus_runner::Msg>,
+        verbose: bool,
+    ) -> focus_runner::Options {
+        let home_apps: Vec<String> = apps
+            .iter()
+            .chain(&config.home.extra_apps)
+            .cloned()
+            .collect();
+        let retention_days = config.history.retention_days;
+        focus_runner::Options {
+            recap_for: config.ui.recap_shown_for,
+            focus_hint,
+            recap: paths::data_dir().map(|dir| focus_runner::RecapRunner {
+                dir: dir.join("recap-workdir"),
+                replies,
+            }),
+            verbose,
+            history: paths::data_dir().map(|dir| focus_runner::HistoryFile {
+                path: dir.join("runs.jsonl"),
+                retention_days,
+            }),
+            is_home: Box::new(move |id| {
+                home_apps
+                    .iter()
+                    .any(|entry| focus_core::app_id_matches(entry, id))
+            }),
+        }
+    }
+
     /// Built-in and configured home apps, with the same matching the core uses.
     fn home_match(apps: &[String], config: &Config, id: &str) -> bool {
         apps.iter()
@@ -99,6 +135,7 @@ mod mac {
         let mut config_path = paths::config_path().ok_or("no HOME")?;
         let mut port = None;
         let mut list_apps = false;
+        let mut force_verbose = false;
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
@@ -114,8 +151,9 @@ mod mac {
                     );
                 }
                 "--list-apps" => list_apps = true,
+                "--verbose" => force_verbose = true,
                 "--help" | "-h" => {
-                    println!("usage: focusd [--config FILE] [--port N] [--list-apps]");
+                    println!("usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose]");
                     return Ok(());
                 }
                 other => return Err(format!("unknown argument {other}")),
@@ -151,24 +189,8 @@ mod mac {
         println!("Commands: click, pause, resume, quit.");
 
         let (rx, replies) = focus_runner::inputs(hook_rx);
-        let home_apps: Vec<String> = apps
-            .iter()
-            .chain(&config.home.extra_apps)
-            .cloned()
-            .collect();
-        let options = focus_runner::Options {
-            recap_for: config.ui.recap_shown_for,
-            focus_hint,
-            recap: paths::data_dir().map(|dir| focus_runner::RecapRunner {
-                dir: dir.join("recap-workdir"),
-                replies,
-            }),
-            is_home: Box::new(move |id| {
-                home_apps
-                    .iter()
-                    .any(|entry| focus_core::app_id_matches(entry, id))
-            }),
-        };
+        let verbose = force_verbose || std::io::stdout().is_terminal();
+        let options = build_options(&config, &apps, focus_hint, replies, verbose);
         let mut core = Core::new(config, apps);
         focus_runner::run(
             &mut core,

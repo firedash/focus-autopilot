@@ -12,6 +12,8 @@ agent's state:
 - When the agent finishes or needs your approval and you are not in the window you prompted
   from, you get a sound and a small box on screen. One key takes you back to that window and
   shows a short recap: what you asked, what the agent did, what it needs from you.
+- Every box names the project ("Claude is done in api"), so parallel sessions can be told
+  apart, and secrets typed into a prompt are redacted before they are stored or shown.
 - Optionally, name an away app and it also switches you there when a prompt runs long, with a
   countdown that one key cancels or snoozes, so keystrokes never land in the wrong window.
 

@@ -64,3 +64,39 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     can change its formatting. `uninstall-hooks` therefore restores the first backup's exact
     bytes when its content matches what the uninstall produced, and otherwise writes the
     re-serialised file. The first backup is kept, never overwritten.
+
+11. **Secrets are redacted at the receiver and on the card.** The first version redacted only
+    the text sent for the LLM recap, so the on-screen card showed a key typed into a prompt in
+    full: a problem on a screen share. The receiver now redacts prompts, commands, messages
+    and errors before they are stored, reading 128 characters past the truncation point so a
+    key that straddles the cut is seen whole; the core redacts the card again as defence in
+    depth. Redaction is a best-effort pattern filter (known key prefixes, `name=value` pairs
+    for secret-like names, bearer tokens, PEM blocks), not a guarantee.
+
+12. **Toasts and the recap name the project.** The last folder of the session's `cwd` appears
+    on every toast ("Claude is done in api. Go back?"), on the recap card as `Project:`, and
+    in `Also waiting:`, which now lists names instead of a count. With several sessions in
+    one app and no exact-window return, the key still lands in the app, not the session; the
+    name at least says which one is waiting.
+
+13. **Run history is written and read.** `runs.jsonl` gets one metadata line per finished
+    run, in the design's format and with mode 0600; it is loaded at startup into the
+    estimator, and lines past `history.retention_days`, and unreadable ones, are dropped.
+    It holds no prompt text, command or path; the project is a salted hash.
+
+14. **Logs hold names, not text.** When `focusd`'s output is a terminal it prints prompts,
+    toasts and recaps for debugging. When it is a file, as under a launch agent, it prints
+    event names and outcomes only. `--verbose` forces the full output.
+
+15. **Launch at login is a plist `focusctl` writes.** `install-agent` writes
+    `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` and prints the
+    `launchctl` command that loads it; it does not load it itself. The `PATH` at install time
+    is saved in the plist, because a launch agent has none of the shell's, and `claude` for
+    LLM recaps must stay findable. There is still no tray icon or installer.
+
+16. **Exact-window return stays unbuilt.** macOS cannot raise a specific window of another app
+    without the Accessibility permission (design item C5, opt-in by design), or by starting
+    other programs, which the design's threat model rules out. The no-permission route for
+    editors would be to run the editor's own command line with the project folder, which
+    focuses the window that has it open; that is left for a later decision because it spawns
+    a process on every return.

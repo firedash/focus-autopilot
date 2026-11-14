@@ -8,6 +8,8 @@ key. The switching, boxes and recap have been run on a Mac with real Claude Code
 terminal. Everything marked "unrun" below compiles and passes clippy for macOS but has not
 been seen working. See [docs/mac-quickstart.md](docs/mac-quickstart.md) to run it.
 
+**Unverified on a Mac:** the global hotkey, and every surface except the terminal.
+
 Where the build departs from `docs/design.md`, [ADR 0003](docs/adr/0003-shell-decisions.md)
 wins. The biggest departure: **manual mode is the default**. Nothing switches you away on its
 own; you go where you like and one key brings you back. Automatic switching to an away app is
@@ -27,12 +29,17 @@ optional.
 | On-screen toast and recap card (non-activating panels) | `focus-platform/src/macos_overlay.rs` | run on a Mac |
 | Global hotkeys (focus key acts on the toast, pause key); chord parser | `hotkey.rs`, `macos_hotkeys.rs` | parser tested; registration unrun |
 | Warning when a prompt comes from an app that is not a home app, with the config line to add | `focus-runner` | done |
+| Secrets redacted at the receiver (before storing, with a window past the cut) and again on the recap card | `focus-receiver`, `focus-core` | done; tested including a key straddling the truncation point |
+| Project name on every toast and recap, other waiting projects named | `focus-core` | done and tested; the key still returns to the app, not the session |
+| Run history: `runs.jsonl` written (mode 0600, no text) and loaded into the estimator, with retention | `focus-runner` | done; tested, and across two launches of the headless runner |
+| Logs hold event names only when output is a file; full text only to a terminal | `focus-runner`, `focusd` | done |
+| Launch at login: `focusctl install-agent` / `uninstall-agent` (writes the plist, prints the `launchctl` command) | `focusctl` | the plist is tested; never loaded by `launchd` here |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 
 Checks run on Linux with Rust 1.97.0: `cargo fmt --check`, `cargo clippy --workspace
 --all-targets` with the workspace lints from section 13 of the design (warnings denied,
 pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests), and `cargo test
---workspace`: 138 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
+--workspace`: 152 tests, all passing. macOS code is checked with `cargo clippy -p focusd -p
 focus-platform -p focus-runner --target aarch64-apple-darwin`.
 
 ## Which Claude Code surfaces
@@ -50,7 +57,9 @@ Each also needs its app in the home-app list (`focusd` prints the line to add).
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
 
-Returns go to the app, not the window. Exact-window return (backlog C5) is not built.
+Returns go to the app, not the window, so with several sessions in one app the key lands in
+the app; the project name on the toast says which session is waiting. Exact-window return
+(backlog C5) is not built.
 
 ## Not built
 
@@ -59,13 +68,14 @@ Returns go to the app, not the window. Exact-window return (backlog C5) is not b
   CODEOWNERS, THREAT_MODEL.md, PERMISSIONS.md, AUDIT.md, REPRODUCIBLE.md, deny.toml,
   workflows).
 - **M2:** the platform spike recorded in an ADR, and the whole Windows adapter.
-- **M3/M5:** the Tauri shell, tray, click on a toast, first-run wizard, launch at login. For
-  now `focusd` runs in a terminal and also prints toasts and recaps there.
+- **M3/M5:** the Tauri shell, menu-bar icon, click on a toast, first-run wizard, an installer.
+  `focusd` runs in a terminal or, with `focusctl install-agent`, from a launch agent.
 - **M4 (rest):** `focusctl doctor`, `--scope project` and `--scope local`, the failed-hook
   visibility check.
 - **M6:** release engineering.
-- Front-app change notifications (polled instead), exact-window return, the declare-long
-  hotkey, `runs.jsonl` history on disk (the core emits the records; nothing writes them).
+- Front-app change notifications (polled instead), exact-window return (needs the opt-in
+  Accessibility permission or spawning the editor's command line; see ADR 0003 item 16), the
+  declare-long hotkey.
 - Line coverage on `focus-core` is unmeasured; the target is 90%. No performance budgets
   measured.
 

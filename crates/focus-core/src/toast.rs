@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use crate::events::AppRef;
+use crate::events::{AppRef, project_name};
 use crate::run::{Need, Outcome};
 use crate::session::Session;
 
@@ -77,12 +77,19 @@ pub(crate) fn return_prompt(session: &Session) -> Toast {
     }
 }
 
-fn headline(session: &Session) -> &'static str {
-    match (&session.run.need, &session.run.outcome) {
-        (Some(Need::Approval(_) | Need::Plan), _) => "Claude needs your approval.",
-        (Some(Need::Question), _) => "Claude has a question.",
-        (Some(Need::Mcp(_) | Need::Input), _) => "Claude needs your input.",
-        (None, Some(Outcome::Error(_))) => "Claude stopped with an error.",
-        (None, _) => "Claude is done.",
+/// "Claude is done in my-app.": the project name tells parallel sessions apart.
+fn headline(session: &Session) -> String {
+    let base = match (&session.run.need, &session.run.outcome) {
+        (Some(Need::Approval(_) | Need::Plan), _) => "Claude needs your approval",
+        (Some(Need::Question), _) => "Claude has a question",
+        (Some(Need::Mcp(_) | Need::Input), _) => "Claude needs your input",
+        (None, Some(Outcome::Error(_))) => "Claude stopped with an error",
+        (None, _) => "Claude is done",
+    };
+    let project = project_name(&session.run.cwd);
+    if project.is_empty() {
+        format!("{base}.")
+    } else {
+        format!("{base} in {project}.")
     }
 }

@@ -4,6 +4,7 @@
 //! Toasts and recaps are printed to the terminal until the overlay UI (M5) exists.
 #![forbid(unsafe_code)]
 
+pub mod history;
 pub mod paths;
 pub mod recap_cli;
 
@@ -46,6 +47,17 @@ pub struct Options {
     pub recap: Option<RecapRunner>,
     /// Says whether an app id is a home app, to explain a prompt that was ignored.
     pub is_home: Box<dyn Fn(&str) -> bool>,
+    /// Print prompts, commands, recap text and toast text. Off when output goes to a file, so
+    /// a log never holds what was typed; then only event names and outcomes are printed.
+    pub verbose: bool,
+    /// Where run history lives and how long to keep it, or `None` to keep none.
+    pub history: Option<HistoryFile>,
+}
+
+/// `runs.jsonl` and its retention.
+pub struct HistoryFile {
+    pub path: std::path::PathBuf,
+    pub retention_days: u32,
 }
 
 /// Everything needed to run LLM recaps off the shell thread.
@@ -99,10 +111,16 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
     // Like a real shell: say what is in front before any hook arrives, so the next prompt
     // captures the right home window.
     let mut front = platform.frontmost().ok().flatten();
-    let startup = core.handle(
+    let mut startup = Vec::new();
+    if let Some(file) = &options.history {
+        let samples = history::load(&file.path, file.retention_days);
+        println!("history: {} past runs loaded", samples.len());
+        startup.extend(core.handle(Input::History(samples), Instant::now()));
+    }
+    startup.extend(core.handle(
         Input::Observed(Observation::Frontmost(front.clone())),
         Instant::now(),
-    );
+    ));
     announce_front(front.as_ref());
     let mut effects = startup;
     let mut pending: Option<PendingVerify> = None;
@@ -135,7 +153,11 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
         let now = Instant::now();
         match msg {
             Ok(Msg::Hook(hook)) => {
-                println!("hook: {:?}", hook.event.kind);
+                if options.verbose {
+                    println!("hook: {:?}", hook.event.kind);
+                } else {
+                    println!("hook: {}", kind_name(&hook.event.kind));
+                }
                 if matches!(
                     hook.event.kind,
                     focus_core::EventKind::UserPromptSubmit { .. }
@@ -224,6 +246,15 @@ fn toast_text(text: &str, action: &str, options: &Options) -> String {
     }
 }
 
+/// The event's name without its fields, which can hold prompts and commands.
+fn kind_name(kind: &focus_core::EventKind) -> String {
+    format!("{kind:?}")
+        .split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or("")
+        .to_owned()
+}
+
 /// Printed so a user can see which app id the shell reads, and compare it with the home-app
 /// list when a switch doesn't happen.
 fn announce_front(app: Option<&AppRef>) {
@@ -260,7 +291,11 @@ fn carry_out<P: Platform + Overlay + Hotkeys>(
 ) {
     match effect {
         Effect::ShowToast(toast) => {
-            println!("TOAST [{:?}] {}", toast.kind, toast.text);
+            if options.verbose {
+                println!("TOAST [{:?}] {}", toast.kind, toast.text);
+            } else {
+                println!("TOAST [{:?}]", toast.kind);
+            }
             platform.show_toast(&toast_text(&toast.text, toast.action, options));
         }
         Effect::HideToast => {
@@ -297,8 +332,10 @@ fn carry_out<P: Platform + Overlay + Hotkeys>(
         }
         Effect::ShowRecap(card) => {
             println!("RECAP");
-            for line in &card.lines {
-                println!("  {line}");
+            if options.verbose {
+                for line in &card.lines {
+                    println!("  {line}");
+                }
             }
             platform.show_recap(&card.lines, options.recap_for);
         }
@@ -306,7 +343,18 @@ fn carry_out<P: Platform + Overlay + Hotkeys>(
             platform.play_sound(sound);
             println!("sound: {sound:?}");
         }
-        Effect::AppendRun(record) => println!("run recorded: {record:?}"),
+        Effect::AppendRun(record) => {
+            println!(
+                "run recorded ({:?}, {} s)",
+                record.outcome,
+                record.duration.as_secs()
+            );
+            if let Some(file) = &options.history
+                && let Err(e) = history::append(&file.path, &record, record.started)
+            {
+                println!("could not save run history: {e}");
+            }
+        }
         Effect::SummarizeRecap {
             id,
             prompt,
@@ -326,6 +374,8 @@ mod tests {
             focus_hint: hint.map(str::to_owned),
             recap: None,
             is_home: Box::new(|_| true),
+            verbose: true,
+            history: None,
         }
     }
 
@@ -336,6 +386,17 @@ mod tests {
             toast_text("Claude is done. Go back?", "Go back now", &with_key),
             "Claude is done. Go back?\n⌃⌥⌘Space: Go back now"
         );
+    }
+
+    #[test]
+    fn an_event_name_never_carries_its_fields() {
+        let kind = focus_core::EventKind::UserPromptSubmit {
+            prompt: "deploy with the secret".into(),
+            prompt_chars: 22,
+            permission_mode: None,
+        };
+        assert_eq!(kind_name(&kind), "UserPromptSubmit");
+        assert_eq!(kind_name(&focus_core::EventKind::SessionEnd), "SessionEnd");
     }
 
     #[test]

@@ -177,6 +177,11 @@ impl Sim {
     }
 
     pub fn hook_for(&mut self, session: &str, run: &str, kind: EventKind) {
+        self.hook_in(session, run, "/work/app", kind);
+    }
+
+    /// Like `hook_for`, from a given project folder.
+    pub fn hook_in(&mut self, session: &str, run: &str, cwd: &str, kind: EventKind) {
         if matches!(kind, EventKind::UserPromptSubmit { .. }) {
             // The user has just pressed Enter.
             self.last_input = self.now;
@@ -184,7 +189,7 @@ impl Sim {
         self.feed(Input::Hook(AgentEvent {
             session_id: session.to_owned(),
             prompt_id: Some(run.to_owned()),
-            cwd: "/work/app".to_owned(),
+            cwd: cwd.to_owned(),
             project: "proj-a".to_owned(),
             kind,
         }));

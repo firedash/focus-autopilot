@@ -113,6 +113,30 @@ pub enum UserAction {
     DeclareLong,
 }
 
+/// Cuts a line to at most `max_chars`, at a word boundary with an ellipsis when there is one
+/// to cut at, rather than stopping mid-word.
+pub(crate) fn shorten(line: &str, max_chars: usize) -> String {
+    if line.chars().count() <= max_chars {
+        return line.to_owned();
+    }
+    let room: String = line.chars().take(max_chars.saturating_sub(1)).collect();
+    let cut = room
+        .rfind(' ')
+        .filter(|&at| at > room.len() / 2)
+        .unwrap_or(room.len());
+    format!("{}…", room[..cut].trim_end())
+}
+
+/// The last folder of a project path, for telling sessions apart on a toast.
+pub(crate) fn project_name(cwd: &str) -> String {
+    let name = cwd
+        .trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("");
+    shorten(&clean_text(name, 80), 32)
+}
+
 /// Makes outside text safe to keep and show: drops ANSI escape sequences and control
 /// characters, turns line breaks and tabs into spaces, and keeps at most `max_chars`.
 pub fn clean_text(raw: &str, max_chars: usize) -> String {

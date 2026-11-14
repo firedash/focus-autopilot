@@ -5,11 +5,13 @@
 
 use std::time::Duration;
 
+use crate::events::{project_name, shorten};
+use crate::redact::redact;
 use crate::run::{Need, Outcome, Run};
 use crate::session::{Session, SessionState};
 
 /// The card is small; a longer line is cut with an ellipsis.
-const LINE_MAX_CHARS: usize = 160;
+const LINE_MAX_CHARS: usize = 120;
 const FILES_SHOWN: usize = 5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,10 +20,14 @@ pub struct RecapCard {
     pub lines: Vec<String>,
 }
 
-/// `others` is how many other sessions are also waiting for the user.
-pub(crate) fn build(session: &Session, others: usize) -> RecapCard {
+/// `others` names the other sessions also waiting for the user.
+pub(crate) fn build(session: &Session, others: &[String]) -> RecapCard {
     let run = &session.run;
     let mut lines = Vec::new();
+    let project = project_name(&run.cwd);
+    if !project.is_empty() {
+        lines.push(format!("Project: {project}"));
+    }
     if !run.prompt.is_empty() {
         lines.push(format!("Asked:   {}", run.prompt));
     }
@@ -32,12 +38,33 @@ pub(crate) fn build(session: &Session, others: usize) -> RecapCard {
     if let Some(stats) = stats_line(run) {
         lines.push(stats);
     }
-    if others > 0 {
-        let others = u32::try_from(others).unwrap_or(u32::MAX);
-        lines.push(format!("Also waiting: {}", count(others, "other session")));
+    if !others.is_empty() {
+        lines.push(also_waiting(others));
     }
+    // Redact what is shown, not only what is sent to the LLM: a card on a shared screen must
+    // not display a key that was typed into a prompt.
     RecapCard {
-        lines: lines.iter().map(|line| fit(line)).collect(),
+        lines: lines.iter().map(|line| fit(&redact(line))).collect(),
+    }
+}
+
+/// Names up to three other waiting projects; a session with no folder counts as unnamed.
+fn also_waiting(others: &[String]) -> String {
+    let named: Vec<&str> = others
+        .iter()
+        .map(String::as_str)
+        .filter(|name| !name.is_empty())
+        .take(3)
+        .collect();
+    let total = u32::try_from(others.len()).unwrap_or(u32::MAX);
+    if named.is_empty() {
+        return format!("Also waiting: {}", count(total, "other session"));
+    }
+    let more = others.len().saturating_sub(named.len());
+    if more == 0 {
+        format!("Also waiting: {}", named.join(", "))
+    } else {
+        format!("Also waiting: {} (+{more} more)", named.join(", "))
     }
 }
 
@@ -136,12 +163,7 @@ fn count(n: u32, noun: &str) -> String {
 }
 
 fn fit(line: &str) -> String {
-    if line.chars().count() <= LINE_MAX_CHARS {
-        return line.to_owned();
-    }
-    let mut cut: String = line.chars().take(LINE_MAX_CHARS - 1).collect();
-    cut.push('…');
-    cut
+    shorten(line, LINE_MAX_CHARS)
 }
 
 #[cfg(test)]
@@ -170,6 +192,11 @@ mod tests {
         assert_eq!(cut.chars().count(), LINE_MAX_CHARS);
         assert!(cut.ends_with('…'));
         assert_eq!(fit("short"), "short");
+        // With spaces to cut at, it stops at a word rather than mid-word.
+        let words = format!("Claude: {}", "refactored ".repeat(20));
+        let cut = fit(&words);
+        assert!(cut.chars().count() <= LINE_MAX_CHARS);
+        assert!(cut.ends_with("refactored…"), "{cut}");
     }
 
     #[test]

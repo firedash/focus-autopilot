@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use focus_core::{
     AgentEvent, COMMAND_MAX_CHARS, EventKind, MESSAGE_MAX_CHARS, PATH_MAX_CHARS, PROMPT_MAX_CHARS,
-    clean_text,
+    clean_text, redact,
 };
 use serde::{Deserialize, Deserializer};
 use sha2::{Digest, Sha256};
@@ -18,6 +18,17 @@ pub enum ParseError {
     Malformed,
     /// A well-formed payload for an event focusd doesn't register.
     UnknownEvent(String),
+}
+
+/// Extra characters read past the cut, so a key that straddles it is still seen whole by the
+/// redactor before the text is shortened.
+const REDACT_WINDOW: usize = 128;
+
+/// Redacts likely secrets, then cleans and shortens. The order matters: truncating first could
+/// leave half a key too short to recognise.
+fn keep(raw: &str, max_chars: usize) -> String {
+    let window: String = raw.chars().take(max_chars + REDACT_WINDOW).collect();
+    clean_text(&redact(&window), max_chars)
 }
 
 /// `Some` only for a JSON string; any other type reads as absent.
@@ -132,10 +143,7 @@ pub fn parse(body: &[u8], salt: &str) -> Result<AgentEvent, ParseError> {
         return Err(ParseError::Malformed);
     };
     let tool_name = clean_text(&raw.tool_name.unwrap_or_default(), 100);
-    let command = raw
-        .tool_input
-        .command
-        .map(|c| clean_text(&c, COMMAND_MAX_CHARS));
+    let command = raw.tool_input.command.map(|c| keep(&c, COMMAND_MAX_CHARS));
     let file_path = raw
         .tool_input
         .file_path
@@ -145,7 +153,7 @@ pub fn parse(body: &[u8], salt: &str) -> Result<AgentEvent, ParseError> {
             let full = raw.prompt.unwrap_or_default();
             EventKind::UserPromptSubmit {
                 prompt_chars: full.chars().count(),
-                prompt: clean_text(&full, PROMPT_MAX_CHARS),
+                prompt: keep(&full, PROMPT_MAX_CHARS),
                 permission_mode: raw.permission_mode.map(|m| clean_text(&m, 50)),
             }
         }
@@ -171,14 +179,14 @@ pub fn parse(body: &[u8], salt: &str) -> Result<AgentEvent, ParseError> {
         "SubagentStop" => EventKind::SubagentStop,
         "Stop" => EventKind::Stop {
             stop_hook_active: raw.stop_hook_active,
-            last_assistant_message: clean_text(
+            last_assistant_message: keep(
                 &raw.last_assistant_message.unwrap_or_default(),
                 MESSAGE_MAX_CHARS,
             ),
             background_tasks: u32::try_from(raw.background_tasks).unwrap_or(u32::MAX),
         },
         "StopFailure" => EventKind::StopFailure {
-            error: clean_text(&raw.error.unwrap_or_default(), 200),
+            error: keep(&raw.error.unwrap_or_default(), 200),
         },
         "SessionEnd" => EventKind::SessionEnd,
         _ => return Err(ParseError::UnknownEvent(clean_text(&name, 50))),
@@ -230,6 +238,42 @@ mod tests {
             } => {
                 assert_eq!(prompt.chars().count(), PROMPT_MAX_CHARS);
                 assert_eq!(prompt_chars, 900);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn secrets_are_redacted_before_anything_is_stored() {
+        let ev = p(r#"{"hook_event_name":"UserPromptSubmit","session_id":"s","prompt":"deploy with API_TOKEN=hunter2 and sk-abcdefghijklmnopqrstuvwxyz0123"}"#).unwrap();
+        match ev.kind {
+            EventKind::UserPromptSubmit { prompt, .. } => {
+                assert!(!prompt.contains("hunter2") && !prompt.contains("sk-abcdef"));
+                assert!(prompt.contains("[redacted]"));
+            }
+            other => panic!("{other:?}"),
+        }
+        let cmd = p(r#"{"hook_event_name":"PermissionRequest","session_id":"s","tool_name":"Bash","tool_input":{"command":"curl -H 'Authorization: Bearer s3cr3t' x"}}"#).unwrap();
+        match cmd.kind {
+            EventKind::PermissionRequest { command, .. } => {
+                assert!(!command.unwrap().contains("s3cr3t"));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_key_that_straddles_the_cut_is_still_redacted() {
+        let key = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
+        let before = PROMPT_MAX_CHARS - 10;
+        let prompt = format!("{} {key} tail", "x".repeat(before - 1));
+        let body = format!(
+            r#"{{"hook_event_name":"UserPromptSubmit","session_id":"s","prompt":"{prompt}"}}"#
+        );
+        let ev = p(&body).unwrap();
+        match ev.kind {
+            EventKind::UserPromptSubmit { prompt, .. } => {
+                assert!(!prompt.contains("sk-"), "half a key survived: {prompt}");
             }
             other => panic!("{other:?}"),
         }

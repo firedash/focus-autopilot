@@ -90,6 +90,34 @@ editor windows open you land in whichever one macOS raises. And Cursor's, VS Cod
 Claude app's ids in the built-in list were written from memory: the `front:` line shows the
 real one, and if it differs from the list, tell me so I can correct it.
 
+## Start at login (optional)
+
+```bash
+./target/release/focusctl install-agent
+```
+
+This writes a launch agent so `focusd` starts when you log in, and prints the one `launchctl`
+command that starts it now. Build `focusd` and `focusctl` first (both are in
+`target/release`), because it points at the `focusd` next to `focusctl`. It saves your current
+`PATH`, so `claude` is found for LLM recaps. Its log, `focusd.log` in the data folder, holds
+event names only, never prompt text. Stop it with `focusctl uninstall-agent` and the
+`launchctl bootout` command it prints. There is no menu-bar icon yet.
+
+## Several sessions
+
+Every toast and recap names the project (the last folder of where Claude is running), for
+example "Claude is done in api. Go back?", and the recap card lists the other waiting projects.
+The key takes you back to the app, not a particular window, so with several windows of one app
+you land in whichever macOS raises.
+
+## Privacy
+
+Prompts, commands and Claude's messages are redacted for likely secrets (API keys, tokens,
+`password=` pairs) before `focusd` stores or shows them, so a key typed into a prompt does not
+appear on the recap card. This is a pattern filter, not a guarantee. `runs.jsonl` in the data
+folder keeps one metadata line per run (durations, counts, a hashed project) to improve wait
+estimates, never prompt text; delete it any time.
+
 ## Shorter recaps (optional)
 
 By default the recap is built from the hook fields: your prompt and the start of Claude's last

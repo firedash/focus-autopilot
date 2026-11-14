@@ -141,6 +141,11 @@ fn run() -> Result<(), String> {
                 replies,
             }),
             is_home: Box::new(is_home),
+            verbose: true,
+            history: Some(focus_runner::HistoryFile {
+                path: std::env::temp_dir().join("focus-headless-history/runs.jsonl"),
+                retention_days: 90,
+            }),
         },
         |line, core, now| command(line, &platform, core, now),
     );

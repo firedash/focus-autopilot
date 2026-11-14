@@ -3,7 +3,7 @@
 //! Claude Code CLI and the reading of its reply. Only truncated, redacted hook fields are
 //! sent; never file contents or the transcript. Spawning the CLI is the shell's job.
 
-use crate::events::clean_text;
+use crate::events::{clean_text, shorten};
 use crate::recap::{RecapCard, need_text};
 use crate::redact::redact;
 use crate::run::Outcome;
@@ -49,19 +49,6 @@ pub(crate) fn prompt(session: &Session) -> String {
         (None, None) => facts.push("Still running.".to_owned()),
     }
     format!("{INSTRUCTIONS}\n{}\n", redact(&facts.join("\n")))
-}
-
-/// Cuts at a word boundary and adds an ellipsis, rather than stopping mid-word.
-fn shorten(line: &str, max_chars: usize) -> String {
-    if line.chars().count() <= max_chars {
-        return line.to_owned();
-    }
-    let room: String = line.chars().take(max_chars - 1).collect();
-    let cut = room
-        .rfind(' ')
-        .filter(|&at| at > room.len() / 2)
-        .unwrap_or(room.len());
-    format!("{}…", room[..cut].trim_end())
 }
 
 /// Up to three non-empty lines, cleaned like any other outside text. `None` if there are none.

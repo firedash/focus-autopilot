@@ -18,7 +18,7 @@ fn a_stop_right_after_an_away_switch_gets_the_prompt_not_a_flip_back() {
     sim.hook(stop("Done."));
     sim.at(60_000);
     assert_eq!(sim.toasts()[1], (36_000, ToastKind::ReturnPrompt));
-    assert_eq!(sim.toast_texts()[1], "Claude is done. Go back?");
+    assert_eq!(sim.toast_texts()[1], "Claude is done in app. Go back?");
     assert_eq!(sim.sounds(), 1);
     assert_eq!(sim.activations().len(), 1);
     // One click or the focus key completes the return.
@@ -28,6 +28,7 @@ fn a_stop_right_after_an_away_switch_gets_the_prompt_not_a_flip_back() {
     assert_eq!(
         sim.recaps(),
         vec![vec![
+            "Project: app",
             "Asked:   Run the tests and fix failures",
             "Claude:  Done.",
             "36 s",
@@ -56,12 +57,13 @@ fn a_permission_prompt_brings_the_user_back_with_what_is_needed() {
     assert_eq!(sim.toasts()[1], (72_000, ToastKind::ReturnCountdown));
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude needs your approval. Back to Terminal in 3 s."
+        "Claude needs your approval in app. Back to Terminal in 3 s."
     );
     assert_eq!(sim.activations()[1], (75_000, TERMINAL));
     assert_eq!(
         sim.recaps(),
         vec![vec![
+            "Project: app",
             "Asked:   Run the tests and fix failures",
             "Needs:   approval to run npm test"
         ]]
@@ -122,6 +124,7 @@ fn coming_back_on_your_own_shows_the_recap_only_after_twenty_seconds_away() {
     assert_eq!(
         sim.recaps(),
         vec![vec![
+            "Project: app",
             "Asked:   Run the tests and fix failures",
             "Claude:  still working",
             "Touched: src/a.rs"
@@ -243,10 +246,10 @@ fn an_error_stop_returns_and_names_the_error() {
     sim.at(110_000);
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude stopped with an error. Back to Terminal in 3 s."
+        "Claude stopped with an error in app. Back to Terminal in 3 s."
     );
     assert_eq!(
-        sim.recaps()[0][1],
+        sim.recaps()[0][2],
         "Claude:  stopped with an error (rate_limit)"
     );
 }
@@ -256,26 +259,26 @@ fn questions_plans_elicitations_and_notifications_all_need_input() {
     let cases: [(EventKind, &str, &str); 4] = [
         (
             tool("AskUserQuestion"),
-            "Claude has a question.",
+            "Claude has a question in app.",
             "an answer to Claude's question",
         ),
         (
             tool("ExitPlanMode"),
-            "Claude needs your approval.",
+            "Claude needs your approval in app.",
             "approval of Claude's plan",
         ),
         (
             EventKind::Elicitation {
                 mcp_server_name: "github".into(),
             },
-            "Claude needs your input.",
+            "Claude needs your input in app.",
             "your input for github",
         ),
         (
             EventKind::Notification {
                 notification_type: "permission_prompt".into(),
             },
-            "Claude needs your input.",
+            "Claude needs your input in app.",
             "your input",
         ),
     ];
@@ -288,7 +291,7 @@ fn questions_plans_elicitations_and_notifications_all_need_input() {
             sim.toast_texts()[1],
             format!("{headline} Back to Terminal in 3 s.")
         );
-        assert_eq!(sim.recaps()[0][1], format!("Needs:   {need}"));
+        assert_eq!(sim.recaps()[0][2], format!("Needs:   {need}"));
     }
     // Other notifications are not a reason to come back.
     let mut sim = Sim::away();
@@ -315,14 +318,15 @@ fn with_two_sessions_waiting_needs_input_goes_first_and_the_card_lists_the_rest(
     sim.at(60_000);
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude needs your approval. Back to Terminal in 3 s."
+        "Claude needs your approval in app. Back to Terminal in 3 s."
     );
     assert_eq!(
         sim.recaps(),
         vec![vec![
+            "Project: app",
             "Asked:   Run the tests and fix failures",
             "Needs:   approval to run cargo test",
-            "Also waiting: 1 other session",
+            "Also waiting: app",
         ]]
     );
     // One switch settles both; no second toast for the finished session.
@@ -473,15 +477,15 @@ fn recap_text_is_cleaned_and_bounded() {
     });
     sim.at(110_000);
     let recap = &sim.recaps()[0];
-    assert!(recap[0].starts_with("Asked:   Fix the bug xxx"));
-    assert_eq!(recap[0].chars().count(), 160);
-    assert_eq!(recap[1], "Claude:  <b>done</b>");
+    assert!(recap[1].starts_with("Asked:   Fix the bug xxx"));
+    assert_eq!(recap[1].chars().count(), 120);
+    assert_eq!(recap[2], "Claude:  <b>done</b>");
     assert_eq!(
-        recap[2],
+        recap[3],
         "Touched: f0.rs, f1.rs, f2.rs, f3.rs, f4.rs (+3 more)"
     );
     assert_eq!(
-        recap[3],
+        recap[4],
         "2 min · 8 tool calls · 1 background task still running"
     );
     assert!(recap.len() <= 6);

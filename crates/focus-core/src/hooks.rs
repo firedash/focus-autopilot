@@ -125,12 +125,18 @@ impl Core {
         let Some(shown) = self.sessions.get(session) else {
             return;
         };
-        let others = self
+        let others: Vec<String> = self
             .pending(now)
             .iter()
             .filter(|p| p.session != session)
-            .count();
-        let card = crate::recap::build(shown, others);
+            .map(|p| {
+                self.sessions
+                    .get(&p.session)
+                    .map(|s| crate::events::project_name(&s.run.cwd))
+                    .unwrap_or_default()
+            })
+            .collect();
+        let card = crate::recap::build(shown, &others);
         if self.cfg.recap.mode != RecapMode::Llm {
             fx.push(Effect::ShowRecap(card));
             return;

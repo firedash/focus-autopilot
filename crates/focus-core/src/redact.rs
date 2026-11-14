@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Redacts likely secrets before any text is sent to the opt-in LLM recap (design section
-//! 10): common API-key formats, `password=` and `token=` style pairs, bearer tokens and PEM
+//! Redacts likely secrets. Used at the receiver, before anything is stored, and again before
+//! text is shown on screen or sent to the opt-in LLM recap (design section 10): common API-key formats, `password=` and `token=` style pairs, bearer tokens and PEM
 //! blocks. This is a best-effort filter on already truncated text, not a guarantee.
 
 const REDACTED: &str = "[redacted]";
 /// Prefixes of well-known credential formats.
-const KEY_PREFIXES: [&str; 12] = [
+const KEY_PREFIXES: [&str; 20] = [
     "sk-",
     "sk_live_",
     "sk_test_",
@@ -18,6 +18,14 @@ const KEY_PREFIXES: [&str; 12] = [
     "AKIA",
     "AIza",
     "eyJ",
+    "glpat-",
+    "npm_",
+    "hf_",
+    "ghu_",
+    "ghr_",
+    "xoxa-",
+    "xoxs-",
+    "rk_live_",
 ];
 /// A prefixed word shorter than this is more likely prose than a key.
 const MIN_KEY_CHARS: usize = 16;
@@ -28,7 +36,8 @@ const SECRET_NAMES: [&str; 8] = [
 const PEM_BEGIN: &str = "-----BEGIN ";
 const PEM_END: &str = "-----END ";
 
-pub(crate) fn redact(text: &str) -> String {
+/// Replaces likely secrets with `[redacted]`. Best effort, on text that is already bounded.
+pub fn redact(text: &str) -> String {
     let text = redact_pem(text);
     let mut out = String::with_capacity(text.len());
     let mut hide_next = false;

@@ -296,8 +296,8 @@ fn sessions_waiting_at_different_windows_are_returned_to_one_at_a_time() {
     sim.at(70_000);
     // Needs-input first: back to Terminal, and the card names what else is waiting.
     assert_eq!(sim.activations()[1], (63_000, TERMINAL));
-    assert_eq!(sim.recaps()[0][1], "Needs:   approval to run cargo test");
-    assert_eq!(sim.recaps()[0][2], "Also waiting: 1 other session");
+    assert_eq!(sim.recaps()[0][2], "Needs:   approval to run cargo test");
+    assert_eq!(sim.recaps()[0][3], "Also waiting: app");
     // Then the finished session at the other window, by prompt because the user is working.
     let kinds: Vec<ToastKind> = sim.toasts().into_iter().map(|(_, kind)| kind).collect();
     assert_eq!(
@@ -313,8 +313,12 @@ fn sessions_waiting_at_different_windows_are_returned_to_one_at_a_time() {
     sim.at(71_000);
     assert_eq!(sim.activations()[2], (70_000, VSCODE));
     assert_eq!(
-        sim.recaps()[1][..2],
-        ["Asked:   Refactor the parser", "Claude:  Refactored."]
+        sim.recaps()[1][..3],
+        [
+            "Project: app",
+            "Asked:   Refactor the parser",
+            "Claude:  Refactored."
+        ]
     );
     sim.at(500_000);
     assert_eq!(sim.toasts().len(), 3);
@@ -402,10 +406,12 @@ fn an_unusable_or_mismatched_summary_falls_back_to_the_basic_card() {
         text: "  \n".into(),
     });
     assert_eq!(sim.recaps().len(), 1);
+    // The card is shown on screen, so the secret typed into the prompt is redacted there too.
     assert_eq!(
-        sim.recaps()[0][0],
-        "Asked:   Deploy with API_TOKEN=hunter2 and fix the tests"
+        sim.recaps()[0][1],
+        "Asked:   Deploy with API_TOKEN=[redacted] and fix the tests"
     );
+    assert!(!sim.recaps()[0].join("\n").contains("hunter2"));
     // And a later real reply for it is ignored.
     sim.feed(Input::Summary {
         id,

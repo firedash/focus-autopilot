@@ -2,6 +2,7 @@
 //! `focusctl`: install and remove focusd's Claude Code hooks, and rotate the token.
 #![forbid(unsafe_code)]
 
+mod agent;
 mod config;
 mod files;
 mod hooks;
@@ -10,8 +11,8 @@ use std::path::PathBuf;
 
 use files::Op;
 
-const USAGE: &str = "usage: focusctl <install-hooks|uninstall-hooks|rotate-token> \
-[--dry-run] [--settings FILE] [--config FILE]";
+const USAGE: &str = "usage: focusctl <install-hooks|uninstall-hooks|rotate-token|install-agent|uninstall-agent> \
+[--dry-run] [--settings FILE] [--config FILE] [--agents-dir DIR]";
 
 fn main() {
     if let Err(message) = run() {
@@ -26,11 +27,13 @@ fn run() -> Result<(), String> {
     let mut dry_run = false;
     let mut settings = None;
     let mut config_path = None;
+    let mut agents_dir = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--dry-run" => dry_run = true,
             "--settings" => settings = Some(PathBuf::from(args.next().ok_or(USAGE)?)),
             "--config" => config_path = Some(PathBuf::from(args.next().ok_or(USAGE)?)),
+            "--agents-dir" => agents_dir = Some(PathBuf::from(args.next().ok_or(USAGE)?)),
             _ => return Err(USAGE.into()),
         }
     }
@@ -83,7 +86,49 @@ fn run() -> Result<(), String> {
                 dry_run,
             );
         }
+        "install-agent" => install_agent(&agents_dir_or_default(agents_dir)?)?,
+        "uninstall-agent" => uninstall_agent(&agents_dir_or_default(agents_dir)?)?,
         _ => return Err(USAGE.into()),
+    }
+    Ok(())
+}
+
+fn agents_dir_or_default(given: Option<PathBuf>) -> Result<PathBuf, String> {
+    match given {
+        Some(dir) => Ok(dir),
+        None => {
+            Ok(PathBuf::from(std::env::var_os("HOME").ok_or("no HOME")?)
+                .join("Library/LaunchAgents"))
+        }
+    }
+}
+
+fn install_agent(agents_dir: &std::path::Path) -> Result<(), String> {
+    let log = focus_runner::paths::data_dir()
+        .ok_or("no HOME")?
+        .join("focusd.log");
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let path_env = std::env::var("PATH").unwrap_or_default();
+    let plist = agent::install(agents_dir, &exe, &path_env, &log)?;
+    println!("wrote {}", plist.display());
+    println!("focusd will start at your next login. To start it now:");
+    println!("  launchctl bootstrap gui/$(id -u) {}", plist.display());
+    println!(
+        "Its log, with event names only and no prompt text, is {}",
+        log.display()
+    );
+    println!("`focusd` keeps the PATH you have now, so it can find `claude` for LLM recaps.");
+    Ok(())
+}
+
+fn uninstall_agent(agents_dir: &std::path::Path) -> Result<(), String> {
+    let path = agent::plist_path(agents_dir);
+    if agent::uninstall(agents_dir)? {
+        println!("removed {}", path.display());
+        println!("If it is running, stop it with:");
+        println!("  launchctl bootout gui/$(id -u)/{}", agent::LABEL);
+    } else {
+        println!("{} was not there; nothing to do", path.display());
     }
     Ok(())
 }

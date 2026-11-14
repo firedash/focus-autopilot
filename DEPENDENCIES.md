@@ -13,6 +13,7 @@ isn't enough. CI will fail when one is added without an entry.
 | hyper, hyper-util, http-body-util | focus-receiver | Loopback HTTP server | MIT | A hand-written HTTP parser would be the weakest part |
 | tokio | focus-receiver | Runtime for hyper (single thread, no `rt-multi-thread`) | MIT | hyper needs an executor |
 | toml_edit | focusctl | Edit config.toml without losing the user's comments | MIT/Apache-2.0 | Same |
+| serde_json | focus-runner | Reading and writing `runs.jsonl` | MIT/Apache-2.0 | Same |
 | serde_json `preserve_order` | focusctl | Keep key order when merging settings.json | MIT/Apache-2.0 | Same |
 | objc2, objc2-foundation, objc2-app-kit, objc2-core-graphics | focus-platform (macOS only) | `NSWorkspace`, `NSRunningApplication`, idle time, sound | MIT/Apache-2.0/Zlib | OS APIs; typed bindings instead of raw FFI |
 | tempfile | focusctl (tests) | Temporary folders for file tests | MIT/Apache-2.0 | Tests only |

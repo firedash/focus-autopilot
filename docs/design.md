@@ -352,7 +352,7 @@ A new prompt always starts a run. A permission prompt or a Stop moves the sessio
 | Away | none | Return trigger with an away app in front → Return countdown; with another app in front → Return prompt. The user comes back on their own → Home, with the recap if away 20 s or more |
 | Return countdown | Back to Claude in 3 s | Countdown ends and input is quiet → activate, then Home with the recap if verified, or Return prompt if refused. Snooze → Snoozed |
 | Snoozed | none | 60 s pass → Return countdown, at most 3 times, then Return prompt. The user comes back → Home with the recap |
-| Return prompt | Claude is done. Go back? (stays until acted on) | Click or focus key → activate → Home with the recap. The user comes back → Home with the recap |
+| Return prompt | Claude is done in `<project>`. Go back? (stays until acted on; the project is the last folder of the session's `cwd`, so parallel sessions can be told apart) | Click or focus key → activate → Home with the recap. The user comes back → Home with the recap |
 
 **Away guards** (all must hold):
 
@@ -511,7 +511,7 @@ The reply is cut to three lines, and each line to 120 characters at a word bound
 **Privacy rules**
 
 - Send only the truncated fields above, never file contents or the transcript.
-- Before sending, redact likely secrets: common API-key formats, `password=` and `token=` pairs, and PEM blocks.
+- Before sending, redact likely secrets: common API-key formats, `password=` and `token=` pairs, and PEM blocks. The same redaction runs earlier and more widely: the receiver redacts prompts, commands, messages and errors before anything is stored, and the recap card is redacted again before it is shown, so a key typed into a prompt never appears on screen.
 - Off by default. The wizard explains that summaries count toward the user's Claude usage.
 
 ## 11. Config and data model
