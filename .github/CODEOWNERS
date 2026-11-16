@@ -1,0 +1,25 @@
+# The security-relevant parts need a maintainer's review (design section 13).
+
+# The loopback receiver, its request checks, and the page it serves.
+/crates/focus-receiver/        @firedash
+
+# The installer that edits Claude Code's settings, and the launch agent.
+/crates/focusctl/              @firedash
+
+# The only crate allowed `unsafe`, and every OS call that observes or moves the user.
+/crates/focus-platform/        @firedash
+
+# Reading and writing config.toml from the settings page; running the claude command.
+/crates/focus-runner/src/settings.rs   @firedash
+/crates/focus-runner/src/ui.rs         @firedash
+/crates/focus-runner/src/recap_cli.rs  @firedash
+
+# What the project promises, and what it depends on.
+/PERMISSIONS.md                @firedash
+/THREAT_MODEL.md               @firedash
+/AUDIT.md                      @firedash
+/DEPENDENCIES.md               @firedash
+/Cargo.lock                    @firedash
+/deny.toml                     @firedash
+/rust-toolchain.toml           @firedash
+/.github/                      @firedash

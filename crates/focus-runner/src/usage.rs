@@ -4,6 +4,10 @@
 //! came back when called. Only app ids and names are kept, never window titles or content,
 //! and the file never leaves the machine. Turned off with `stats.track_app_time = false`.
 //!
+//! The shell looks at the front app twice a second and credits the time since its last look to
+//! the app that was in front, under whatever was true at that moment. So each figure is good
+//! to about half a second per app switch, which is noise against minutes of use.
+//!
 //! Time is kept in half-hour slots keyed by `unix time / 1800`, so the statistics page can
 //! group them into days in the viewer's own time zone.
 

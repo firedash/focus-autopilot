@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# Weekly, grouped updates. Every update still has to pass CI and get a review.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

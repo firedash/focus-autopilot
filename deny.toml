@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# cargo-deny rules (design section 13): known vulnerabilities, licenses, and where crates may
+# come from. Run with `cargo deny check`.
+
+[graph]
+# The targets the project builds for. Windows is listed because the lockfile already resolves
+# its dependencies, even though the Windows adapter is not written.
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
+
+[advisories]
+# Any advisory against a crate in the tree fails the check.
+yanked = "deny"
+
+[licenses]
+# Permissive licenses only: nothing that would put conditions on the app's own license.
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "MIT",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace's own crates depend on each other by path, with no version.
+allow-wildcard-paths = true
+
+[sources]
+# crates.io only: no git dependencies and no other registries.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
