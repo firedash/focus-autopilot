@@ -17,6 +17,7 @@ use crate::usage::{SLOT_SECS, Usage};
 const SECS_PER_DAY: i64 = 86_400;
 const DAYS_SHOWN: i64 = 7;
 const APPS_SHOWN: usize = 8;
+const INSIGHTS_SHOWN: usize = 6;
 const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /// One line of `runs.jsonl`, reduced to what the statistics need.
@@ -355,9 +356,22 @@ fn plural(n: u32, noun: &str) -> String {
     }
 }
 
-/// A handful of sentences, most telling first. Each needs enough data behind it to be worth
-/// saying; with no data at all there is one line saying how to get some.
+/// The handful the page shows: a long list stops being read.
 fn insights(
+    today: &Totals,
+    week: &Totals,
+    apps_week: &[AppRow],
+    streak_days: u32,
+    busiest: Option<u32>,
+) -> Vec<String> {
+    let mut all = candidates(today, week, apps_week, streak_days, busiest);
+    all.truncate(INSIGHTS_SHOWN);
+    all
+}
+
+/// Every sentence the data supports, most telling first. Each needs enough data behind it to be worth
+/// saying; with no data at all there is one line saying how to get some.
+fn candidates(
     today: &Totals,
     week: &Totals,
     apps_week: &[AppRow],
@@ -694,10 +708,28 @@ mod tests {
         has("When Claude calls, you're back in 12 s on average.");
         has("Longest single run this week: 1 h 12 min.");
         has("Claude stopped to ask you something in 1 of 10 runs this week.");
-        has("You switched apps 12 times today, about once every 3 min.");
-        has("You've used Claude Code 2 days in a row.");
-        // Seven of the ten runs started between 9 and 10.
-        has("Your busiest hour for prompts this week: around 9 am.");
+        // Six are shown; the rest are still true, and are next in line.
+        assert_eq!(s.insights.len(), INSIGHTS_SHOWN);
+        let all = candidates(&s.today, &s.week, &s.apps_week, s.streak_days, Some(9));
+        assert_eq!(
+            all[INSIGHTS_SHOWN..],
+            [
+                "You switched apps 12 times today, about once every 3 min.",
+                "You've used Claude Code 2 days in a row.",
+                "Your busiest hour for prompts this week: around 9 am.",
+            ]
+        );
+    }
+
+    #[test]
+    fn the_busiest_hour_needs_enough_prompts_to_mean_anything() {
+        let mut hours = [0_u32; 24];
+        hours[9] = 7;
+        hours[10] = 1;
+        assert_eq!(busiest_hour(&hours), Some(9));
+        hours[9] = 1;
+        assert_eq!(busiest_hour(&hours), None, "two prompts are not a pattern");
+        assert_eq!(busiest_hour(&[0; 24]), None);
     }
 
     #[test]

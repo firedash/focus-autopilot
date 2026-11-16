@@ -31,7 +31,8 @@ fn main() {
 fn app(id: &str) -> AppRef {
     AppRef {
         id: id.to_owned(),
-        name: id.to_owned(),
+        // `com.apple.Notes` reads as `Notes`, as a real platform would name it.
+        name: id.rsplit('.').next().unwrap_or(id).to_owned(),
         pid: 100,
         window: None,
     }

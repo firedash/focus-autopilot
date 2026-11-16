@@ -21,7 +21,7 @@
         for (const [event, fn] of Object.entries(value)) el.addEventListener(event, fn);
       } else el.setAttribute(name, value === true ? "" : String(value));
     }
-    for (const kid of kids.flat()) {
+    for (const kid of kids.flat(Infinity)) {
       if (kid === undefined || kid === null || kid === false) continue;
       el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
     }
@@ -41,13 +41,18 @@
   }
 
   let token = store("get", TOKEN_KEY);
-  const fromHash = new URLSearchParams(window.location.hash.slice(1)).get("t");
-  if (fromHash) {
+
+  /** Takes the key from the address, if it is there, and removes it from the address bar. */
+  function adoptKey() {
+    const fromHash = new URLSearchParams(window.location.hash.slice(1)).get("t");
+    if (!fromHash) return false;
     token = fromHash;
     store("set", [TOKEN_KEY, fromHash]);
-    // Take the key out of the address bar and the history entry.
     window.history.replaceState(null, "", window.location.pathname);
+    return true;
   }
+
+  adoptKey();
 
   class Refused extends Error {}
 
@@ -413,7 +418,7 @@
         h(
           "span",
           { class: "app-name", title: a.id },
-          a.name,
+          h("span", { class: "app-label", text: a.name }),
           a.home ? h("span", { class: "tag", text: "where you prompt" }) : null
         ),
         h("span", { class: "app-bar", "aria-hidden": "true" }, fill),
@@ -962,13 +967,27 @@
 
   window.addEventListener("scroll", hideTip, { passive: true });
 
-  if (!token) {
-    explain(new Refused());
-    $("stats-root").setAttribute("aria-busy", "false");
-  } else {
+  let refreshing = false;
+
+  function start() {
+    showNotice("");
     select(store("get", "focus-autopilot-tab") === "1" ? 1 : 0, false);
+    if (refreshing) return;
+    refreshing = true;
     window.setInterval(() => {
       if (!document.hidden && !$("panel-stats").hidden) loadStats(false);
     }, REFRESH_MS);
+  }
+
+  // The key can also arrive later, in a page that is already open.
+  window.addEventListener("hashchange", () => {
+    if (adoptKey()) start();
+  });
+
+  if (token) {
+    start();
+  } else {
+    explain(new Refused());
+    $("stats-root").setAttribute("aria-busy", "false");
   }
 })();
