@@ -1,5 +1,7 @@
 # Focus Autopilot
 
+[![ci](https://github.com/firedash/focus-autopilot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/firedash/focus-autopilot/actions/workflows/ci.yml)
+
 Working with a coding agent splits your day into two kinds of work. **Prompting work** is
 intermittent: you write a prompt, wait anywhere from seconds to twenty minutes, review the
 result, and prompt again. **Steady work** is whatever you would rather be doing during those

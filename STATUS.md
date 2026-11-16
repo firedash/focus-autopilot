@@ -12,7 +12,7 @@ macOS parts were written from Linux:
 
 | Seen working on a real Mac | Verified on Linux only | Compiles for macOS, never run |
 | --- | --- | --- |
-| Hooks from Claude Code in a terminal | Everything in `focus-core`, the receiver, `focusctl` | Global hotkeys (focus, pause, declare-long) |
+| Hooks from Claude Code in a terminal | Everything in `focus-core`, the receiver, `focusctl` | Global hotkeys (focus, pause, declare-long): builds, links and passes its tests on a macOS CI runner, but no key press has ever been delivered |
 | Switching away and back | The Statistics and Configuration page, in Chromium | `focusctl ui` opening the browser with `open` |
 | The toast and recap boxes | The whole shell loop, against the fake platform | The launch agent being loaded by `launchd` |
 | The three-line LLM recap | `focusctl doctor`, `ui --no-open`, `--scope` | Time per app as read from real macOS |
@@ -41,7 +41,7 @@ departure is that **manual mode is the default**: nothing switches you away on i
 | macOS adapter: front app, running apps, activation, idle time, sound, toast and recap panels | `focus-platform` | run on a Mac |
 | Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys` | `focus-platform` | parser tested; registration never run |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
-| CI: format, lint, test and repository rules on Linux; build, lint and test on macOS; `cargo deny` | `.github/workflows/ci.yml` | added; see the Actions tab for its state |
+| CI: format, lint, test and repository rules on Linux; build, lint and test on macOS; `cargo deny` | `.github/workflows/ci.yml` | passing on `main`, including a real macOS build, link and test run |
 | SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, THREAT_MODEL, PERMISSIONS, AUDIT, CODEOWNERS, pull request template, dependabot, `deny.toml` | repository root, `.github/` | written |
 
 ## Checks
@@ -57,6 +57,11 @@ Run on Linux with Rust 1.97.0:
 - `python3 scripts/check-repo.py`: required files, SPDX headers, a DEPENDENCIES.md entry for
   every dependency, `unsafe` confined to `focus-platform`.
 - `scripts/ui-check/run.sh`: 41 checks of the page in Chromium, all passing.
+
+On GitHub Actions (`.github/workflows/ci.yml`), on every push: the Linux checks above, a build,
+lint and test run on a macOS runner (the first place the macOS adapter is actually linked),
+and `cargo deny`. All three jobs pass on `main`. The browser checks are not in CI: it has no
+browser set up.
 
 Measured with `cargo llvm-cov`: **97.0% line coverage on `focus-core`** (the design's target
 is 90%), 89.8% across the workspace. The lowest file in `focus-core` is `recap_llm.rs` at 81%.
