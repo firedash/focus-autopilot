@@ -177,4 +177,6 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     an unknown key or a wrongly typed value is an error that stops `focusd` from starting, so a
     typo cannot leave a setting silently at its default, and the file is read once at startup:
     changes need a restart. The design's behaviour may return with the tray, which has
-    somewhere to show a warning.
+    somewhere to show a warning. *Amended by ADR 0004 item 6: the file is now re-read while
+    running and a valid change applied; an unknown key is still an error, but a bad edit to a
+    running app keeps the last good config instead of stopping it.*

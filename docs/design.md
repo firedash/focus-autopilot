@@ -3,7 +3,9 @@
 Nov 14, 2026 · firedash
 
 > **Changes since this document was written.** The build departed from the design in a few
-> places; [ADR 0003](adr/0003-shell-decisions.md) records each and wins over the text below.
+> places; [ADR 0003](adr/0003-shell-decisions.md) and
+> [ADR 0004](adr/0004-statistics-and-configuration-page.md) record each and win over the text
+> below.
 > In short: (1) **manual mode is the default**: with no away app configured nothing switches
 > the user away, and when Claude finishes or needs approval they get a toast and one key
 > takes them back; the automatic away and return switches in sections 7 and 8 apply only
@@ -16,6 +18,10 @@ Nov 14, 2026 · firedash
 > output is a file. (5) The recap card carries every other waiting session's outcome, not just its name, and
 > same-named folders show as `parent/name`. (6) Exact-window return, the Tauri shell, the
 > menu-bar icon and an installer are not built; ADR 0003 item 16 lays out the routes.
+> (7) There is a **Statistics and Configuration page**, a local web page served by `focusd` and
+> opened with `focusctl ui`, in place of the tray menu and settings window; it records time
+> per app (names and durations only) unless turned off. `config.toml` is re-read when it
+> changes. See ADR 0004.
 
 ## 1. Overview
 
@@ -591,6 +597,9 @@ salt = "<random, written on first run>"
 
 [ignore]                      # V1
 cwd_globs = []
+
+[stats]
+track_app_time = true         # record time per app (names and durations only) for the Statistics tab
 ```
 
 Unknown keys produce a warning in the tray and log and are ignored. An invalid value on reload keeps the last good config and shows the error; on first start the default is used for that key. focusd checks the file's modification time every 2 s, so no file-watching dependency is needed.

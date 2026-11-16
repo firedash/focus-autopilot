@@ -1,8 +1,9 @@
 # Running Focus Autopilot on your Mac (developer build)
 
 This is a developer build. The switching, hooks, on-screen boxes and recap have run on a Mac
-with Claude Code in a terminal; the global hotkey and other Claude Code surfaces have not.
-Expect to find and fix problems; the last section says where to look first.
+with Claude Code in a terminal. The global hotkeys, the statistics and configuration page on
+a real Mac, and other Claude Code surfaces have not been tried. Expect to find and fix
+problems; if something isn't working, start with `focusctl doctor` (below).
 
 ## 1. Build
 
@@ -40,6 +41,10 @@ Claude finishes or needs your approval, a box appears at the top of the screen, 
 and the box says which key takes you back. Press it and you land in the window you prompted
 from, with a recap card for a few seconds. If you go back on your own, the box goes away.
 
+If anything seems off, `focusctl doctor` checks the setup (config, hooks, whether `focusd` is
+running and accepts the token, whether prompts have been seen, the `claude` command) and says
+how to fix each failure.
+
 Commands typed in the `focusd` window still work: `click` (same as the hotkey), `pause`,
 `resume`, `quit`. When `focusd` runs from a terminal it also prints toasts, prompts and recaps
 there (`--verbose` forces this when output goes to a file). The window you prompted from must be a known home app (Terminal, iTerm2,
@@ -57,14 +62,45 @@ app, for 60 seconds. If it prints a `problem:` line, macOS refused the chord (an
 own it). If it registers cleanly but shows no presses, tell us: that means the event loop is
 not delivering them, and the typed `click` command is the workaround until it is fixed.
 
-Change the hotkeys in `config.toml`; an empty string turns one off. A chord needs at least one
-of Control, Option, Shift, Command:
+Change the hotkeys in `config.toml` or on the Configuration tab; an empty string turns one
+off. A chord needs at least one of Control, Option, Shift, Command. There are three: the focus
+key, the pause key, and a "this run will take a while, switch me away now" key (off by
+default). A change takes effect the next time `focusd` starts.
 
 ```toml
 [hotkeys]
 focus_key = "Control+Option+Space"
 pause = "Control+Option+P"
+declare_long = ""
 ```
+
+## Statistics and configuration
+
+```bash
+./target/release/focusctl ui
+```
+
+opens a page in your browser with two tabs, served by `focusd` on your own machine. `focusd`
+has to be running. The page is plain HTML with no external requests.
+
+**Statistics** shows, for today and the last 7 days: how long Claude worked, how long you
+spent in other apps meanwhile, how quickly you came back when called, how often you switched
+apps, which apps your time went to, and a few sentences about what stands out. Every chart
+has a table view. To draw it, `focusd` records how long each app is in front (app names and
+durations only, never window titles or anything you type) in `usage.json` in its data folder,
+and not while you are away from the keyboard. The tab has a button to erase it all.
+
+**Configuration** has a control for everything you can set: whether the app is on, the LLM
+recap, the away app and its timings, home apps, hotkeys, and the advanced timings. A change is
+saved to `config.toml` as you make it (your comments in the file are kept) and applies at once,
+except hotkeys. A value that would break a rule, such as an away app that is also a home app,
+is refused with the reason, and the file is left as it was. You can still edit `config.toml`
+by hand: `focusd` notices within a couple of seconds and applies it, or keeps the last good
+settings and says why not.
+
+The page needs the token, which `focusctl ui` passes on without putting it on a command line.
+If you open the address by hand you will see "This page needs its key": use `focusctl ui`.
+`focusctl ui --no-open` writes the launcher file and prints where it is.
 
 ## Using it from VS Code, Cursor or the Claude app (untested)
 
@@ -180,6 +216,10 @@ away_requires_idle_seconds = 3
 ```
 
 ## What to check first if it misbehaves
+
+- **Run `focusctl doctor`.** It checks, in order: `config.toml`, the installed hooks, whether
+  `focusd` is running and takes the token, whether any prompt has arrived in the last 7 days,
+  the `claude` command, and the launch agent. Each failure comes with the fix.
 
 - **No box appears when Claude finishes.** Check that `focusd` printed `front: <id>` for your
   terminal and that id is a home app. If you were still in that window when Claude finished,
