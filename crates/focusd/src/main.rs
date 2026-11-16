@@ -24,7 +24,7 @@ fn main() {
 mod mac {
     use std::io::IsTerminal as _;
     use std::path::PathBuf;
-    use std::sync::mpsc;
+    use std::sync::{Arc, mpsc};
     use std::time::Instant;
 
     use focus_core::{Config, Core, Input, UserAction};
@@ -33,7 +33,7 @@ mod mac {
     use focus_platform::macos::MacPlatform;
     use focus_platform::{Hotkeys as _, Platform as _};
     use focus_receiver::{Settings, config_file, random_hex};
-    use focus_runner::{Control, paths};
+    use focus_runner::{Control, paths, ui};
 
     fn load(path: &PathBuf, port: Option<u16>) -> Result<(Config, Vec<String>), String> {
         let text = std::fs::read_to_string(path).map_err(|e| {
@@ -83,31 +83,21 @@ mod mac {
         focus_hint: Option<String>,
         replies: std::sync::mpsc::Sender<focus_runner::Msg>,
         verbose: bool,
+        shared: Arc<ui::Shared>,
     ) -> focus_runner::Options {
-        let home_apps: Vec<String> = apps
-            .iter()
-            .chain(&config.home.extra_apps)
-            .cloned()
-            .collect();
-        let retention_days = config.history.retention_days;
-        focus_runner::Options {
-            recap_for: config.ui.recap_shown_for,
-            focus_hint,
-            recap: paths::data_dir().map(|dir| focus_runner::RecapRunner {
-                dir: dir.join("recap-workdir"),
-                replies,
-            }),
-            verbose,
-            history: paths::data_dir().map(|dir| focus_runner::HistoryFile {
-                path: dir.join("runs.jsonl"),
-                retention_days,
-            }),
-            is_home: Box::new(move |id| {
-                home_apps
-                    .iter()
-                    .any(|entry| focus_core::app_id_matches(entry, id))
-            }),
-        }
+        let mut options = focus_runner::Options::new(config, apps.to_vec());
+        options.focus_hint = focus_hint;
+        options.verbose = verbose;
+        options.recap = paths::data_dir().map(|dir| focus_runner::RecapRunner {
+            dir: dir.join("recap-workdir"),
+            replies,
+        });
+        options.history = paths::data_dir().map(|dir| focus_runner::HistoryFile {
+            path: dir.join("runs.jsonl"),
+            retention_days: config.history.retention_days,
+        });
+        options.ui = Some(shared);
+        options
     }
 
     /// `focusd --test-hotkeys`: registers the configured hotkeys and prints every press for 60
@@ -226,28 +216,41 @@ mod mac {
         } else {
             config.history.salt.clone()
         };
-        let listener = focus_receiver::spawn(
+        let (rx, replies) = focus_runner::inputs(hook_rx);
+        let data = paths::data_dir();
+        let shared = Arc::new(ui::Shared::new(
+            config.clone(),
+            apps.clone(),
+            ui::Files {
+                config: config_path.clone(),
+                runs: data.as_ref().map(|dir| dir.join("runs.jsonl")),
+                usage: data.as_ref().map(|dir| dir.join("usage.json")),
+            },
+            replies.clone(),
+        ));
+        let listener = focus_receiver::spawn_with_ui(
             Settings {
                 port: config.receiver.port,
                 token: config.receiver.token.clone(),
                 salt,
             },
             hook_tx,
+            Some(shared.clone()),
         )
         .map_err(|e| format!("can't listen on 127.0.0.1:{}: {e}", config.receiver.port))?;
         println!("focusd listening on http://{}/hook", listener.addr);
         let focus_hint = announce(&platform, &config);
+        println!("statistics and settings: run `focusctl ui`.");
         println!("Commands: click, pause, resume, quit.");
 
-        let (rx, replies) = focus_runner::inputs(hook_rx);
         let verbose = force_verbose || std::io::stdout().is_terminal();
-        let options = build_options(&config, &apps, focus_hint, replies, verbose);
+        let mut options = build_options(&config, &apps, focus_hint, replies, verbose, shared);
         let mut core = Core::new(config, apps);
         focus_runner::run(
             &mut core,
             &platform,
             &rx,
-            &options,
+            &mut options,
             |line: &str, core: &mut Core, now: Instant| {
                 let action = match line.trim() {
                     "quit" | "exit" => return Control::Quit,

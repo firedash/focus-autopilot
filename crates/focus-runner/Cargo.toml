@@ -11,7 +11,9 @@ rust-version.workspace = true
 focus-core = { path = "../focus-core" }
 focus-platform = { path = "../focus-platform" }
 focus-receiver = { path = "../focus-receiver" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml_edit = "0.23"
 
 [lints]
 workspace = true

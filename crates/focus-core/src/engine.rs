@@ -156,6 +156,14 @@ impl Core {
         }
     }
 
+    /// True while Claude is working in at least one session, paused or not. Waiting for the
+    /// user's approval is not working.
+    pub fn claude_working(&self) -> bool {
+        self.sessions
+            .values()
+            .any(|s| s.state == SessionState::Running)
+    }
+
     pub fn note(&self) -> Option<Note> {
         self.note
     }

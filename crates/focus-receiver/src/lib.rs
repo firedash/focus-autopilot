@@ -8,9 +8,11 @@ pub mod check;
 pub mod config_file;
 pub mod payload;
 pub mod server;
+pub mod ui;
 
 pub use payload::{ParseError, parse, project_key};
-pub use server::{Received, Running, Settings, spawn};
+pub use server::{Received, Running, Settings, spawn, spawn_with_ui};
+pub use ui::UiBackend;
 
 /// A random 256-bit value as 64 hex characters, for tokens and salts.
 ///

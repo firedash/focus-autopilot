@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="no-referrer">
+<title>Focus Autopilot</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Focus Autopilot</h1>
+    <span id="status" class="status" hidden></span>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-stats" aria-controls="panel-stats" aria-selected="true">Statistics</button>
+    <button type="button" role="tab" id="tab-config" aria-controls="panel-config" aria-selected="false" tabindex="-1">Configuration</button>
+  </div>
+</header>
+
+<main>
+  <p id="notice" class="notice" role="alert" hidden></p>
+
+  <section id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" tabindex="0">
+    <div id="stats-root" aria-busy="true"></div>
+  </section>
+
+  <section id="panel-config" role="tabpanel" aria-labelledby="tab-config" tabindex="0" hidden>
+    <p id="save-state" class="save-state" role="status" aria-live="polite"></p>
+    <div id="config-root" aria-busy="true"></div>
+  </section>
+</main>
+
+<div id="tooltip" class="tooltip" hidden></div>
+<script src="/ui/app.js"></script>
+</body>
+</html>

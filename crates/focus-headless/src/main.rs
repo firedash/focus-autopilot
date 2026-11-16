@@ -6,16 +6,20 @@
 //!   front <id>   bring an app to the front        idle <seconds>   set idle time
 //!   click        click the toast / focus key      pause | resume   toggle pause
 //!   quit
+//!
+//! It keeps its files in `FOCUS_AUTOPILOT_HOME`, or in a `focus-headless` folder in the temp
+//! directory, and prints the address of the statistics and configuration page.
 #![forbid(unsafe_code)]
 
-use std::sync::mpsc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, mpsc};
 use std::time::Instant;
 
 use focus_core::{AppRef, Config, Core, Input, Observation, UserAction};
 use focus_platform::fake::FakePlatform;
 use focus_platform::known_apps;
-use focus_receiver::{Received, Settings, config_file, random_hex};
-use focus_runner::Control;
+use focus_receiver::{Received, Settings, random_hex};
+use focus_runner::{Control, settings, ui};
 
 fn main() {
     if let Err(message) = run() {
@@ -34,30 +38,30 @@ fn app(id: &str) -> AppRef {
 }
 
 struct Args {
-    config: Config,
+    config_path: Option<PathBuf>,
     port: Option<u16>,
-    home: Option<String>,
-    away: Option<String>,
+    home: String,
+    away: String,
 }
 
 /// `Ok(None)` after printing help.
 fn parse_args() -> Result<Option<Args>, String> {
     let mut args = std::env::args().skip(1);
-    let mut config = Config::default();
-    let mut port = None;
-    let mut home = None;
-    let mut away = None;
+    let mut parsed = Args {
+        config_path: None,
+        port: None,
+        home: "home-terminal".to_owned(),
+        away: "away-notes".to_owned(),
+    };
     while let Some(arg) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match arg.as_str() {
-            "--config" => {
-                let path = value("--config")?;
-                let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
-                config = config_file::parse(&text).map_err(|e| e.to_string())?;
+            "--config" => parsed.config_path = Some(PathBuf::from(value("--config")?)),
+            "--port" => {
+                parsed.port = Some(value("--port")?.parse::<u16>().map_err(|e| e.to_string())?);
             }
-            "--port" => port = Some(value("--port")?.parse::<u16>().map_err(|e| e.to_string())?),
-            "--home-app" => home = Some(value("--home-app")?),
-            "--away-app" => away = Some(value("--away-app")?),
+            "--home-app" => parsed.home = value("--home-app")?,
+            "--away-app" => parsed.away = value("--away-app")?,
             "--help" | "-h" => {
                 println!(
                     "usage: focus-headless [--config FILE] [--port N] [--home-app ID] [--away-app ID]"
@@ -67,86 +71,101 @@ fn parse_args() -> Result<Option<Args>, String> {
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    Ok(Some(Args {
-        config,
-        port,
-        home,
-        away,
-    }))
+    Ok(Some(parsed))
+}
+
+/// Where this runner keeps its files: `FOCUS_AUTOPILOT_HOME`, or a folder in the temp dir so
+/// it never touches a real install's data.
+fn data_dir() -> PathBuf {
+    std::env::var_os("FOCUS_AUTOPILOT_HOME").map_or_else(
+        || std::env::temp_dir().join("focus-headless"),
+        PathBuf::from,
+    )
+}
+
+/// Reads the config, creating a minimal one with a fresh token if there is none.
+fn load_config(path: &Path, known_home: &[String]) -> Result<Config, String> {
+    if !path.exists() {
+        let token = random_hex().map_err(|e| e.to_string())?;
+        settings::write(path, &format!("[receiver]\ntoken = \"{token}\"\n"))?;
+    }
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut config = settings::check(&text, known_home)?;
+    if config.receiver.token.is_empty() {
+        config.receiver.token = random_hex().map_err(|e| e.to_string())?;
+    }
+    Ok(config)
 }
 
 fn run() -> Result<(), String> {
-    let Some(Args {
-        mut config,
-        port,
-        home,
-        away,
-    }) = parse_args()?
-    else {
+    let Some(args) = parse_args()? else {
         return Ok(());
     };
-    let home = home.unwrap_or_else(|| "home-terminal".to_owned());
-    let away = away.unwrap_or_else(|| "away-notes".to_owned());
-    if config.away.apps.is_empty() {
-        config.away.apps = vec![away.clone()];
-    }
-    config.home.extra_apps.push(home.clone());
-    let token = if config.receiver.token.is_empty() {
-        random_hex().map_err(|e| e.to_string())?
-    } else {
-        config.receiver.token.clone()
-    };
-    config.receiver.token.clone_from(&token);
-    let port = port.unwrap_or(config.receiver.port);
+    let dir = data_dir();
+    let config_path = args
+        .config_path
+        .clone()
+        .unwrap_or_else(|| dir.join("config.toml"));
+    let mut known_home = known_apps::for_this_os();
+    known_home.push(args.home.clone());
+    let config = load_config(&config_path, &known_home)?;
+    let token = config.receiver.token.clone();
+    let port = args.port.unwrap_or(config.receiver.port);
 
     let (hook_tx, hook_rx) = mpsc::channel::<Received>();
+    let (rx, replies) = focus_runner::inputs(hook_rx);
+    let shared = Arc::new(ui::Shared::new(
+        config.clone(),
+        known_home.clone(),
+        ui::Files {
+            config: config_path,
+            runs: Some(dir.join("runs.jsonl")),
+            usage: Some(dir.join("usage.json")),
+        },
+        replies.clone(),
+    ));
     let salt = random_hex().map_err(|e| e.to_string())?;
-    let listener = focus_receiver::spawn(
+    let listener = focus_receiver::spawn_with_ui(
         Settings {
             port,
             token: token.clone(),
             salt,
         },
         hook_tx,
+        Some(shared.clone()),
     )
     .map_err(|e| format!("can't listen on 127.0.0.1:{port}: {e}"))?;
-    let (rx, replies) = focus_runner::inputs(hook_rx);
 
-    let platform = FakePlatform::new(vec![app(&home), app(&away)], Some(app(&home)));
+    let platform = FakePlatform::new(
+        vec![app(&args.home), app(&args.away)],
+        Some(app(&args.home)),
+    );
     platform.set_idle_seconds(60.0);
-    let mut apps = known_apps::for_this_os();
-    apps.push(home.clone());
-    config
-        .validate(|id| apps.iter().any(|a| a.eq_ignore_ascii_case(id)))
-        .map_err(|e| format!("invalid config: {e:?}"))?;
-    let is_home = {
-        let apps = apps.clone();
-        move |id: &str| apps.iter().any(|a| focus_core::app_id_matches(a, id))
-    };
-    let mut core = Core::new(config, apps);
 
     println!("listening on http://{}/hook", listener.addr);
     println!("token (header X-Focus-Token): {token}");
-    println!("home app: {home}, away app: {away}; you are in {home}. Type `quit` to stop.");
+    println!("ui: http://{}/ui/#t={token}", listener.addr);
+    println!(
+        "home app: {}, other app: {}; you are in {}. Type `quit` to stop.",
+        args.home, args.away, args.home
+    );
 
+    let mut options = focus_runner::Options::new(&config, known_home.clone());
+    options.recap = Some(focus_runner::RecapRunner {
+        dir: dir.join("recap-workdir"),
+        replies,
+    });
+    options.history = Some(focus_runner::HistoryFile {
+        path: dir.join("runs.jsonl"),
+        retention_days: config.history.retention_days,
+    });
+    options.ui = Some(shared);
+    let mut core = Core::new(config, known_home);
     focus_runner::run(
         &mut core,
         &platform,
         &rx,
-        &focus_runner::Options {
-            recap_for: std::time::Duration::from_secs(10),
-            focus_hint: None,
-            recap: Some(focus_runner::RecapRunner {
-                dir: std::env::temp_dir().join("focus-headless-recap"),
-                replies,
-            }),
-            is_home: Box::new(is_home),
-            verbose: true,
-            history: Some(focus_runner::HistoryFile {
-                path: std::env::temp_dir().join("focus-headless-history/runs.jsonl"),
-                retention_days: 90,
-            }),
-        },
+        &mut options,
         |line, core, now| command(line, &platform, core, now),
     );
     drop(listener);

@@ -96,6 +96,9 @@ pub fn parse(text: &str) -> Result<Config, LoadError> {
         s.text("salt", &mut c.history.salt)
     })?;
     r.section("ignore", |s| s.list("cwd_globs", &mut c.ignore.cwd_globs))?;
+    r.section("stats", |s| {
+        s.flag("track_app_time", &mut c.stats.track_app_time)
+    })?;
     r.finish()?;
     Ok(c)
 }

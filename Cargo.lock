@@ -154,7 +154,9 @@ dependencies = [
  "focus-core",
  "focus-platform",
  "focus-receiver",
+ "serde",
  "serde_json",
+ "toml_edit",
 ]
 
 [[package]]

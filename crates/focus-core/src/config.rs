@@ -17,6 +17,7 @@ pub struct Config {
     pub recap: Recap,
     pub history: History,
     pub ignore: Ignore,
+    pub stats: Stats,
 }
 
 impl Default for Config {
@@ -33,6 +34,7 @@ impl Default for Config {
             recap: Recap::default(),
             history: History::default(),
             ignore: Ignore::default(),
+            stats: Stats::default(),
         }
     }
 }
@@ -237,6 +239,22 @@ impl Default for History {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Ignore {
     pub cwd_globs: Vec<String>,
+}
+
+/// `[stats]`: what the shell records for the statistics page. Everything stays on this machine.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Stats {
+    /// `track_app_time`: record how long each app is in front (app ids and names only, never
+    /// window titles or content), so the statistics page can show where waiting time goes.
+    pub track_app_time: bool,
+}
+
+impl Default for Stats {
+    fn default() -> Self {
+        Self {
+            track_app_time: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

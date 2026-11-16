@@ -119,7 +119,7 @@ fn sample(value: &Value) -> Option<RunSample> {
     })
 }
 
-fn unix_now() -> u64 {
+pub fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
@@ -138,7 +138,7 @@ pub fn iso8601(unix: u64) -> String {
     )
 }
 
-fn parse_iso8601(text: &str) -> Option<u64> {
+pub fn parse_iso8601(text: &str) -> Option<u64> {
     let b = text.as_bytes();
     if b.len() != 20 || b[4] != b'-' || b[7] != b'-' || b[10] != b'T' || b[19] != b'Z' {
         return None;
@@ -150,7 +150,7 @@ fn parse_iso8601(text: &str) -> Option<u64> {
 }
 
 // Howard Hinnant's civil-date algorithms, valid for the proleptic Gregorian calendar.
-fn civil_from_days(days: i64) -> (i64, i64, i64) {
+pub(crate) fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let doe = z.rem_euclid(146_097);
