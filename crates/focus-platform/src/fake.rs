@@ -124,14 +124,14 @@ impl Platform for FakePlatform {
 }
 
 impl Hotkeys for FakePlatform {
-    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String> {
+    fn register(&self, keys: &hotkey::Keys<'_>) -> Vec<String> {
         let mut problems = Vec::new();
         let mut any = false;
-        for key in [focus_key, pause_key] {
+        for (key, _, name) in keys.each() {
             match hotkey::parse(key) {
                 Ok(Some(_)) => any = true,
                 Ok(None) => {}
-                Err(e) => problems.push(e),
+                Err(e) => problems.push(format!("{name} hotkey: {e}")),
             }
         }
         self.with(|s| s.hotkeys_on = any);

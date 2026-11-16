@@ -8,6 +8,27 @@ pub enum HotkeyAction {
     /// Acts on the visible toast: go back, switch now, or snooze.
     Focus,
     TogglePause,
+    /// "This run will take a while": switch me away now (design backlog E4).
+    DeclareLong,
+}
+
+/// The hotkey strings from the config. An empty string leaves that hotkey off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Keys<'a> {
+    pub focus: &'a str,
+    pub pause: &'a str,
+    pub declare_long: &'a str,
+}
+
+impl<'a> Keys<'a> {
+    /// Each key with the action it triggers and the name used in messages.
+    pub fn each(&self) -> [(&'a str, HotkeyAction, &'static str); 3] {
+        [
+            (self.focus, HotkeyAction::Focus, "focus"),
+            (self.pause, HotkeyAction::TogglePause, "pause"),
+            (self.declare_long, HotkeyAction::DeclareLong, "declare-long"),
+        ]
+    }
 }
 
 /// Four independent modifier flags read naturally as bools here.
@@ -143,9 +164,10 @@ pub fn mac_keycode(key: &str) -> Option<u32> {
 
 /// Global hotkeys. Registering one must not trigger an OS permission prompt.
 pub trait Hotkeys {
-    /// Registers the two hotkeys. An empty string leaves one off. Returns one message for
-    /// each hotkey that couldn't be registered (bad string, or another app owns the chord).
-    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String>;
+    /// Registers the hotkeys. An empty string leaves one off. Returns one message for each
+    /// hotkey that couldn't be registered (bad string, or another app owns the chord), each
+    /// starting with the hotkey's name.
+    fn register(&self, keys: &Keys<'_>) -> Vec<String>;
 
     /// Presses since the last call, oldest first.
     fn take_pressed(&self) -> Vec<HotkeyAction>;

@@ -139,19 +139,22 @@ impl Overlay for MacPlatform {
     }
 }
 
-const FOCUS_ID: u32 = 1;
-const PAUSE_ID: u32 = 2;
+/// The id each action is registered under with the OS.
+fn hotkey_id(action: HotkeyAction) -> u32 {
+    match action {
+        HotkeyAction::Focus => 1,
+        HotkeyAction::TogglePause => 2,
+        HotkeyAction::DeclareLong => 3,
+    }
+}
 
 impl Hotkeys for MacPlatform {
-    fn register(&self, focus_key: &str, pause_key: &str) -> Vec<String> {
+    fn register(&self, keys: &hotkey::Keys<'_>) -> Vec<String> {
         let mut problems = Vec::new();
-        for (text, id, name) in [
-            (focus_key, FOCUS_ID, "focus"),
-            (pause_key, PAUSE_ID, "pause"),
-        ] {
+        for (text, action, name) in keys.each() {
             match hotkey::parse(text) {
                 Ok(None) => {}
-                Ok(Some(chord)) => match macos_hotkeys::register(&chord, id) {
+                Ok(Some(chord)) => match macos_hotkeys::register(&chord, hotkey_id(action)) {
                     Ok(()) => self.hotkeys_on.set(true),
                     Err(e) => problems.push(format!("{name} hotkey `{text}`: {e}")),
                 },
@@ -162,13 +165,14 @@ impl Hotkeys for MacPlatform {
     }
 
     fn take_pressed(&self) -> Vec<HotkeyAction> {
+        let all = [
+            HotkeyAction::Focus,
+            HotkeyAction::TogglePause,
+            HotkeyAction::DeclareLong,
+        ];
         macos_hotkeys::take()
             .into_iter()
-            .filter_map(|id| match id {
-                FOCUS_ID => Some(HotkeyAction::Focus),
-                PAUSE_ID => Some(HotkeyAction::TogglePause),
-                _ => None,
-            })
+            .filter_map(|id| all.into_iter().find(|action| hotkey_id(*action) == id))
             .collect()
     }
 

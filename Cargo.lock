@@ -163,6 +163,8 @@ dependencies = [
 name = "focusctl"
 version = "0.1.0"
 dependencies = [
+ "focus-core",
+ "focus-platform",
  "focus-receiver",
  "focus-runner",
  "serde",

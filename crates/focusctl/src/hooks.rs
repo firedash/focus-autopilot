@@ -142,6 +142,52 @@ pub fn uninstall(settings: &mut Value, port: u16) -> Result<bool, MergeError> {
     Ok(removed)
 }
 
+/// How the installed hooks compare with what `install` would write.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Installed {
+    /// Events with no hook of ours at all.
+    pub missing: Vec<&'static str>,
+    /// Events whose hook of ours carries a different token.
+    pub stale_token: Vec<&'static str>,
+}
+
+impl Installed {
+    pub fn complete(&self) -> bool {
+        self.missing.is_empty() && self.stale_token.is_empty()
+    }
+}
+
+/// Looks for our hook under every event, without changing anything.
+pub fn installed(settings: &Value, port: u16, token: &str) -> Installed {
+    let url = hook_url(port);
+    let mut found = Installed {
+        missing: Vec::new(),
+        stale_token: Vec::new(),
+    };
+    for (event, _) in EVENTS {
+        let ours: Vec<&Value> = settings
+            .get("hooks")
+            .and_then(|hooks| hooks.get(event))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|group| group.get("hooks").and_then(Value::as_array))
+            .flatten()
+            .filter(|hook| is_ours(hook, &url))
+            .collect();
+        if ours.is_empty() {
+            found.missing.push(event);
+        } else if !ours.iter().any(|hook| {
+            hook.pointer("/headers/X-Focus-Token")
+                .and_then(Value::as_str)
+                == Some(token)
+        }) {
+            found.stale_token.push(event);
+        }
+    }
+    found
+}
+
 /// The indentation unit of a JSON text: the whitespace before its first indented line.
 pub fn indent_of(text: &str) -> String {
     text.lines()
@@ -258,6 +304,23 @@ mod tests {
             "permission_prompt|elicitation_dialog|elicitation_url_dialog"
         );
         assert!(v["hooks"]["Stop"][0].get("matcher").is_none());
+    }
+
+    #[test]
+    fn installed_reports_missing_and_stale_hooks() {
+        let mut v = parse("{}");
+        assert_eq!(installed(&v, 47821, "t").missing.len(), 11);
+        install(&mut v, 47821, "t").unwrap();
+        assert!(installed(&v, 47821, "t").complete());
+        // A rotated token the hooks don't carry yet.
+        let stale = installed(&v, 47821, "new");
+        assert!(stale.missing.is_empty());
+        assert_eq!(stale.stale_token.len(), 11);
+        // Hooks for another port are not ours.
+        assert_eq!(installed(&v, 9999, "t").missing.len(), 11);
+        // One event removed by hand.
+        v["hooks"].as_object_mut().unwrap().remove("Stop");
+        assert_eq!(installed(&v, 47821, "t").missing, ["Stop"]);
     }
 
     #[test]

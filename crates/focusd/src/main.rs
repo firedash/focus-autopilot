@@ -42,18 +42,25 @@ mod mac {
                 path.display()
             )
         })?;
-        let mut config = config_file::parse(&text).map_err(|e| e.to_string())?;
+        let apps = known_apps::for_this_os();
+        // The same check the settings page and a hand edit go through, with the same wording.
+        let mut config = focus_runner::settings::check(&text, &apps)
+            .map_err(|problem| format!("{}: {problem}", path.display()))?;
         if let Some(port) = port {
             config.receiver.port = port;
         }
         if config.receiver.token.is_empty() {
             return Err("config.toml has no receiver.token. Run `focusctl install-hooks`.".into());
         }
-        let apps = known_apps::for_this_os();
-        config
-            .validate(|id| home_match(&apps, &config, id))
-            .map_err(|e| format!("invalid config: {e:?}"))?;
         Ok((config, apps))
+    }
+
+    fn keys(config: &Config) -> hotkey::Keys<'_> {
+        hotkey::Keys {
+            focus: &config.hotkeys.focus_key,
+            pause: &config.hotkeys.pause,
+            declare_long: &config.hotkeys.declare_long,
+        }
     }
 
     /// Prints how this run is set up, registers the hotkeys, and returns the focus key as it
@@ -109,7 +116,7 @@ mod mac {
             .ok()
             .and_then(|text| config_file::parse(&text).ok())
             .unwrap_or_default();
-        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
+        let problems = platform.register(&keys(&config));
         for problem in &problems {
             println!("problem: {problem}");
         }
@@ -117,8 +124,9 @@ mod mac {
             return Err("no hotkey could be registered, so there is nothing to test".into());
         }
         println!(
-            "Registered focus = `{}`, pause = `{}`. Press them now, from any app. Stops in 60 s.",
-            config.hotkeys.focus_key, config.hotkeys.pause
+            "Registered focus = `{}`, pause = `{}`, declare-long = `{}` (empty means off). \
+             Press them now, from any app. Stops in 60 s.",
+            config.hotkeys.focus_key, config.hotkeys.pause, config.hotkeys.declare_long
         );
         let end = Instant::now() + std::time::Duration::from_secs(60);
         let mut presses = 0;
@@ -129,6 +137,7 @@ mod mac {
                 match pressed {
                     HotkeyAction::Focus => println!("pressed: focus key"),
                     HotkeyAction::TogglePause => println!("pressed: pause key"),
+                    HotkeyAction::DeclareLong => println!("pressed: declare-long key"),
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -144,16 +153,9 @@ mod mac {
         Ok(())
     }
 
-    /// Built-in and configured home apps, with the same matching the core uses.
-    fn home_match(apps: &[String], config: &Config, id: &str) -> bool {
-        apps.iter()
-            .chain(&config.home.extra_apps)
-            .any(|entry| focus_core::app_id_matches(entry, id))
-    }
-
     /// Registers the hotkeys, reports problems, and returns the focus key as it reads on screen.
     fn setup_hotkeys(platform: &MacPlatform, config: &Config) -> Option<String> {
-        let problems = platform.register(&config.hotkeys.focus_key, &config.hotkeys.pause);
+        let problems = platform.register(&keys(config));
         for problem in &problems {
             println!("hotkey problem: {problem}");
         }

@@ -210,6 +210,7 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
             let action = match pressed {
                 HotkeyAction::Focus => UserAction::ToastAction,
                 HotkeyAction::TogglePause => UserAction::TogglePause,
+                HotkeyAction::DeclareLong => UserAction::DeclareLong,
             };
             effects.extend(core.handle(Input::User(action), Instant::now()));
         }
