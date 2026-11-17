@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-16.
+Last updated 2026-11-17.
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
 decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back with one
@@ -30,7 +30,7 @@ departure is that **manual mode is the default**: nothing switches you away on i
 | --- | --- | --- |
 | Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; 97% line coverage |
 | Hook receiver: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver` | done; negative tests over a real socket |
-| Payload parsing, truncation, redaction, project hash; `config.toml` loading | `focus-receiver` | done |
+| Payload parsing, truncation, redaction, project hash; `config.toml` loading (an unknown key is an error; a setting an older build had is skipped with a note) | `focus-receiver` | done |
 | **Statistics and Configuration page**: three static files and a JSON API on the same loopback port, with Host, Origin, `Sec-Fetch-Site` and token checks and a strict Content-Security-Policy | `focus-receiver` (`ui.rs`, `assets/ui/`) | done; 41 browser checks in `scripts/ui-check` |
 | **Time per app**: sampled twice a second, split by whether Claude was working, with switches and time-to-return; saved in half-hour slots | `focus-runner` (`usage.rs`) | done and tested |
 | **Statistics**: totals for today and seven days, per-day and per-app breakdowns in the viewer's time zone, up to six insights | `focus-runner` (`stats.rs`) | done and tested |
@@ -51,7 +51,7 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 219 tests, all passing.
+- `cargo test --workspace`: 222 tests, all passing.
 - `cargo clippy --workspace --all-targets --target aarch64-apple-darwin`: the macOS code
   type-checks and is lint-clean.
 - `cargo deny check`: advisories, bans, licenses and sources pass.

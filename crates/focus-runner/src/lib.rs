@@ -400,6 +400,9 @@ fn poll_slow<P: Platform>(
         Ok(config) => {
             let restart = settings::restart_needed(&ui.config_now(), &config);
             println!("config.toml changed: applied");
+            if let Some(note) = settings::retired_note(&text) {
+                println!("note: {note}");
+            }
             if !restart.is_empty() {
                 println!("restart focusd for: {}", restart.join(", "));
             }

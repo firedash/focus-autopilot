@@ -226,6 +226,9 @@ away_requires_idle_seconds = 3
 - **No box appears when Claude finishes.** Check that `focusd` printed `front: <id>` for your
   terminal and that id is a home app. If you were still in that window when Claude finished,
   nothing is shown, by design.
+- **`focusd` won't start: `unknown keys: ...`.** `config.toml` has a setting the app doesn't
+  know, usually a typo; correct or delete that line. A setting an older build had (such as
+  `[return]`) does not stop it: `focusd` skips it and prints a `note:` saying you can delete it.
 - **The hotkey does nothing.** Run `focusd --test-hotkeys`. A `problem:` line means the OS
   refused the chord (another app may own it): pick another in `[hotkeys]`. Registered but no
   presses means the events are not being delivered; type `click` in the `focusd` window

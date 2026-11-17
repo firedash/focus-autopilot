@@ -81,10 +81,15 @@ pub fn config(path: &Path, known_home: &[String]) -> (Check, Option<Config>) {
             ),
             None,
         ),
-        Ok(config) => (
-            ok(format!("config.toml is valid ({})", path.display())),
-            Some(config),
-        ),
+        Ok(config) => {
+            let note = focus_runner::settings::retired_note(&text)
+                .map(|note| format!("; {note}"))
+                .unwrap_or_default();
+            (
+                ok(format!("config.toml is valid ({}){note}", path.display())),
+                Some(config),
+            )
+        }
     }
 }
 

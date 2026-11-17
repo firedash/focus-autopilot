@@ -179,4 +179,8 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
     changes need a restart. The design's behaviour may return with the tray, which has
     somewhere to show a warning. *Amended by ADR 0004 item 6: the file is now re-read while
     running and a valid change applied; an unknown key is still an error, but a bad edit to a
-    running app keeps the last good config instead of stopping it.*
+    running app keeps the last good config instead of stopping it.* *Amended 2026-11-17: a
+    setting an earlier build had and this one does not (`config_file::RETIRED`, at present the
+    `[return]` section of item 21) is skipped with a printed note instead of refused. A config
+    left over from that experiment stopped `focusd` from starting on the one Mac it runs on.
+    Any other unknown key is still an error.*

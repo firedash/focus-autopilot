@@ -46,7 +46,8 @@ are the choices behind it.
    running core at once. A hand edit of `config.toml` is noticed within two seconds and
    applied the same way; if it is invalid, the last good config stays and the reason is
    printed. This replaces ADR 0003 item 22 in part: the file is now re-read while running. An
-   unknown key is still an error rather than a warning. Hotkeys are the exception: they are
+   unknown key is still an error rather than a warning (except a setting an earlier build had,
+   which is skipped with a note: ADR 0003 item 22). Hotkeys are the exception: they are
    registered once at startup, so a change needs a restart, and the page says so.
 
 7. **Time per app is recorded, by default, locally.** To show where waiting time goes the

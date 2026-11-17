@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Loads `config.toml` (design section 11) into [`focus_core::Config`]. Every key is
 //! optional; a missing key keeps its default. A key the app doesn't know is reported, not
-//! silently ignored, so a typo doesn't leave a setting at its default unnoticed.
+//! silently ignored, so a typo doesn't leave a setting at its default unnoticed. The one
+//! exception is a setting the app used to have ([`RETIRED`]): that is skipped and noted, so a
+//! config written for an older build still starts.
 
 use std::time::Duration;
 
@@ -26,11 +28,35 @@ impl std::fmt::Display for LoadError {
     }
 }
 
+/// Settings an earlier build had and this one does not, by full key (`section` or
+/// `section.key`). One of these in the file is skipped, not refused. Add to this list whenever
+/// a setting is removed.
+///
+/// `return`: the `[return]` section of the withdrawn editor-window return (ADR 0003 item 21).
+pub const RETIRED: &[&str] = &["return"];
+
 /// Parses config text over the defaults.
 ///
 /// # Errors
 /// Invalid TOML, a wrongly typed value, or unknown keys.
 pub fn parse(text: &str) -> Result<Config, LoadError> {
+    parse_noting(text).map(|(config, _)| config)
+}
+
+/// The retired settings present in config text, for a caller that wants to say so. Empty when
+/// the text does not load at all.
+#[must_use]
+pub fn retired(text: &str) -> Vec<String> {
+    parse_noting(text)
+        .map(|(_, retired)| retired)
+        .unwrap_or_default()
+}
+
+/// [`parse`], also returning the retired settings it skipped.
+///
+/// # Errors
+/// As [`parse`].
+pub fn parse_noting(text: &str) -> Result<(Config, Vec<String>), LoadError> {
     let mut table: Table = text
         .parse()
         .map_err(|e: toml::de::Error| LoadError::Syntax(e.message().to_owned()))?;
@@ -99,8 +125,8 @@ pub fn parse(text: &str) -> Result<Config, LoadError> {
     r.section("stats", |s| {
         s.flag("track_app_time", &mut c.stats.track_app_time)
     })?;
-    r.finish()?;
-    Ok(c)
+    let retired = r.finish()?;
+    Ok((c, retired))
 }
 
 struct Reader<'a> {
@@ -213,11 +239,15 @@ impl Reader<'_> {
         }
     }
 
-    fn finish(&mut self) -> Result<(), LoadError> {
-        let mut unknown = std::mem::take(&mut self.unknown);
-        self.finish_into(&mut unknown);
+    /// The retired keys that were left over, or an error naming the unknown ones.
+    fn finish(&mut self) -> Result<Vec<String>, LoadError> {
+        let mut left = std::mem::take(&mut self.unknown);
+        self.finish_into(&mut left);
+        let (retired, unknown): (Vec<String>, Vec<String>) = left
+            .into_iter()
+            .partition(|key| RETIRED.contains(&key.as_str()));
         if unknown.is_empty() {
-            Ok(())
+            Ok(retired)
         } else {
             Err(LoadError::Unknown(unknown))
         }
@@ -284,5 +314,25 @@ mod tests {
             Err(LoadError::Type(_))
         ));
         assert!(matches!(parse("= broken"), Err(LoadError::Syntax(_))));
+    }
+
+    #[test]
+    fn a_retired_setting_is_skipped_and_noted() {
+        let text = "enabled = false\n[return]\nopen_project_in_editor = true\n";
+        let (config, retired) = parse_noting(text).unwrap();
+        assert!(!config.enabled);
+        assert_eq!(retired, vec!["return".to_owned()]);
+        assert_eq!(parse(text).unwrap(), config);
+        assert_eq!(super::retired(text), vec!["return".to_owned()]);
+        assert!(super::retired("enabled = true").is_empty());
+    }
+
+    #[test]
+    fn a_retired_setting_does_not_excuse_a_typo() {
+        assert_eq!(
+            parse("[return]\nx = 1\n[nope]\ny = 1"),
+            Err(LoadError::Unknown(vec!["nope".into()]))
+        );
+        assert!(super::retired("[return]\nx = 1\n[nope]\ny = 1").is_empty());
     }
 }

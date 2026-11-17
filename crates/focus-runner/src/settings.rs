@@ -254,6 +254,26 @@ fn explain(error: &ConfigError) -> String {
     }
 }
 
+/// A sentence about settings in the text that an older build had and this one ignores, or
+/// `None` when there are none.
+#[must_use]
+pub fn retired_note(text: &str) -> Option<String> {
+    let keys = config_file::retired(text);
+    if keys.is_empty() {
+        return None;
+    }
+    let names: Vec<String> = keys.iter().map(|k| format!("`{k}`")).collect();
+    let (verb, it) = if keys.len() == 1 {
+        ("is no longer a setting and is", "it")
+    } else {
+        ("are no longer settings and are", "them")
+    };
+    Some(format!(
+        "config.toml: {} {verb} ignored; you can delete {it}",
+        names.join(", ")
+    ))
+}
+
 /// Parses and validates config text the way `focusd` does at startup. `known_home` is the
 /// built-in home-app list.
 ///
@@ -316,6 +336,17 @@ mod tests {
             Value::Object(map) => map,
             other => panic!("not an object: {other}"),
         }
+    }
+
+    #[test]
+    fn a_retired_setting_gets_a_sentence_and_does_not_fail_the_check() {
+        let text = "[return]\nopen_project_in_editor = true\n";
+        assert!(check(text, &home()).is_ok());
+        assert_eq!(
+            retired_note(text).as_deref(),
+            Some("config.toml: `return` is no longer a setting and is ignored; you can delete it")
+        );
+        assert_eq!(retired_note("enabled = true"), None);
     }
 
     fn home() -> Vec<String> {

@@ -92,6 +92,9 @@ fn load_config(path: &Path, known_home: &[String]) -> Result<Config, String> {
     }
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut config = settings::check(&text, known_home)?;
+    if let Some(note) = settings::retired_note(&text) {
+        println!("note: {note}");
+    }
     if config.receiver.token.is_empty() {
         config.receiver.token = random_hex().map_err(|e| e.to_string())?;
     }

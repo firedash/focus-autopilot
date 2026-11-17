@@ -46,6 +46,9 @@ mod mac {
         // The same check the settings page and a hand edit go through, with the same wording.
         let mut config = focus_runner::settings::check(&text, &apps)
             .map_err(|problem| format!("{}: {problem}", path.display()))?;
+        if let Some(note) = focus_runner::settings::retired_note(&text) {
+            println!("note: {note}");
+        }
         if let Some(port) = port {
             config.receiver.port = port;
         }
