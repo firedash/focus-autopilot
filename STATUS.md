@@ -11,8 +11,9 @@ window forward (`ACTIVATE claude.exe`, then `front: claude.exe`), and the focus 
 countdown in a real run; in the hotkey self-test the pause key and the focus key
 (`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
 app) register and their presses are delivered; and in `focusd --test-box` both the toast and
-the recap card are visible at the top of the screen. Not yet seen: a box during a real run
-(the two so far were poor chances), and the move away after the next prompt.
+the recap card are visible at the top of the screen. The owner then ran the loop with
+nothing else going on and reported that it works as expected. Whether that run included the
+move away after the next prompt was not said.
 See [docs/windows-quickstart.md](docs/windows-quickstart.md).
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
