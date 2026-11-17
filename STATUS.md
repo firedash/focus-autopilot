@@ -3,10 +3,11 @@
 Last updated 2026-11-17.
 
 **Windows:** there is a Windows build as of today. It has passed its tests on a Windows CI
-machine. On a person's Windows desktop only one thing has been seen so far: the hotkey
-self-test, where the pause key registered and its presses were delivered, and the first
-default focus key, `Ctrl+Alt+Space`, turned out to belong to the Claude desktop app (the
-default is now `Ctrl+Alt+Shift+Space`). The boxes and the switching have not been seen. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
+machine. Seen on a person's Windows desktop so far: `focusd` starts and `focusctl doctor`
+finds it, the config and the hooks; in the hotkey self-test the pause key and the focus key
+(`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
+app) register and their presses are delivered. Not yet reported: the boxes, the switch back
+and the move away. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
 decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back after a
