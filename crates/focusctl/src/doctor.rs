@@ -134,7 +134,16 @@ fn get(port: u16, path: &str, token: &str) -> std::io::Result<Option<(u16, Strin
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let mut stream = match TcpStream::connect_timeout(&addr, Duration::from_millis(800)) {
         Ok(stream) => stream,
-        Err(e) if e.kind() == std::io::ErrorKind::ConnectionRefused => return Ok(None),
+        // Windows retries a refused connection for longer than the timeout, so on a loopback
+        // port a timeout means the same as a refusal: nothing is listening.
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::TimedOut
+            ) =>
+        {
+            return Ok(None);
+        }
         Err(e) => return Err(e),
     };
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;

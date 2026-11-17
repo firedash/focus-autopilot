@@ -6,7 +6,10 @@ Nov 14, 2026 · firedash
 > places; [ADR 0003](adr/0003-shell-decisions.md) and
 > [ADR 0004](adr/0004-statistics-and-configuration-page.md) record each and win over the text
 > below.
-> [ADR 0005](adr/0005-the-full-loop-by-default.md) is the latest and wins over both.
+> [ADR 0005](adr/0005-the-full-loop-by-default.md) and
+> [ADR 0006](adr/0006-the-windows-adapter.md) are the latest and win over the rest. The
+> Windows adapter departs from "Never used" in section 8 in one way: it sends one empty mouse
+> event when Windows refuses a switch (ADR 0006 item 4).
 > In short: (1) **returns are automatic from any app**, after a 5 second countdown the focus
 > key snoozes, and **the next away switch goes to the app the user left off in**, ahead of
 > `away.apps`; turning off `switching.auto_return` and `away.resume_last_app` gives the

@@ -41,7 +41,7 @@ Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` 
 | --- | --- | --- |
 | `claude -p ...` with no tools, no MCP servers and hooks disabled | only when `recap.mode = "llm"`, once per recap | `crates/focus-runner/src/recap_cli.rs` |
 | `claude --version` | `focusctl doctor` | `crates/focusctl/src/main.rs`, `claude_version` |
-| `open <file>` (macOS; `xdg-open` on Linux) | `focusctl ui` | `crates/focusctl/src/ui.rs`, `open_in_browser` |
+| `open <file>` (macOS; `explorer` on Windows; `xdg-open` on Linux) | `focusctl ui` | `crates/focusctl/src/ui.rs`, `open_in_browser` |
 
 Each is started with an argument list, never through a shell.
 
@@ -56,8 +56,22 @@ Each is started with an argument list, never through a shell.
 | A non-activating `NSPanel` that ignores the mouse | the toast and the recap card | `crates/focus-platform/src/macos_overlay.rs` |
 | `NSSound` | the sound on return | `crates/focus-platform/src/macos.rs` |
 
+## OS calls that observe or move the user (Windows)
+
+| Call | Purpose | Where |
+| --- | --- | --- |
+| `GetForegroundWindow`, `GetWindowThreadProcessId`, `OpenProcess` (query only), `QueryFullProcessImageNameW` | which window is in front and which executable owns it | `crates/focus-platform/src/windows.rs` |
+| `EnumWindows`, `IsWindowVisible`, `GetWindow`, `GetWindowLongW`, `GetWindowTextLengthW`, `DwmGetWindowAttribute` | which windows are app windows; the title's length is read, never the title | `crates/focus-platform/src/windows.rs` |
+| `GetLastInputInfo`, `GetTickCount` | seconds since any input; no input content | `crates/focus-platform/src/windows.rs` |
+| `ShowWindow` (restore), `SetForegroundWindow` | bring a window to the front | `crates/focus-platform/src/windows.rs` |
+| `SendInput` with one mouse event that moves nothing and presses nothing | be allowed that request when Windows refused it; off with `switching.force_foreground = false` | `crates/focus-platform/src/windows.rs`, `empty_mouse_event` |
+| `RegisterHotKey` | be told when one of up to three chosen combinations is pressed | `crates/focus-platform/src/windows.rs` |
+| Two topmost, non-activating, click-through popup windows drawn with GDI | the toast and the recap card | `crates/focus-platform/src/windows_overlay.rs` |
+| `MessageBeep` | the sound on return | `crates/focus-platform/src/windows.rs` |
+
 Not used anywhere: Accessibility, Input Monitoring, Screen Recording, Apple Events, event taps,
-synthesized keystrokes or clicks. See [PERMISSIONS.md](PERMISSIONS.md).
+keyboard or mouse hooks, thread-input attachment, synthesized keystrokes or clicks. The one
+empty mouse event above is the only input the app sends. See [PERMISSIONS.md](PERMISSIONS.md).
 
 ## `unsafe`
 
@@ -70,6 +84,8 @@ Only `focus-platform` may contain it; every other crate sets `#![forbid(unsafe_c
 | `crates/focus-platform/src/macos_hotkeys.rs` | 6 | hand-declared Carbon functions for hotkeys, which the `objc2` crates do not bind |
 | `crates/focus-platform/src/macos_overlay.rs` | 2 | keeping a panel alive after it closes; taking the next AppKit event |
 | `crates/focus-platform/src/macos.rs` | 1 | turning the run loop once so the front-app reading is fresh |
+| `crates/focus-platform/src/windows.rs` | 20 | Win32 calls through `windows-sys`: every one is `unsafe` by declaration |
+| `crates/focus-platform/src/windows_overlay.rs` | 10 | creating, painting, showing and hiding the two overlay windows |
 
 ## What the page can do
 

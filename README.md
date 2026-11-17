@@ -37,16 +37,20 @@ Prefer to be asked? Turn off "Bring me back by itself" and the box waits until y
 key. Turn off "send me back to the app I was called back from" and nothing moves you away.
 
 **What it is today:** a developer build for **Claude Code in a terminal, on macOS**, built
-from source. [STATUS.md](STATUS.md) says what has been seen working on a real Mac, what has
+from source. A **Windows** build is new: it passes its tests on a Windows machine in CI but
+no person has used it yet ([docs/windows-quickstart.md](docs/windows-quickstart.md)). [STATUS.md](STATUS.md) says what has been seen working on a real Mac, what has
 only been verified on Linux, and what has never been run. The automatic return has been
 seen working on a Mac; the move back to where you left off is new and has not been yet.
 
 It runs on your machine only, asks for no OS permission, and sends nothing anywhere by
-default. Secrets typed into a prompt are redacted before they are stored or shown. It does
+default. (On Windows it sends one empty mouse event, no movement and no click, when Windows
+refuses a switch; [PERMISSIONS.md](PERMISSIONS.md) says why and how to turn it off.) Secrets typed into a prompt are redacted before they are stored or shown. It does
 record, on your machine, how long each app is in front, to draw the Statistics tab below; one
 switch on the Configuration tab turns that off.
 
 ## Get your first box
+
+On Windows, follow [docs/windows-quickstart.md](docs/windows-quickstart.md) instead.
 
 You need a Mac, Rust ([rustup.rs](https://rustup.rs)) and the Xcode command line tools
 (`xcode-select --install`). It takes a few minutes, most of it the first build.
@@ -142,8 +146,8 @@ Dark mode and a phone-width layout, both automatic:
 
 ## Not built
 
-- **Windows.** The design covers it and the core has nothing Mac-specific in it, but there is
-  no Windows adapter.
+- **Windows, beyond a first build.** There is a Windows adapter now, tested on a CI machine
+  only. Start at login is not built for Windows, and the LLM recap is untried there.
 - **An installer, a Homebrew formula, a menu-bar icon, a click on the box.** `focusd` runs in
   a terminal or from the launch agent.
 - **Return to an exact window.** Switches go to the app; with several windows of one app

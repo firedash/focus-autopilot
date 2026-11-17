@@ -2,6 +2,9 @@
 
 Last updated 2026-11-17.
 
+**Windows:** there is a Windows build as of today. It has passed its tests on a Windows CI
+machine and has not been used by a person. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
+
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
 decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back after a
 countdown. After your next prompt it moves you back to the app you left off in. It also
@@ -50,8 +53,9 @@ there too; the away switch to where you left off has not.
 | `focusctl`: `install-hooks`, `uninstall-hooks`, `rotate-token`, `--scope user/project/local`, `ui`, `doctor`, `install-agent`, `uninstall-agent` | `focusctl` | done and tested on Linux |
 | macOS adapter: front app, running apps, activation, idle time, sound, toast and recap panels | `focus-platform` | run on a Mac |
 | Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys` | `focus-platform` | focus and pause registered and delivered on a Mac in the self-test; not yet seen acting on a toast in a real run; declare-long untried |
+| **Windows adapter**: front window and its executable, app windows, idle time, switching to an exact window, hotkeys, the two boxes, a sound; `focusd` on Windows | `focus-platform` (`windows.rs`, `windows_overlay.rs`), `focusd` | built; on a Windows CI machine it reads the front window, lists windows, registers a hotkey and shows and hides the boxes without taking focus. Never used by a person |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
-| CI: format, lint, test and repository rules on Linux; build, lint and test on macOS; `cargo deny` | `.github/workflows/ci.yml` | passing on `main`, including a real macOS build, link and test run |
+| CI: format, lint, test and repository rules on Linux; build, lint and test on macOS and on Windows; `cargo deny` | `.github/workflows/ci.yml` | passing on `main`, including a real macOS build, link and test run |
 | SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, THREAT_MODEL, PERMISSIONS, AUDIT, CODEOWNERS, pull request template, dependabot, `deny.toml` | repository root, `.github/` | written |
 
 ## Checks
@@ -60,7 +64,7 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 239 tests, all passing.
+- `cargo test --workspace`: 241 tests, all passing.
 - `cargo clippy --workspace --all-targets --target aarch64-apple-darwin`: the macOS code
   type-checks and is lint-clean.
 - `cargo deny check`: advisories, bans, licenses and sources pass.
@@ -70,7 +74,8 @@ Run on Linux with Rust 1.97.0:
 
 On GitHub Actions (`.github/workflows/ci.yml`), on every push: the Linux checks above, a build,
 lint and test run on a macOS runner (the first place the macOS adapter is actually linked),
-and `cargo deny`. All three jobs pass on `main`. The browser checks are not in CI: it has no
+the same on a Windows runner (where the Windows adapter's calls are made against a real Windows),
+and `cargo deny`. All four jobs pass on `main`. The browser checks are not in CI: it has no
 browser set up.
 
 Measured with `cargo llvm-cov`: **97.0% line coverage on `focus-core`** (the design's target
@@ -106,8 +111,9 @@ app; the project name on the toast says which session is waiting.
 
 ## Not built
 
-- **The Windows adapter**, all of it. It needs a Windows machine to try the calls on; the
-  macOS adapter showed how much goes wrong when platform code is written blind.
+- **Windows beyond the adapter**: start at login, and the LLM recap is untried. The adapter
+  itself is built (ADR 0006) and passes its tests on a Windows CI machine, but no person has
+  used it on a Windows desktop.
 - **Menu-bar icon, click on a toast, first-run wizard, installer.** `focusd` runs in a
   terminal or from a launch agent, and the page is opened with `focusctl ui`.
 - **Exact-window return.** The editor-URL route was tried and withdrawn; see ADR 0003 items
