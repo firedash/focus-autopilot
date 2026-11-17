@@ -65,9 +65,10 @@ of their own choosing, without forgetting to return.
 - Cloud sync, accounts, analytics, multi-machine use, mobile apps.
 
 **Supported platforms.** macOS 14 or later; Windows 10 and 11. Both are built from source;
-there is no installer. Only Claude Code in a terminal has been tested end to end. Other
-surfaces (IDE extensions, the Desktop app's Code tab) fire the same hooks according to
-Anthropic's documentation and are covered in STATUS.md. English only.
+there is no installer. Two surfaces have been run end to end: Claude Code in a terminal on a
+Mac, and a local session in the Claude desktop app's Code tab on Windows. Other surfaces
+(IDE extensions, the desktop app on a Mac) fire the same hooks according to Anthropic's
+documentation and are untried; STATUS.md keeps the list. English only.
 
 **Terms**
 
@@ -655,9 +656,8 @@ as surfaces are tested:
   WezTerm, Alacritty, VS Code, Cursor, Windsurf, JetBrains IDEs, Claude.
 
 **Toasts.** One box at the top of the screen; on Windows, of the monitor that holds the
-foreground window. It cannot
-take keyboard focus and it ignores the mouse, so every click goes to whatever is underneath.
-Text is plain text. The focus key always does the thing that won't happen on its own.
+foreground window. It cannot take keyboard focus and it ignores the mouse, so every click
+goes to whatever is underneath. Text is plain text. The focus key always does the thing that won't happen on its own.
 
 | Toast | Example text | Focus key |
 | --- | --- | --- |
@@ -670,8 +670,8 @@ The return headline is one of: Claude is done, needs your approval, has a questi
 your input, or stopped with an error.
 
 **Hotkeys.** Registered once at startup; a change needs a restart. A chord that cannot be
-registered, such as one another program owns, is reported at startup. `focusd --test-hotkeys` registers the chords and prints
-each press for 60 s.
+registered, such as one another program owns, is reported at startup. `focusd --test-hotkeys`
+registers the chords and prints each press for 60 s.
 
 | Hotkey | macOS default | Windows default |
 | --- | --- | --- |
