@@ -303,12 +303,30 @@ fn coming_back_to_look_at_claude_is_not_answered_by_moving_the_user_out_again() 
     sim.focus(MAIL);
     sim.at(140_000);
     sim.focus(TERMINAL);
-    sim.at(149_000);
+    sim.at(147_000);
     assert!(
-        away_switches(&sim).is_empty(),
-        "nine seconds after coming back, still here"
+        sim.toasts().len() == 1,
+        "seven seconds after coming back, left alone"
     );
-    // The threshold counts again from when they came back.
-    sim.at(200_000);
+    assert_eq!(
+        sim.core.away_wait(sim.instant()).as_deref(),
+        Some("you have just come back to this window")
+    );
+    // Eight seconds of grace, not the whole threshold again: a detour costs little.
+    sim.at(160_000);
+    assert_eq!(sim.toasts()[1], (148_000, ToastKind::AwayCountdown));
     assert_eq!(away_switches(&sim), vec![MAIL]);
+}
+
+#[test]
+fn a_blip_with_nothing_in_front_does_not_delay_the_away_switch() {
+    let mut sim = called_back_from_the_browser(Config::default());
+    sim.at(80_000);
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(105_000);
+    nothing_in_front(&mut sim);
+    sim.at(106_000);
+    sim.focus(TERMINAL);
+    sim.at(120_000);
+    assert_eq!(sim.toasts()[1], (110_000, ToastKind::AwayCountdown));
 }

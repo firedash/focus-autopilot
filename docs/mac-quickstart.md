@@ -258,8 +258,9 @@ in place of 30 or 45), which is handy while trying it out.
 - **You are not moved away after your next prompt.** The `focusd` window says why. It prints
   `where you left off: <app>` when it has somewhere to send you, and
   `not switching away: <reason>` while it holds back: the run has to go on for 30 seconds
-  first (45 when it looks like a short one, 10 when it looks long), counted from when you
-  last arrived at the terminal, with the terminal in front. If your `config.toml` sets
+  first (45 when it looks like a short one, 10 when it looks long) with the terminal in
+  front, and if you have just come back to the terminal from another app, 8 seconds pass
+  first. If your `config.toml` sets
   `away_requires_idle_seconds`, you must also leave the keyboard and mouse alone that long;
   the default is 0. All of these are on the Configuration tab under "Switching away". No
   `where you left off` line means it has nowhere to send you: you were not called back from

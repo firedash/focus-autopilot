@@ -206,10 +206,20 @@ impl Core {
             GuardFail::Paused => Some("paused".to_owned()),
             GuardFail::SomeoneWaiting => Some("a Claude session is waiting for you".to_owned()),
             GuardFail::NotElapsed => {
-                let needs = self
-                    .sessions
-                    .values()
-                    .filter(|s| s.away_threshold_at(switching).is_some())
+                let candidates = || {
+                    self.sessions
+                        .values()
+                        .filter(|s| s.away_threshold_at(switching).is_some())
+                };
+                // Old enough already, so it is the grace after coming back that holds it.
+                let just_back = candidates().any(|s| {
+                    now >= s.run.started + away_threshold(s.run.tier, switching)
+                        && s.back_at_home_until().is_some_and(|until| now < until)
+                });
+                if just_back {
+                    return Some("you have just come back to this window".to_owned());
+                }
+                let needs = candidates()
                     .map(|s| away_threshold(s.run.tier, switching))
                     .min()?;
                 Some(format!(
@@ -376,8 +386,8 @@ impl Core {
         }
     }
 
-    /// Restarts the away threshold of every running run whose home window the user has just
-    /// arrived at from somewhere else.
+    /// Notes, for every running run, that the user has just arrived at its home window from
+    /// another app. Nothing in front for a moment is not another app.
     fn note_back_at_home(&mut self, previous: Option<&AppRef>, now: Instant) {
         let Some(front) = self.frontmost.clone() else {
             return;
@@ -386,7 +396,7 @@ impl Core {
             let Some(home) = &session.run.home else {
                 continue;
             };
-            let arrived = home.matches(&front) && !previous.is_some_and(|p| home.matches(p));
+            let arrived = home.matches(&front) && previous.is_some_and(|p| !home.matches(p));
             if arrived && session.state == SessionState::Running {
                 session.run.back_at_home = Some(now);
             }

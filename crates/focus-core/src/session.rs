@@ -10,6 +10,10 @@ use crate::events::{
 };
 use crate::run::{Need, Outcome, Run, RunRecord, Start};
 
+/// A user who comes back to a run's home window while it is going is left there at least this
+/// long before an away switch: long enough to look at Claude, short enough that a detour
+/// through another app does not cost the whole away threshold again.
+pub(crate) const BACK_AT_HOME_GRACE: Duration = Duration::from_secs(8);
 /// An event for a finished run within this window means another Stop hook made Claude continue.
 pub(crate) const CONTINUATION_WINDOW: Duration = Duration::from_secs(60);
 /// A `PreToolUse` for one of these means Claude is waiting for the user.
@@ -305,11 +309,16 @@ impl Session {
         if self.run.declared_long {
             return Some(self.run.started);
         }
-        let from = self
-            .run
-            .back_at_home
-            .map_or(self.run.started, |at| at.max(self.run.started));
-        Some(from + away_threshold(self.run.tier, switching))
+        let old_enough = self.run.started + away_threshold(self.run.tier, switching);
+        Some(
+            self.back_at_home_until()
+                .map_or(old_enough, |at| at.max(old_enough)),
+        )
+    }
+
+    /// Until when a user who has just come back to this run's home window is left there.
+    pub fn back_at_home_until(&self) -> Option<Instant> {
+        self.run.back_at_home.map(|at| at + BACK_AT_HOME_GRACE)
     }
 
     /// When a finished run can no longer be continued by a Stop hook and nobody is waiting

@@ -63,9 +63,11 @@ These are the choices that implement it.
    the countdown the switch still waits for a pause in the typing
    (`switching.input_quiet_ms`), and after 5 seconds of continuous input it becomes a
    question. One thing the idle requirement did by accident is now done on purpose: when the
-   user comes back to the home window on their own while the run is going, the away
-   threshold counts again from that moment, so coming back to look at Claude is not answered
-   by being moved out again three seconds later.
+   user comes back to the home window from another app while the run is going, no away
+   switch starts for 8 seconds, so coming back to look at Claude is not answered by being
+   moved out again three seconds later. The first version restarted the whole away threshold
+   instead, and the owner then saw no away switch at all on runs that took a while: any
+   detour through another app, a screenshot tool included, cost up to 45 seconds again.
 
    A moment with nothing in front on the way back, up to 5 seconds, does not lose the app.
    The shell prints where the user left off and, while an away switch is held back, which

@@ -131,8 +131,8 @@ pub(crate) struct Run {
     /// The user pressed the declare-long hotkey.
     pub declared_long: bool,
     /// When the user last arrived at this run's home window from another app while it was
-    /// running. The away threshold counts from here, so coming back to look at Claude is not
-    /// answered by being moved straight out again.
+    /// running. No away switch for a short grace after it, so coming back to look at Claude
+    /// is not answered by being moved straight out again.
     pub back_at_home: Option<Instant>,
     pub need: Option<Need>,
     pub outcome: Option<Outcome>,
