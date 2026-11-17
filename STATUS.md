@@ -3,8 +3,9 @@
 Last updated 2026-11-17.
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
-decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back with one
-key. It now also serves a page with two tabs, **Statistics** and **Configuration**, opened
+decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back after a
+countdown. After your next prompt it moves you back to the app you left off in. It also
+serves a page with two tabs, **Statistics** and **Configuration**, opened
 with `focusctl ui`. See [docs/mac-quickstart.md](docs/mac-quickstart.md) to run it.
 
 **What has and has not been seen working.** The distinction matters here, because several
@@ -16,22 +17,28 @@ macOS parts were written from Linux:
 | Switching away and back | The Statistics and Configuration page, in Chromium | `focusctl ui` opening the browser with `open` |
 | The toast and recap boxes | The whole shell loop, against the fake platform | The launch agent being loaded by `launchd` |
 | The three-line LLM recap | `focusctl doctor`, `ui --no-open`, `--scope` | Time per app as read from real macOS |
-| Global hotkeys: `focusd --test-hotkeys` registered the focus and pause keys and printed each press (2026-11-16) | | The declare-long hotkey (off by default) |
+| Global hotkeys: `focusd --test-hotkeys` registered the focus and pause keys and printed each press (2026-11-16) | The return countdown from any app, and the away switch to where you left off (ADR 0005) | The declare-long hotkey (off by default) |
 | | | Claude Code in VS Code, Cursor, the Desktop app |
 
 Where the build departs from `docs/design.md`, the ADRs win:
 [0003](docs/adr/0003-shell-decisions.md) for the shell and
-[0004](docs/adr/0004-statistics-and-configuration-page.md) for the page. The biggest
-departure is that **manual mode is the default**: nothing switches you away on its own.
+[0004](docs/adr/0004-statistics-and-configuration-page.md) for the page and
+[0005](docs/adr/0005-the-full-loop-by-default.md) for the loop. The loop as of 0005: a
+finished run **brings you back by itself after a 5 second countdown**, from any app, and the
+next long prompt **moves you back to the app you left off in**. Two settings
+(`switching.auto_return`, `away.resume_last_app`) turn these off, which gives the manual mode
+that was the default until 2026-11-17. "Switching away and back" in the table above was seen
+on a Mac with a configured away app; the same switches from and to any app have not been.
 
 ## What exists
 
 | Part | Crate | State |
 | --- | --- | --- |
 | Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; 97% line coverage |
+| **The full loop by default**: automatic return after a countdown from any app; the away switch goes to where you left off, then to `away.apps` | `focus-core` (`returns.rs`, `guards.rs`, `engine.rs`) | done and tested against the fake platform; not run on a Mac |
 | Hook receiver: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver` | done; negative tests over a real socket |
 | Payload parsing, truncation, redaction, project hash; `config.toml` loading (an unknown key is an error; a setting an older build had is skipped with a note) | `focus-receiver` | done |
-| **Statistics and Configuration page**: three static files and a JSON API on the same loopback port, with Host, Origin, `Sec-Fetch-Site` and token checks and a strict Content-Security-Policy | `focus-receiver` (`ui.rs`, `assets/ui/`) | done; 41 browser checks in `scripts/ui-check` |
+| **Statistics and Configuration page**: three static files and a JSON API on the same loopback port, with Host, Origin, `Sec-Fetch-Site` and token checks and a strict Content-Security-Policy | `focus-receiver` (`ui.rs`, `assets/ui/`) | done; 47 browser checks in `scripts/ui-check` |
 | **Time per app**: sampled twice a second, split by whether Claude was working, with switches and time-to-return; saved in half-hour slots | `focus-runner` (`usage.rs`) | done and tested |
 | **Statistics**: totals for today and seven days, per-day and per-app breakdowns in the viewer's time zone, up to six insights | `focus-runner` (`stats.rs`) | done and tested |
 | **Settings**: an explicit list of changeable settings; edits keep the file's comments; validated before writing; applied live; a hand edit of `config.toml` is picked up within two seconds | `focus-runner` (`settings.rs`, `ui.rs`) | done and tested |
@@ -51,13 +58,13 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 222 tests, all passing.
+- `cargo test --workspace`: 233 tests, all passing.
 - `cargo clippy --workspace --all-targets --target aarch64-apple-darwin`: the macOS code
   type-checks and is lint-clean.
 - `cargo deny check`: advisories, bans, licenses and sources pass.
 - `python3 scripts/check-repo.py`: required files, SPDX headers, a DEPENDENCIES.md entry for
   every dependency, `unsafe` confined to `focus-platform`.
-- `scripts/ui-check/run.sh`: 41 checks of the page in Chromium, all passing.
+- `scripts/ui-check/run.sh`: 47 checks of the page in Chromium, all passing.
 
 On GitHub Actions (`.github/workflows/ci.yml`), on every push: the Linux checks above, a build,
 lint and test run on a macOS runner (the first place the macOS adapter is actually linked),
@@ -112,8 +119,11 @@ app; the project name on the toast says which session is waiting.
 
 ## Next steps, in order
 
-1. Use the focus key on a real toast: prompt Claude, switch to another app, and press it when
-   the box appears. The self-test showed the key is delivered; this shows the whole return.
+1. Run the loop on a Mac: prompt Claude, switch to another app, and let the countdown bring
+   you back; press the focus key during one countdown to snooze it; then send a second prompt,
+   leave the keyboard alone, and see that you are moved back to the app you were in. Also try
+   it with `switching.auto_return = false`, where the focus key on the "Go back?" box does
+   the return.
 2. Run `focusctl ui` on a Mac and check that the page opens and the numbers look right
    against a day of real use.
 3. Test VS Code, Cursor and the Claude Desktop Code tab, and correct the app ids in

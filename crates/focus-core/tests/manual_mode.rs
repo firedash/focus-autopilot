@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-//! With no away app configured the user goes wherever they like. focusd never switches them
-//! away; when Claude is done or needs them, they get a prompt and one key takes them back.
+//! With no away app and `switching.auto_return` off, the user goes wherever they like and
+//! focusd never switches anything: when Claude is done or needs them, they get a prompt and
+//! one key takes them back.
 
 mod support;
 
-use focus_core::{Config, ToastKind};
-use support::{BROWSER, Sim, TERMINAL, permission, prompt, stop};
+use focus_core::ToastKind;
+use support::{BROWSER, Sim, TERMINAL, key_return, permission, prompt, stop};
 
 fn manual() -> Sim {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook(prompt("Refactor the parser"));
     sim
 }

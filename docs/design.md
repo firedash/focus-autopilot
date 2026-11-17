@@ -6,10 +6,11 @@ Nov 14, 2026 · firedash
 > places; [ADR 0003](adr/0003-shell-decisions.md) and
 > [ADR 0004](adr/0004-statistics-and-configuration-page.md) record each and win over the text
 > below.
-> In short: (1) **manual mode is the default**: with no away app configured nothing switches
-> the user away, and when Claude finishes or needs approval they get a toast and one key
-> takes them back; the automatic away and return switches in sections 7 and 8 apply only
-> when `away.apps` is set. (2) The LLM recap holds back the basic card instead of replacing
+> [ADR 0005](adr/0005-the-full-loop-by-default.md) is the latest and wins over both.
+> In short: (1) **returns are automatic from any app**, after a 5 second countdown the focus
+> key snoozes, and **the next away switch goes to the app the user left off in**, ahead of
+> `away.apps`; turning off `switching.auto_return` and `away.resume_last_app` gives the
+> manual mode that was the default for a while (a toast, and one key takes you back). (2) The LLM recap holds back the basic card instead of replacing
 > it (section 10). (3) Anthropic's docs say Claude Code fires the same hooks in IDE extensions
 > and the Desktop app as in the terminal, so those surfaces should need no receiver change;
 > only the terminal has been tested, and each would need its app in the home-app list. (4) Secrets are redacted at the receiver and again on the recap card, not only before the LLM

@@ -63,12 +63,25 @@ pub struct Home {
     pub extra_apps: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Away {
     /// Ordered; the first running app wins.
     pub apps: Vec<String>,
     /// Subset of `apps` that get a longer countdown with a warning (V1).
     pub immersive: Vec<String>,
+    /// `resume_last_app`: once the user has come back to Claude from some app, the next away
+    /// switch goes to that app, where they left off, ahead of `apps`.
+    pub resume_last_app: bool,
+}
+
+impl Default for Away {
+    fn default() -> Self {
+        Self {
+            apps: Vec::new(),
+            immersive: Vec::new(),
+            resume_last_app: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +107,9 @@ pub struct Switching {
     /// `stale_after_seconds`
     pub stale_after: Duration,
     pub return_on_needs_input: bool,
+    /// `auto_return`: when Claude is waiting and the user is in another app, count down and
+    /// bring them back. Off: show a prompt and wait for the focus key.
+    pub auto_return: bool,
     /// `verify_after_ms`
     pub verify_after: Duration,
 }
@@ -112,6 +128,7 @@ impl Default for Switching {
             resume_idle: Duration::from_secs(8),
             stale_after: Duration::from_secs(600),
             return_on_needs_input: true,
+            auto_return: true,
             verify_after: Duration::from_millis(400),
         }
     }
@@ -119,8 +136,10 @@ impl Default for Switching {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Countdown {
-    /// `seconds`
+    /// `seconds`: before a switch to the away app.
     pub length: Duration,
+    /// `return_seconds`: before a switch back to the window Claude is waiting in.
+    pub return_length: Duration,
     /// `snooze_seconds`
     pub snooze: Duration,
     pub max_snoozes: u32,
@@ -132,6 +151,7 @@ impl Default for Countdown {
     fn default() -> Self {
         Self {
             length: Duration::from_secs(3),
+            return_length: Duration::from_secs(5),
             snooze: Duration::from_secs(60),
             max_snoozes: 3,
             away_prompt: Duration::from_secs(30),
@@ -263,6 +283,8 @@ pub enum ConfigError {
     PortZero,
     /// `countdown.seconds` is 0; every automatic switch must be announced.
     NoCountdown,
+    /// `countdown.return_seconds` is 0, for the same reason.
+    NoReturnCountdown,
     /// An app is both an away app and a home app.
     AwayAppIsHomeApp(String),
     /// `away.immersive` names an app that isn't in `away.apps`.
@@ -282,6 +304,9 @@ impl Config {
         }
         if self.countdown.length.is_zero() {
             errors.push(ConfigError::NoCountdown);
+        }
+        if self.countdown.return_length.is_zero() {
+            errors.push(ConfigError::NoReturnCountdown);
         }
         for app in &self.away.apps {
             if is_home(app) {

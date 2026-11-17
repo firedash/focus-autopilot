@@ -74,7 +74,8 @@ pub fn parse_noting(text: &str) -> Result<(Config, Vec<String>), LoadError> {
     r.section("home", |s| s.list("extra_apps", &mut c.home.extra_apps))?;
     r.section("away", |s| {
         s.list("apps", &mut c.away.apps)?;
-        s.list("immersive", &mut c.away.immersive)
+        s.list("immersive", &mut c.away.immersive)?;
+        s.flag("resume_last_app", &mut c.away.resume_last_app)
     })?;
     r.section("switching", |s| {
         let w = &mut c.switching;
@@ -89,10 +90,12 @@ pub fn parse_noting(text: &str) -> Result<(Config, Vec<String>), LoadError> {
         s.secs("resume_idle_seconds", &mut w.resume_idle)?;
         s.secs("stale_after_seconds", &mut w.stale_after)?;
         s.flag("return_on_needs_input", &mut w.return_on_needs_input)?;
+        s.flag("auto_return", &mut w.auto_return)?;
         s.millis("verify_after_ms", &mut w.verify_after)
     })?;
     r.section("countdown", |s| {
         s.secs("seconds", &mut c.countdown.length)?;
+        s.secs("return_seconds", &mut c.countdown.return_length)?;
         s.secs("snooze_seconds", &mut c.countdown.snooze)?;
         s.int("max_snoozes", &mut c.countdown.max_snoozes)?;
         s.secs("away_prompt_seconds", &mut c.countdown.away_prompt)

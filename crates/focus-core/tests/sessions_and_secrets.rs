@@ -4,12 +4,12 @@
 
 mod support;
 
-use focus_core::{Config, Input, PauseFor, RecapMode, UserAction};
-use support::{Sim, VSCODE, permission, prompt, stop};
+use focus_core::{Input, PauseFor, RecapMode, UserAction};
+use support::{Sim, VSCODE, key_return, permission, prompt, stop};
 
 #[test]
 fn the_toast_and_card_name_the_project_and_the_other_waiting_ones() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook_in("s1", "p1", "/work/api", prompt("Add pagination"));
     sim.at(2_000);
     sim.focus(VSCODE);
@@ -44,7 +44,7 @@ fn the_toast_and_card_name_the_project_and_the_other_waiting_ones() {
 
 #[test]
 fn a_session_with_no_folder_is_not_given_an_empty_name() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook_in("s1", "p1", "", prompt("Hello"));
     sim.at(2_000);
     sim.focus("com.example.Elsewhere");
@@ -61,7 +61,7 @@ fn a_session_with_no_folder_is_not_given_an_empty_name() {
 
 #[test]
 fn secrets_never_reach_the_recap_card() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook(prompt(
         "Deploy with API_TOKEN=hunter2 and key sk-abcdefghijklmnopqrstuvwxyz0123 then ghp_abcdefghijklmnopqrstu",
     ));
@@ -92,7 +92,7 @@ fn secrets_never_reach_the_recap_card() {
 
 #[test]
 fn two_projects_with_the_same_folder_name_are_told_apart_by_their_parent() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook_in("s1", "p1", "/work/team-a/api", prompt("Add pagination"));
     sim.at(2_000);
     sim.focus(VSCODE);
@@ -109,7 +109,7 @@ fn two_projects_with_the_same_folder_name_are_told_apart_by_their_parent() {
 
 #[test]
 fn a_lone_project_keeps_its_short_name() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook_in("s1", "p1", "/work/team-a/api", prompt("Add pagination"));
     sim.at(2_000);
     sim.focus("com.example.Elsewhere");
@@ -120,7 +120,7 @@ fn a_lone_project_keeps_its_short_name() {
 
 #[test]
 fn more_than_two_other_waiting_sessions_are_counted_not_listed() {
-    let mut sim = Sim::new(Config::default());
+    let mut sim = Sim::new(key_return());
     sim.hook_in("s0", "p0", "/work/main", prompt("Main task"));
     sim.at(1_000);
     for (i, name) in ["a", "b", "c", "d"].iter().enumerate() {
@@ -145,7 +145,7 @@ fn more_than_two_other_waiting_sessions_are_counted_not_listed() {
 
 #[test]
 fn a_summary_keeps_the_other_sessions_results_beneath_it() {
-    let mut config = Config::default();
+    let mut config = key_return();
     config.recap.mode = RecapMode::Llm;
     let mut sim = Sim::new(config);
     sim.hook_in("s1", "p1", "/work/api", prompt("Add pagination"));

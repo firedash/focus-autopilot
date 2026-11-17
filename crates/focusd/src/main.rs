@@ -69,10 +69,25 @@ mod mac {
     /// Prints how this run is set up, registers the hotkeys, and returns the focus key as it
     /// reads on screen.
     fn announce(platform: &MacPlatform, config: &Config) -> Option<String> {
-        if config.away.apps.is_empty() {
-            println!("manual mode: no away app, so nothing switches you away on its own.");
+        if config.switching.auto_return {
+            println!(
+                "returns: when Claude is done or needs you, a {} s countdown, then you are brought back.",
+                config.countdown.return_length.as_secs()
+            );
         } else {
-            println!("away apps: {}.", config.away.apps.join(", "));
+            println!("returns: a box asks, and the focus key takes you back.");
+        }
+        match (config.away.apps.is_empty(), config.away.resume_last_app) {
+            (false, true) => println!(
+                "switching away: to where you were last called back from, or else {}.",
+                config.away.apps.join(", ")
+            ),
+            (false, false) => println!("switching away: to {}.", config.away.apps.join(", ")),
+            (true, true) => println!(
+                "switching away: once you have been called back, the next long prompt sends you back \
+                 to the app you were in."
+            ),
+            (true, false) => println!("switching away: off, nothing switches you away."),
         }
         let focus_hint = setup_hotkeys(platform, config);
         match &focus_hint {

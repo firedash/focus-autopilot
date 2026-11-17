@@ -80,7 +80,7 @@ are the choices behind it.
     macOS), with the file path as a single argument and no shell. AUDIT.md lists it.
 
 12. **Checked in a browser, by script.** `scripts/ui-check/run.sh` seeds made-up data, starts
-    `focus-headless`, and drives the page in Chromium through 41 checks: the key handling,
+    `focus-headless`, and drives the page in Chromium through 47 checks: the key handling,
     each kind of control, refused changes, the file on disk, the running app's log, hand
     edits, the charts' table views and tooltips, and clearing the statistics. It also fails on
     any console error or policy violation. It is not part of CI yet, because CI has no

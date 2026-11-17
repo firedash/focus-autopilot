@@ -8,9 +8,9 @@ One key takes you back to the window you prompted from and shows you what happen
 
 1. You send a prompt and go wherever you like: another window, another app, a break.
 2. Claude finishes or needs you. A box appears at the top of the screen, with a sound:
-   `Claude is done in api. Go back?`
-3. You press `⌃⌥⌘Space` (Control+Option+Command+Space). You are back in the terminal you
-   prompted from, with this on screen for a few seconds:
+   `Claude is done in api. Back to Terminal in 5 s.`
+3. Five seconds later you are back in the terminal you prompted from, with this on screen
+   for a few seconds:
 
    ```text
    Project: api
@@ -18,13 +18,22 @@ One key takes you back to the window you prompted from and shows you what happen
    Claude:  Added retry with exponential backoff to upload_client.rs and three tests. All tests pass.
    ```
 
-Nothing moves you on its own: the key is the only thing that changes windows. If you were
-already back when Claude finished, nothing is shown. Every box names the project, so several
-sessions running at once can be told apart.
+4. You answer and send the next prompt. If it runs long, a box says so, and you are moved
+   back to the app you were just in, where you left off.
+
+Every switch is announced by a countdown first, and `⌃⌥⌘Space` (Control+Option+Command+Space)
+stops it: "snooze" on the way back, "not now" on the way out. A switch waits for a pause in
+your typing, so keystrokes don't land in the wrong window. If you were already back when
+Claude finished, nothing is shown. Every box names the project, so several sessions running
+at once can be told apart.
+
+Prefer to be asked? Turn off "Bring me back by itself" and the box waits until you press the
+key. Turn off "send me back to the app I was called back from" and nothing moves you away.
 
 **What it is today:** a developer build for **Claude Code in a terminal, on macOS**, built
 from source. [STATUS.md](STATUS.md) says what has been seen working on a real Mac, what has
-only been verified on Linux, and what has never been run.
+only been verified on Linux, and what has never been run. The automatic return from any app
+and the move back to where you left off are new and have not been run on a Mac yet.
 
 It runs on your machine only, asks for no OS permission, and sends nothing anywhere by
 default. Secrets typed into a prompt are redacted before they are stored or shown. It does
@@ -76,9 +85,9 @@ None of these is needed for the above.
 - **A three-line recap** written by your own `claude` command (`Asked`, `Did`, `Needs`) in
   place of the card above. Off by default, because it uses a little of your Claude usage:
   set `[recap] mode = "llm"`.
-- **An away app.** Name one and the app also switches you there when a prompt runs long and
-  brings you back by itself, with a countdown that one key cancels or snoozes. A third hotkey,
-  off by default, says "this one will take a while, switch me now".
+- **An away app.** Name one and a long first prompt moves you there, when there is nowhere
+  you left off yet. A third hotkey, off by default, says "this one will take a while, switch
+  me now".
 - **Start at login**: `focusctl install-agent`. Not yet seen running under `launchd`.
 - **A statistics and configuration page**, opened with `focusctl ui`. **Statistics** shows
   where your time went while Claude worked; **Configuration** changes every setting without
@@ -95,7 +104,7 @@ while it did.
 **Configuration**: every setting, changed in place and applied at once. A change that would
 break a rule is refused with the reason, and your `config.toml` and its comments are left alone.
 
-<img src="docs/images/configuration.png" alt="The Configuration tab: switches for the app, sound, recording time per app and the LLM recap, then the away app settings with number fields" width="620">
+<img src="docs/images/configuration.png" alt="The Configuration tab: switches for the app, sound, the automatic return and its countdown, recording time per app and the LLM recap, then the settings for switching away" width="620">
 
 Dark mode and a phone-width layout, both automatic:
 
@@ -111,8 +120,8 @@ Dark mode and a phone-width layout, both automatic:
   no Windows adapter.
 - **An installer, a Homebrew formula, a menu-bar icon, a click on the box.** `focusd` runs in
   a terminal or from the launch agent.
-- **Return to an exact window.** The key takes you to the app; with several windows of one
-  app you land in whichever macOS raises.
+- **Return to an exact window.** Switches go to the app; with several windows of one app
+  you land in whichever macOS raises.
 
 [STATUS.md](STATUS.md) has the full list.
 

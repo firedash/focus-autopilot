@@ -529,6 +529,43 @@
         },
         { key: "ui.sound_on_return", type: "switch", label: "Play a sound when Claude calls me back" },
         {
+          key: "switching.auto_return",
+          type: "switch",
+          label: "Bring me back by itself after a countdown",
+          help:
+            "When Claude is done or needs you and you are in another app, a box counts down and then the window " +
+            "you prompted from comes forward. The focus key snoozes it. Off: the box waits, and the focus key " +
+            "takes you back.",
+        },
+        {
+          key: "countdown.return_seconds",
+          type: "number",
+          label: "Countdown before bringing me back",
+          help: "Can't be 0: every automatic switch is announced.",
+          min: 1,
+          max: 60,
+          ...SECONDS,
+          showIf: (v) => v["switching.auto_return"],
+        },
+        {
+          key: "countdown.snooze_seconds",
+          type: "number",
+          label: "A snooze lasts",
+          min: 5,
+          max: 3600,
+          ...SECONDS,
+          showIf: (v) => v["switching.auto_return"],
+        },
+        {
+          key: "countdown.max_snoozes",
+          type: "number",
+          label: "Snoozes allowed per return",
+          min: 0,
+          max: 20,
+          unit: "",
+          showIf: (v) => v["switching.auto_return"],
+        },
+        {
           key: "stats.track_app_time",
           type: "switch",
           label: "Record time per app for the Statistics tab",
@@ -566,16 +603,25 @@
       ],
     },
     {
-      title: "Away app",
+      title: "Switching away",
       intro:
-        "Optional. Name an app and Focus Autopilot switches you to it when a prompt runs long, then brings you " +
-        "back, each time after a countdown you can cancel. With no away app, nothing switches you away on its own.",
+        "When a prompt runs long, Focus Autopilot can move you to another app, after a countdown you can cancel. " +
+        "It goes to the app you were last called back from, or else to an away app you name here. With neither, " +
+        "nothing switches you away.",
       items: [
+        {
+          key: "away.resume_last_app",
+          type: "switch",
+          label: "After my next prompt, send me back to the app I was called back from",
+          help: "Where you left off comes before the away apps below. Off: only the away apps are used.",
+        },
         {
           key: "away.apps",
           type: "apps",
           label: "Away apps",
-          help: "The first one in the list that is running is used. An app you prompt Claude from can't be an away app.",
+          help:
+            "Where to go when there is nowhere you left off, such as on the first prompt. The first one in the " +
+            "list that is running is used. An app you prompt Claude from can't be an away app.",
         },
         {
           key: "away.immersive",
@@ -612,14 +658,12 @@
         {
           key: "countdown.seconds",
           type: "number",
-          label: "Countdown before any automatic switch",
+          label: "Countdown before switching away",
           help: "Can't be 0: every automatic switch is announced.",
           min: 1,
           max: 60,
           ...SECONDS,
         },
-        { key: "countdown.snooze_seconds", type: "number", label: "A snooze lasts", min: 5, max: 3600, ...SECONDS },
-        { key: "countdown.max_snoozes", type: "number", label: "Snoozes allowed per return", min: 0, max: 20, unit: "" },
         {
           key: "countdown.away_prompt_seconds",
           type: "number",

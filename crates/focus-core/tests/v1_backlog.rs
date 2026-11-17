@@ -295,7 +295,7 @@ fn sessions_waiting_at_different_windows_are_returned_to_one_at_a_time() {
     sim.user(UserAction::Resume);
     sim.at(70_000);
     // Needs-input first: back to Terminal, and the card names what else is waiting.
-    assert_eq!(sim.activations()[1], (63_000, TERMINAL));
+    assert_eq!(sim.activations()[1], (65_000, TERMINAL));
     assert_eq!(sim.recaps()[0][2], "Needs:   approval to run cargo test");
     assert_eq!(sim.recaps()[0][3], "Also:    app - Refactored.");
     // Then the finished session at the other window, by prompt because the user is working.
@@ -352,7 +352,7 @@ fn llm_sim() -> Sim {
     sim.hook(bash("npm test"));
     sim.at(100_000);
     sim.hook(stop("Deployed; all tests pass."));
-    sim.at(104_000);
+    sim.at(106_000);
     sim
 }
 

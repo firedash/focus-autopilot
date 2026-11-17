@@ -45,12 +45,12 @@ fn replayed_trace_switches_away_and_back_with_a_recap() {
         sim.toast_texts(),
         vec![
             "Claude will take a while. Switching to Terraria in 3 s.",
-            "Claude is done in app. Back to Terminal in 3 s.",
+            "Claude is done in app. Back to Terminal in 5 s.",
         ]
     );
     assert_eq!(
         sim.activations(),
-        vec![(19_200, TERRARIA), (134_000, TERMINAL)]
+        vec![(19_200, TERRARIA), (136_000, TERMINAL)]
     );
     assert_eq!(sim.sounds(), 1);
     assert_eq!(

@@ -57,9 +57,9 @@ fn a_permission_prompt_brings_the_user_back_with_what_is_needed() {
     assert_eq!(sim.toasts()[1], (72_000, ToastKind::ReturnCountdown));
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude needs your approval in app. Back to Terminal in 3 s."
+        "Claude needs your approval in app. Back to Terminal in 5 s."
     );
-    assert_eq!(sim.activations()[1], (75_000, TERMINAL));
+    assert_eq!(sim.activations()[1], (77_000, TERMINAL));
     assert_eq!(
         sim.recaps(),
         vec![vec![
@@ -84,8 +84,25 @@ fn return_on_needs_input_can_be_turned_off() {
 }
 
 #[test]
-fn from_another_app_the_user_gets_a_prompt_and_coming_back_shows_the_recap() {
+fn from_any_other_app_the_return_counts_down_too() {
     let mut sim = Sim::away();
+    sim.at(50_000);
+    sim.focus(BROWSER);
+    sim.at(100_000);
+    sim.hook(stop("All green."));
+    sim.at(120_000);
+    assert_eq!(sim.toasts()[1], (100_000, ToastKind::ReturnCountdown));
+    assert_eq!(sim.activations()[1], (105_000, TERMINAL));
+    assert_eq!(sim.recaps().len(), 1);
+    assert_eq!(sim.status(), Status::Idle);
+}
+
+#[test]
+fn with_auto_return_off_the_user_gets_a_prompt_and_coming_back_shows_the_recap() {
+    let mut config = config();
+    config.switching.auto_return = false;
+    let mut sim = Sim::new(config);
+    sim.hook(prompt("Run the tests and fix failures"));
     sim.at(50_000);
     sim.focus(BROWSER);
     sim.at(100_000);
@@ -185,7 +202,7 @@ fn a_return_waits_for_quiet_input_and_falls_back_to_the_prompt() {
         sim.toasts()[1..],
         [
             (100_000, ToastKind::ReturnCountdown),
-            (108_000, ToastKind::ReturnPrompt)
+            (110_000, ToastKind::ReturnPrompt)
         ]
     );
     assert_eq!(sim.activations().len(), 1);
@@ -195,11 +212,11 @@ fn a_return_waits_for_quiet_input_and_falls_back_to_the_prompt() {
     sim.typing = true;
     sim.at(100_000);
     sim.hook(stop("Done."));
-    sim.at(104_000);
+    sim.at(106_000);
     sim.typing = false;
     sim.input();
     sim.at(110_000);
-    assert_eq!(sim.activations()[1], (104_600, TERMINAL));
+    assert_eq!(sim.activations()[1], (106_600, TERMINAL));
 }
 
 #[test]
@@ -213,7 +230,7 @@ fn a_refused_return_falls_back_to_the_prompt() {
         sim.toasts()[1..],
         [
             (100_000, ToastKind::ReturnCountdown),
-            (103_400, ToastKind::ReturnPrompt)
+            (105_400, ToastKind::ReturnPrompt)
         ]
     );
     assert!(sim.recaps().is_empty());
@@ -246,7 +263,7 @@ fn an_error_stop_returns_and_names_the_error() {
     sim.at(110_000);
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude stopped with an error in app. Back to Terminal in 3 s."
+        "Claude stopped with an error in app. Back to Terminal in 5 s."
     );
     assert_eq!(
         sim.recaps()[0][2],
@@ -289,7 +306,7 @@ fn questions_plans_elicitations_and_notifications_all_need_input() {
         sim.at(110_000);
         assert_eq!(
             sim.toast_texts()[1],
-            format!("{headline} Back to Terminal in 3 s.")
+            format!("{headline} Back to Terminal in 5 s.")
         );
         assert_eq!(sim.recaps()[0][2], format!("Needs:   {need}"));
     }
@@ -318,7 +335,7 @@ fn with_two_sessions_waiting_needs_input_goes_first_and_the_card_lists_the_rest(
     sim.at(60_000);
     assert_eq!(
         sim.toast_texts()[1],
-        "Claude needs your approval in app. Back to Terminal in 3 s."
+        "Claude needs your approval in app. Back to Terminal in 5 s."
     );
     assert_eq!(
         sim.recaps(),

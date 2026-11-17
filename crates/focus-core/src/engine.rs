@@ -42,6 +42,9 @@ pub struct Core {
     pub(crate) sessions: BTreeMap<String, Session>,
     pub(crate) mode: Mode,
     pub(crate) away: Option<AwayInfo>,
+    /// The app the user was in when they last came back to a home window while Claude was
+    /// working or waiting: where they left off, and where the next away switch goes first.
+    pub(crate) left_off: Option<AppRef>,
     pub(crate) frontmost: Option<AppRef>,
     pub(crate) running_apps: Option<(Vec<AppRef>, Instant)>,
     pub(crate) last_away_switch: Option<Instant>,
@@ -67,6 +70,7 @@ impl Core {
             sessions: BTreeMap::new(),
             mode: Mode::Idle,
             away: None,
+            left_off: None,
             frontmost: None,
             running_apps: None,
             last_away_switch: None,
@@ -261,12 +265,37 @@ impl Core {
     fn on_observation(&mut self, observation: Observation, now: Instant, fx: &mut Vec<Effect>) {
         match observation {
             Observation::Frontmost(app) => {
-                self.frontmost = app;
+                let previous = std::mem::replace(&mut self.frontmost, app);
+                self.note_left_off(previous, now);
                 self.note_manual_away();
             }
             Observation::RunningApps(apps) => self.running_apps = Some((apps, now)),
             Observation::Idle(idle) => self.on_idle(idle, now, fx),
             Observation::Activation { verified } => self.on_activation(verified, now, fx),
+        }
+    }
+
+    /// Remembers the app the user came from when they arrive at a home window while Claude
+    /// is working or waiting for them. Arriving with nothing going on is not coming back to
+    /// Claude, so it changes nothing.
+    fn note_left_off(&mut self, previous: Option<AppRef>, now: Instant) {
+        let Some(previous) = previous else {
+            return;
+        };
+        let arrived_home = self
+            .frontmost
+            .as_ref()
+            .is_some_and(|front| self.is_home(front));
+        if !arrived_home || self.is_home(&previous) {
+            return;
+        }
+        let claude_active = self
+            .sessions
+            .values()
+            .any(|s| matches!(s.state, SessionState::Running | SessionState::NeedsInput))
+            || !self.pending(now).is_empty();
+        if claude_active {
+            self.left_off = Some(previous);
         }
     }
 

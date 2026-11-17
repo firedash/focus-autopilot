@@ -64,8 +64,10 @@ pub const KEYS: &[Key] = &[
     key("ui.recap_seconds", Kind::Int(1, 120)),
     key("away.apps", Kind::List),
     key("away.immersive", Kind::List),
+    key("away.resume_last_app", Kind::Bool),
     key("home.extra_apps", Kind::List),
     key("switching.return_on_needs_input", Kind::Bool),
+    key("switching.auto_return", Kind::Bool),
     key("switching.away_after_seconds", Kind::Int(0, 3_600)),
     key(
         "switching.away_after_seconds_when_long",
@@ -81,6 +83,7 @@ pub const KEYS: &[Key] = &[
     key("switching.stale_after_seconds", Kind::Int(60, 86_400)),
     key("switching.verify_after_ms", Kind::Int(50, 5_000)),
     key("countdown.seconds", Kind::Int(1, 60)),
+    key("countdown.return_seconds", Kind::Int(1, 60)),
     key("countdown.snooze_seconds", Kind::Int(5, 3_600)),
     key("countdown.max_snoozes", Kind::Int(0, 20)),
     key("countdown.away_prompt_seconds", Kind::Int(5, 600)),
@@ -114,8 +117,10 @@ fn value_of(c: &Config, name: &str) -> Value {
         "ui.recap_seconds" => secs(c.ui.recap_shown_for),
         "away.apps" => json!(c.away.apps),
         "away.immersive" => json!(c.away.immersive),
+        "away.resume_last_app" => json!(c.away.resume_last_app),
         "home.extra_apps" => json!(c.home.extra_apps),
         "switching.return_on_needs_input" => json!(w.return_on_needs_input),
+        "switching.auto_return" => json!(w.auto_return),
         "switching.away_after_seconds" => secs(w.away_after),
         "switching.away_after_seconds_when_long" => secs(w.away_after_when_long),
         "switching.short_grace_seconds" => secs(w.short_grace),
@@ -128,6 +133,7 @@ fn value_of(c: &Config, name: &str) -> Value {
         "switching.stale_after_seconds" => secs(w.stale_after),
         "switching.verify_after_ms" => millis(w.verify_after),
         "countdown.seconds" => secs(c.countdown.length),
+        "countdown.return_seconds" => secs(c.countdown.return_length),
         "countdown.snooze_seconds" => secs(c.countdown.snooze),
         "countdown.max_snoozes" => json!(c.countdown.max_snoozes),
         "countdown.away_prompt_seconds" => secs(c.countdown.away_prompt),
@@ -243,6 +249,11 @@ fn explain(error: &ConfigError) -> String {
         ConfigError::PortZero => "the receiver port can't be 0".to_owned(),
         ConfigError::NoCountdown => {
             "the countdown can't be 0 seconds: every automatic switch must be announced".to_owned()
+        }
+        ConfigError::NoReturnCountdown => {
+            "the countdown before a return can't be 0 seconds: every automatic switch must be \
+             announced"
+                .to_owned()
         }
         ConfigError::AwayAppIsHomeApp(app) => format!(
             "{app} is a home app (somewhere you prompt Claude from), so it can't also be an \

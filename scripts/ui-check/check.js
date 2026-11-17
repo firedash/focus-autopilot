@@ -90,6 +90,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the field snaps back to the real value', (await p.inputValue('[data-key="countdown.seconds"]')) === '3');
   check('config.toml has no countdown of 0', !/seconds = 0/.test(configText()));
 
+  // 3b. The return: by itself after a countdown (the default), or wait for the key.
+  check('bringing you back by itself is on by default', await p.isChecked('[data-key="switching.auto_return"]'));
+  check('its countdown is 5 seconds by default', (await p.inputValue('[data-key="countdown.return_seconds"]')) === '5');
+  await clearState();
+  await p.click('[data-key="switching.auto_return"]');
+  check('turning it off saves', (await saved()) === 'Saved.');
+  check('config.toml now says auto_return = false', /auto_return = false/.test(configText()));
+  check('the return countdown field goes away with it', (await p.locator('[data-key="countdown.return_seconds"]').count()) === 0);
+  await clearState();
+  await p.click('[data-key="switching.auto_return"]');
+  check('turning it back on saves', (await saved()) === 'Saved.' && /auto_return = true/.test(configText()));
+  check('going back to where you left off is on by default', await p.isChecked('[data-key="away.resume_last_app"]'));
+
   // 4. Away app from the list of running apps.
   await clearState();
   await p.selectOption('[data-key="away.apps#pick"]', 'com.apple.Notes');
@@ -170,8 +183,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check('the range switch changes the tiles', Number(weekPrompts) > Number(todayPrompts), todayPrompts + ' vs ' + weekPrompts);
   await p.click('text=Show as table');
   check('a chart has a table view', (await p.locator('table.data').count()) === 1);
-  await p.focus('.app-row');
-  check('keyboard focus shows the same tooltip as hover', !(await p.evaluate(() => document.getElementById('tooltip').hidden)));
+  // Focus and look in one step: the page redraws the list whenever the numbers change, and a
+  // redraw between the two would drop the focus this is checking.
+  const tooltipShown = await p.evaluate(() => {
+    document.querySelector('.app-row').focus();
+    return !document.getElementById('tooltip').hidden;
+  });
+  check('keyboard focus shows the same tooltip as hover', tooltipShown);
   await p.click('text=Clear statistics');
   await p.click('text=Yes, erase all of it');
   await p.waitForFunction(() => document.querySelector('.insights li').textContent.startsWith('Nothing recorded yet'));

@@ -14,6 +14,9 @@ Date: 2026-11-14. Status: accepted, open to revision after real use. Where this 
    whenever the user was not on an away app. `focus-core/tests/manual_mode.rs` pins this.
    Not switching the user away also removes the main safety risk the countdowns existed for,
    a keystroke landing in the wrong window, for the away direction.
+   *Superseded by [ADR 0005](0005-the-full-loop-by-default.md): returns now count down and
+   switch by themselves from any app, and the next away switch goes to where the user left
+   off. Manual mode is two settings away, no longer the default.*
 
 2. **The overlay is two non-activating floating panels.** A borderless `NSPanel` that
    ignores the mouse and is shown with `orderFrontRegardless` cannot take keyboard focus.

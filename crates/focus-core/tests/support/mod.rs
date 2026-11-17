@@ -38,6 +38,13 @@ pub fn config() -> Config {
     config
 }
 
+/// No away app, and returns wait for the focus key instead of counting down.
+pub fn key_return() -> Config {
+    let mut config = Config::default();
+    config.switching.auto_return = false;
+    config
+}
+
 pub struct Sim {
     pub core: Core,
     pub front: Option<AppRef>,

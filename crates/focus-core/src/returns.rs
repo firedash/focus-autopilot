@@ -73,11 +73,22 @@ impl Core {
             && self
                 .last_away_switch
                 .is_some_and(|at| now.saturating_duration_since(at) < debounce);
-        if self.on_away_app() && !just_switched_away {
+        if self.returns_by_countdown() && !just_switched_away {
             self.show_return_countdown(next.session, next.home, 0, now, fx)
         } else {
             self.show_return_prompt(next.session, next.home, 0, fx)
         }
+    }
+
+    /// Whether a return from where the user is now happens by itself after a countdown. Not
+    /// from another home window: someone working with one Claude session is asked, not moved,
+    /// when another one finishes.
+    fn returns_by_countdown(&self) -> bool {
+        let in_a_home_window = self
+            .frontmost
+            .as_ref()
+            .is_some_and(|front| self.is_home(front));
+        self.cfg.switching.auto_return && !in_a_home_window
     }
 
     fn show_return_countdown(
@@ -91,7 +102,7 @@ impl Core {
         let Some(waiting) = self.sessions.get(&session) else {
             return Mode::Idle;
         };
-        let length = self.cfg.countdown.length;
+        let length = self.cfg.countdown.return_length;
         let label = self.project_label(&session);
         fx.push(Effect::ShowToast(toast::return_countdown(
             waiting, &label, &home, length,
@@ -170,7 +181,9 @@ impl Core {
         let quiet_max = self.cfg.switching.input_quiet_max;
         match step {
             ReturnStep::Countdown(Phase::Counting { ends }) if now >= ends => {
-                if self.on_away_app() {
+                // Still wanted: the setting can change, and the user can move to another
+                // home window, while a countdown runs.
+                if self.returns_by_countdown() {
                     let step = ReturnStep::Countdown(Phase::Quiet { since: now });
                     Mode::Return {
                         session,
@@ -192,7 +205,7 @@ impl Core {
                 verifying: Some(until),
             } if now >= until => self.show_return_prompt(session, home, snoozes, fx),
             ReturnStep::Snoozed { until } if now >= until => {
-                if snoozes < self.cfg.countdown.max_snoozes && self.on_away_app() {
+                if snoozes < self.cfg.countdown.max_snoozes && self.returns_by_countdown() {
                     self.show_return_countdown(session, home, snoozes, now, fx)
                 } else {
                     self.show_return_prompt(session, home, snoozes, fx)

@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 use std::time::{Duration, Instant};
 
-use focus_core::{AgentEvent, AppRef, Config, Core, EventKind, Input, UserAction};
+use focus_core::{AgentEvent, AppRef, Core, EventKind, Input, UserAction};
 use focus_platform::fake::FakePlatform;
 use focus_platform::hotkey::Keys;
 use focus_platform::{HotkeyAction, Hotkeys as _, Platform as _};
@@ -63,14 +63,21 @@ struct Setup {
 }
 
 fn setup(name: &str) -> Setup {
+    setup_with(name, "")
+}
+
+/// `settings` is extra `config.toml` text, after the receiver's token.
+fn setup_with(name: &str, settings: &str) -> Setup {
     let dir = std::env::temp_dir().join(format!("focus-loop-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("config.toml"), "[receiver]\ntoken = \"t\"\n").unwrap();
+    let text = format!("[receiver]\ntoken = \"t\"\n{settings}");
+    std::fs::write(dir.join("config.toml"), &text).unwrap();
     let (tx, rx) = channel();
     let known_home = vec![TERMINAL.to_owned()];
+    let config = focus_runner::settings::check(&text, &known_home).unwrap();
     let shared = Arc::new(ui::Shared::new(
-        Config::default(),
+        config,
         known_home.clone(),
         ui::Files {
             config: dir.join("config.toml"),
@@ -130,8 +137,46 @@ fn with_loop(s: &Setup, script: impl FnOnce()) {
 }
 
 #[test]
-fn a_run_ends_with_a_toast_and_the_hotkey_brings_the_user_back() {
-    let s = setup("return");
+fn by_default_a_run_ends_with_a_countdown_and_the_user_is_brought_back() {
+    let s = setup_with("auto-return", "[countdown]\nreturn_seconds = 1\n");
+    with_loop(&s, || {
+        s.tx.send(hook(EventKind::UserPromptSubmit {
+            prompt: "Add pagination".to_owned(),
+            prompt_chars: 14,
+            permission_mode: None,
+        }))
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(700));
+        s.platform.set_front(Some(app(BROWSER, "Browser")));
+        std::thread::sleep(Duration::from_millis(700));
+        s.tx.send(hook(EventKind::Stop {
+            stop_hook_active: false,
+            last_assistant_message: "Pagination added.".to_owned(),
+            background_tasks: 0,
+        }))
+        .unwrap();
+        wait_for("the return countdown", || s.platform.toast().is_some());
+        assert_eq!(
+            s.platform.toast().unwrap(),
+            "Claude is done in api. Back to Terminal in 1 s."
+        );
+        assert_eq!(s.platform.sounds_played(), 1);
+        // No key: the countdown ends and the terminal comes forward by itself.
+        wait_for("the return to the terminal", || {
+            s.platform
+                .frontmost()
+                .unwrap()
+                .is_some_and(|front| front.id == TERMINAL)
+        });
+        wait_for("the recap card", || s.platform.recap().is_some());
+        assert_eq!(s.platform.toast(), None);
+    });
+    let _ = std::fs::remove_dir_all(&s.dir);
+}
+
+#[test]
+fn with_auto_return_off_a_run_ends_with_a_toast_and_the_hotkey_brings_the_user_back() {
+    let s = setup_with("return", "[switching]\nauto_return = false\n");
     let problems = s.platform.register(&Keys {
         focus: "Control+Option+Space",
         pause: "",

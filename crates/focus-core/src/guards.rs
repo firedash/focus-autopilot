@@ -85,21 +85,29 @@ impl Core {
         if !asked && idle < self.cfg.switching.away_requires_idle {
             return Err(GuardFail::NotIdle);
         }
-        let target = self.first_running_away_app(now)?;
+        let target = self.away_target(now)?;
         Ok((session, target))
     }
 
-    fn first_running_away_app(&self, now: Instant) -> Result<AppRef, GuardFail> {
+    /// Where an away switch goes: the app the user left off in when they last came back to
+    /// Claude, if it is still running, and otherwise the first configured away app that is.
+    fn away_target(&self, now: Instant) -> Result<AppRef, GuardFail> {
         let Some((apps, at)) = &self.running_apps else {
             return Err(GuardFail::AppsUnknown);
         };
         if now.saturating_duration_since(*at) > RUNNING_APPS_MAX_AGE {
             return Err(GuardFail::AppsUnknown);
         }
-        let wanted = &self.cfg.away.apps;
-        wanted
-            .iter()
-            .find_map(|id| apps.iter().find(|app| app.id.eq_ignore_ascii_case(id)))
+        let running = |id: &str| apps.iter().find(|app| app.id.eq_ignore_ascii_case(id));
+        let left_off = self
+            .left_off
+            .as_ref()
+            .filter(|_| self.cfg.away.resume_last_app)
+            .and_then(|app| running(&app.id))
+            // It may have been made a home app since.
+            .filter(|app| !self.is_home(app));
+        left_off
+            .or_else(|| self.cfg.away.apps.iter().find_map(|id| running(id)))
             .cloned()
             .ok_or(GuardFail::NoAwayApp)
     }

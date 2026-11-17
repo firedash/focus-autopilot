@@ -33,14 +33,32 @@ with a random token. Restart any running Claude Code sessions. Undo with
 ./target/release/focusd
 ```
 
-Leave it running in a terminal. It prints the hotkey to press (by default `⌃⌥⌘Space`, that is
-Control+Option+Command+Space) and says "manual mode": **nothing switches you away on its own.**
-Go to any other window while Claude works.
+Leave it running in a terminal. It prints the hotkey (by default `⌃⌥⌘Space`, that is
+Control+Option+Command+Space) and how returns and away switches are set up.
 
 In another terminal window start `claude` and give it a task. Switch to any other app. When
-Claude finishes or needs your approval, a box appears at the top of the screen, a sound plays,
-and the box says which key takes you back. Press it and you land in the window you prompted
-from, with a recap card for a few seconds. If you go back on your own, the box goes away.
+Claude finishes or needs your approval, a sound plays and a box appears at the top of the
+screen: "Claude is done in api. Back to Terminal in 5 s." Five seconds later you are in the
+window you prompted from, with a recap card for a few seconds. The hotkey during the
+countdown snoozes it for a minute. If you go back on your own, the box goes away.
+
+Then send another prompt and stay in the terminal without touching anything. After about 30
+seconds a box says "Claude will take a while. Switching to <the app you were in> in 3 s.",
+and you are moved back to where you left off; the hotkey during that countdown means "not
+now". When Claude is done you are called back again. The very first prompt moves you nowhere,
+because there is nowhere you left off yet, unless you name an away app (below).
+
+This loop is new and **has not been run on a Mac**: the countdown return was seen working
+only from a configured away app. Two settings turn it off, in `config.toml` or on the
+Configuration tab:
+
+```toml
+[switching]
+auto_return = false       # a box asks "Go back?" and waits for the hotkey
+
+[away]
+resume_last_app = false   # never move me to the app I was called back from
+```
 
 If anything seems off, `focusctl doctor` checks the setup (config, hooks, whether `focusd` is
 running and accepts the token, whether prompts have been seen, the `claude` command) and says
@@ -198,10 +216,10 @@ or the transcript. It uses a little of your Claude usage per recap. If it fails 
 command isn't found on `focusd`'s PATH, a flag your version doesn't know, or a 20 second
 timeout), `focusd` prints `LLM recap failed: ...` and you keep the plain card.
 
-## Switch away automatically (optional)
+## An away app for the first prompt (optional)
 
-If you also want focusd to move you to a chosen app when a run gets long, name it. This is
-the old behaviour, with a countdown and an automatic return:
+By default an away switch goes to the app you were last called back from. To be moved
+somewhere on the first prompt too, or whenever that app has quit, name an away app:
 
 ```bash
 ./target/release/focusd --list-apps      # bundle id <tab> name of every running app
@@ -216,6 +234,9 @@ short_grace_seconds = 5
 away_after_seconds = 5
 away_requires_idle_seconds = 3
 ```
+
+The three `[switching]` lines only make the away switch come sooner (after 5 seconds of a run
+and 3 without input, in place of 30 and 8), which is handy while trying it out.
 
 ## What to check first if it misbehaves
 
