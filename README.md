@@ -173,6 +173,12 @@ Dark mode and a phone-width layout, both automatic:
 
 [STATUS.md](STATUS.md) has the full list.
 
+## The story
+
+[docs/writeup.md](docs/writeup.md) is a short account of building this: what went wrong, what
+real use found that the tests had not, and the day it turned out the Claude desktop app
+already had a notification that does much of the same job.
+
 ## For contributors
 
 The design is [docs/design.md](docs/design.md), "Focus Autopilot — Feature Backlog & Technical
