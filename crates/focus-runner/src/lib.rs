@@ -168,6 +168,9 @@ struct Shell {
     config_seen: Option<SystemTime>,
     next_poll: Instant,
     next_slow: Instant,
+    /// What was last printed about the away switch, so each change is printed once.
+    away_wait: Option<String>,
+    left_off: Option<String>,
 }
 
 /// Runs until `commands` returns [`Control::Quit`] or the input queue closes.
@@ -191,6 +194,8 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
             .and_then(|ui| modified(&ui.files().config)),
         next_poll: start + POLL_FRONT,
         next_slow: start,
+        away_wait: None,
+        left_off: None,
     };
     let mut effects = Vec::new();
     if let Some(file) = &options.history {
@@ -238,6 +243,7 @@ pub fn run<P: Platform + Overlay + Hotkeys>(
         if now >= shell.next_poll {
             shell.next_poll = now + POLL_FRONT;
             effects.extend(poll_front(core, platform, options, &mut shell, now));
+            explain_away(core, &mut shell, now);
         }
         if now >= shell.next_slow {
             shell.next_slow = now + POLL_SLOW;
@@ -357,6 +363,27 @@ fn poll_front<P: Platform>(
     shell.front.clone_from(&now_front);
     announce_front(now_front.as_ref());
     core.handle(Input::Observed(Observation::Frontmost(now_front)), now)
+}
+
+/// Prints, once per change, where the next away switch would go and what is holding it back:
+/// the first thing to look at when a switch that was expected does not come.
+fn explain_away(core: &Core, shell: &mut Shell, now: Instant) {
+    let left_off = core
+        .left_off()
+        .map(|app| format!("{} ({})", app.name, app.id));
+    if left_off != shell.left_off {
+        if let Some(app) = &left_off {
+            println!("where you left off: {app}");
+        }
+        shell.left_off = left_off;
+    }
+    let wait = core.away_wait(now);
+    if wait != shell.away_wait {
+        if let Some(why) = &wait {
+            println!("not switching away: {why}");
+        }
+        shell.away_wait = wait;
+    }
 }
 
 /// Every two seconds: keep the page's view fresh, save statistics when due, and pick up a

@@ -95,6 +95,11 @@ impl Sim {
         self.core.status(self.now)
     }
 
+    /// The fake clock's current time.
+    pub fn instant(&self) -> Instant {
+        self.now
+    }
+
     pub fn ms(&self) -> u64 {
         u64::try_from(self.now.duration_since(self.start).as_millis()).unwrap()
     }

@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use crate::config::Config;
-use crate::estimator::History;
+use crate::estimator::{History, away_threshold};
 use crate::events::{AppRef, Observation, UserAction};
+use crate::guards::GuardFail;
 use crate::io::{Effect, Input, LogEvent, Note, PauseFor, ProbeKind, Status};
 use crate::mode::{AwayInfo, Mode};
 use crate::session::{Change, Session, SessionState, WaitKind};
@@ -17,6 +18,9 @@ const GUARD_PROBE_EVERY: Duration = Duration::from_secs(1);
 const QUIET_PROBE_EVERY: Duration = Duration::from_millis(100);
 /// Sessions tracked at once; events from further new sessions are dropped.
 pub(crate) const MAX_SESSIONS: usize = 256;
+/// How long nothing, or a passing app, may be in front between the app the user was working
+/// in and the home window they arrive at, for that app still to count as where they left off.
+const ELSEWHERE_MAX_GAP: Duration = Duration::from_secs(5);
 /// A settle pass normally ends after one or two steps; this bounds it.
 const MAX_SETTLE_STEPS: usize = 8;
 
@@ -45,6 +49,12 @@ pub struct Core {
     /// The app the user was in when they last came back to a home window while Claude was
     /// working or waiting: where they left off, and where the next away switch goes first.
     pub(crate) left_off: Option<AppRef>,
+    /// The last app in front that has no Claude session in it, and when it stopped being in
+    /// front. Kept so that a moment with nothing in front between it and a home window does
+    /// not lose it.
+    elsewhere: Option<(AppRef, Instant)>,
+    /// The guard that held back the latest away check that got as far as an idle reading.
+    pub(crate) away_held_by: Option<GuardFail>,
     pub(crate) frontmost: Option<AppRef>,
     pub(crate) running_apps: Option<(Vec<AppRef>, Instant)>,
     pub(crate) last_away_switch: Option<Instant>,
@@ -71,6 +81,8 @@ impl Core {
             mode: Mode::Idle,
             away: None,
             left_off: None,
+            elsewhere: None,
+            away_held_by: None,
             frontmost: None,
             running_apps: None,
             last_away_switch: None,
@@ -170,6 +182,53 @@ impl Core {
 
     pub fn note(&self) -> Option<Note> {
         self.note
+    }
+
+    /// The app the next away switch goes to first: where the user left off. For the shell to
+    /// print.
+    pub fn left_off(&self) -> Option<&AppRef> {
+        self.left_off.as_ref()
+    }
+
+    /// Why a run that could still get an away switch is not getting one right now, in words,
+    /// for the shell to print. `None` when no run could, or a switch is under way.
+    pub fn away_wait(&self, now: Instant) -> Option<String> {
+        if self.mode != Mode::Idle {
+            return None;
+        }
+        let switching = &self.cfg.switching;
+        let fail = match self.ready_run(now) {
+            Ok(_) => self.away_held_by?,
+            Err(fail) => fail,
+        };
+        match fail {
+            GuardFail::NoCandidate | GuardFail::AppsUnknown => None,
+            GuardFail::Paused => Some("paused".to_owned()),
+            GuardFail::SomeoneWaiting => Some("a Claude session is waiting for you".to_owned()),
+            GuardFail::NotElapsed => {
+                let needs = self
+                    .sessions
+                    .values()
+                    .filter(|s| s.away_threshold_at(switching).is_some())
+                    .map(|s| away_threshold(s.run.tier, switching))
+                    .min()?;
+                Some(format!(
+                    "the run has to go on for {} s first",
+                    needs.as_secs()
+                ))
+            }
+            GuardFail::HomeNotInFront => {
+                Some("the window you prompted from is not in front".to_owned())
+            }
+            GuardFail::NotIdle => Some(format!(
+                "waiting for {} s without keyboard or mouse input",
+                switching.away_requires_idle.as_secs()
+            )),
+            GuardFail::NoAwayApp => Some(
+                "nowhere to go: no app you were called back from, and no away app running"
+                    .to_owned(),
+            ),
+        }
     }
 
     /// The state of a session, for tests and diagnostics.
@@ -275,7 +334,10 @@ impl Core {
         match observation {
             Observation::Frontmost(app) => {
                 let previous = std::mem::replace(&mut self.frontmost, app);
-                self.note_left_off(previous, now);
+                if let Some(previous) = previous.filter(|app| !self.hosts_a_session(app)) {
+                    self.elsewhere = Some((previous, now));
+                }
+                self.note_left_off(now);
                 self.note_manual_away();
             }
             Observation::RunningApps(apps) => self.running_apps = Some((apps, now)),
@@ -287,15 +349,19 @@ impl Core {
     /// Remembers the app the user came from when they arrive at a window with a Claude
     /// session in it while Claude is working or waiting for them. Arriving with nothing going on is not coming back to
     /// Claude, so it changes nothing.
-    fn note_left_off(&mut self, previous: Option<AppRef>, now: Instant) {
-        let Some(previous) = previous else {
-            return;
-        };
+    fn note_left_off(&mut self, now: Instant) {
         let arrived_home = self
             .frontmost
             .as_ref()
             .is_some_and(|front| self.hosts_a_session(front));
-        if !arrived_home || self.hosts_a_session(&previous) {
+        if !arrived_home {
+            return;
+        }
+        let Some((previous, left_at)) = self.elsewhere.take() else {
+            return;
+        };
+        // Straight from that app, allowing for a moment with nothing in front on the way.
+        if now.saturating_duration_since(left_at) > ELSEWHERE_MAX_GAP {
             return;
         }
         let claude_active = self

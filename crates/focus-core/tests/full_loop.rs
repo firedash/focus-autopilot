@@ -4,7 +4,7 @@
 
 mod support;
 
-use focus_core::{Config, ToastKind};
+use focus_core::{Config, Input, Observation, ToastKind};
 use support::{BROWSER, Sim, TERMINAL, TERRARIA, VSCODE, app, config, prompt, stop};
 
 const MAIL: &str = "com.example.Mail";
@@ -199,4 +199,65 @@ fn an_editor_with_no_claude_session_in_it_is_like_any_other_app() {
     sim.hook_for("s1", "p2", prompt("Now add tests for it"));
     sim.at(300_000);
     assert_eq!(away_switches(&sim), vec![VSCODE]);
+}
+
+/// Nothing in front for a moment on the way back, as an OS can report mid-switch.
+fn nothing_in_front(sim: &mut Sim) {
+    sim.front = None;
+    sim.feed(Input::Observed(Observation::Frontmost(None)));
+}
+
+#[test]
+fn a_moment_with_nothing_in_front_does_not_lose_where_the_user_left_off() {
+    let mut sim = fresh(Config::default());
+    sim.at(5_000);
+    sim.focus(MAIL);
+    sim.at(50_000);
+    nothing_in_front(&mut sim);
+    sim.at(51_000);
+    sim.focus(TERMINAL);
+    assert_eq!(sim.core.left_off().map(|app| app.id.as_str()), Some(MAIL));
+
+    // A long gap is not "straight from that app".
+    let mut sim = fresh(Config::default());
+    sim.at(5_000);
+    sim.focus(MAIL);
+    sim.at(20_000);
+    nothing_in_front(&mut sim);
+    sim.at(50_000);
+    sim.focus(TERMINAL);
+    assert_eq!(sim.core.left_off(), None);
+}
+
+#[test]
+fn the_core_says_what_is_holding_an_away_switch_back() {
+    let mut sim = called_back_from_the_browser(Config::default());
+    let now = |sim: &Sim| sim.core.away_wait(sim.instant());
+    assert_eq!(now(&sim), None, "no run is going");
+    sim.at(80_000);
+    sim.typing = true;
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(90_000);
+    assert_eq!(
+        now(&sim).as_deref(),
+        Some("the run has to go on for 30 s first")
+    );
+    sim.at(120_000);
+    assert_eq!(
+        now(&sim).as_deref(),
+        Some("waiting for 8 s without keyboard or mouse input")
+    );
+    sim.typing = false;
+    sim.input();
+    sim.at(140_000);
+    assert_eq!(now(&sim), None, "switched");
+    assert_eq!(away_switches(&sim), vec![BROWSER]);
+
+    // Nowhere to go: no app the user was called back from, and no away app.
+    let mut sim = fresh(Config::default());
+    sim.at(60_000);
+    assert_eq!(
+        now(&sim).as_deref(),
+        Some("nowhere to go: no app you were called back from, and no away app running")
+    );
 }

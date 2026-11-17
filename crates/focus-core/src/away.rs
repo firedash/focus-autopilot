@@ -22,7 +22,9 @@ impl Core {
         if self.mode != Mode::Idle {
             return;
         }
-        match self.check_away(idle, now) {
+        let checked = self.check_away(idle, now);
+        self.away_held_by = checked.as_ref().err().copied();
+        match checked {
             Ok((session, target)) => {
                 let flagged = &self.cfg.away.immersive;
                 let immersive = flagged.iter().any(|id| id.eq_ignore_ascii_case(&target.id));

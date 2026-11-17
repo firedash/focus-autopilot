@@ -256,6 +256,13 @@ and 3 without input, in place of 30 and 8), which is handy while trying it out.
   `just_switched_away` (Claude finished within 5 seconds of moving you), `input_never_paused`
   (you typed or moved the mouse for 5 seconds straight after the countdown) or
   `the_switch_was_refused` (macOS did not bring the window forward).
+- **You are not moved away after your next prompt.** The `focusd` window says why. It prints
+  `where you left off: <app>` when it has somewhere to send you, and
+  `not switching away: <reason>` while it holds back: the run has to go on for 30 seconds
+  first (45 when it looks like a short one, 10 when it looks long), then you must leave the
+  keyboard and mouse alone for 8 seconds with the terminal in front. Both are on the
+  Configuration tab under "Switching away". No `where you left off` line means it has
+  nowhere to send you: you were not called back from another app since `focusd` started.
 - **The hotkey does nothing.** Run `focusd --test-hotkeys`. A `problem:` line means the OS
   refused the chord (another app may own it): pick another in `[hotkeys]`. Registered but no
   presses means the events are not being delivered; type `click` in the `focusd` window

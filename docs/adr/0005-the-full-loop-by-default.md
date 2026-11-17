@@ -58,6 +58,11 @@ These are the choices that implement it.
    `away_requires_idle_seconds` (8), the terminal must still be in front, and a countdown
    with "Not now" comes first. To get manual mode back, turn off both settings.
 
+   A moment with nothing in front on the way back, up to 5 seconds, does not lose the app.
+   The shell prints where the user left off and, while an away switch is held back, which
+   guard is holding it (`not switching away: ...`), because "why didn't it switch" was the
+   first question on a Mac and the guards are otherwise silent.
+
 6. **The remembered app is kept in memory only.** It is an app id and name, the same thing
    the core already holds for the front app. It is not written to disk and is gone when
    `focusd` stops.
