@@ -72,6 +72,8 @@ simulator ran. These are the choices in the adapter (`focus-platform/src/windows
 10. **What CI proves and what it does not.** A Windows runner compiles, links and lints the
     adapter and runs its tests against a real Windows: the read-only calls answer, the
     boxes can be created, shown without taking the foreground, sized and hidden, a hotkey
-    registers and a second owner is refused. It cannot show that a person sees the box in
+    registers and a second owner is refused. It then installs the hooks, starts the real
+    `focusd.exe`, sends it one hook as Claude Code would, and checks that `focusd` reported
+    the front window and received the hook. It cannot show that a person sees the box in
     the right place, that a switch lands where it should, or that the empty mouse event is
     enough on a desktop someone is using.

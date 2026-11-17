@@ -64,7 +64,7 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 241 tests, all passing.
+- `cargo test --workspace`: 242 tests, all passing.
 - `cargo clippy --workspace --all-targets --target aarch64-apple-darwin`: the macOS code
   type-checks and is lint-clean.
 - `cargo deny check`: advisories, bans, licenses and sources pass.
