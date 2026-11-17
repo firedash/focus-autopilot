@@ -130,6 +130,9 @@ It does not cover:
 
 - **Cloud sessions**, in the desktop app or on the web. They run elsewhere, so nothing on
   your machine is told.
+- **Cowork** in the Claude desktop app. Tried on Windows on 2026-11-17 with `focusd` running:
+  no hook arrived. Cowork does its work in a sandbox of its own, and other users have
+  reported that it does not run these hooks at all.
 - **Claude Code inside WSL** with `focusd` on Windows. WSL has its own settings file, and its
   `127.0.0.1` is not Windows's by default.
 - **Other agents**: Cursor's own agent, GitHub Copilot, Codex, Gemini CLI. Each has its own

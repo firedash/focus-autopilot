@@ -130,6 +130,7 @@ Configuration tab has a picker for it.
 | VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
 | Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
 | Claude Desktop, Code tab, local session | yes, on Windows | the prompt, tool uses, the finish and a sub-agent's end all arrived, the window was recognised as `claude.exe`, and the return brought it forward (2026-11-17). Approval events and the Mac app are untried |
+| Claude Desktop, Cowork | yes, on Windows: no hooks | nothing reached `focusd` (2026-11-17); not supported |
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
 
