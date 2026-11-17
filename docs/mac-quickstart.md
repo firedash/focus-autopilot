@@ -48,8 +48,8 @@ and you are moved back to where you left off; the hotkey during that countdown m
 now". When Claude is done you are called back again. The very first prompt moves you nowhere,
 because there is nowhere you left off yet, unless you name an away app (below).
 
-This loop is new and **has not been run on a Mac**: the countdown return was seen working
-only from a configured away app. Two settings turn it off, in `config.toml` or on the
+The countdown bringing you back has been seen working on a Mac. Being moved back to where
+you left off is new and **has not been run on a Mac**. Two settings turn the loop off, in `config.toml` or on the
 Configuration tab:
 
 ```toml

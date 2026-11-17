@@ -17,7 +17,8 @@ macOS parts were written from Linux:
 | Switching away and back | The Statistics and Configuration page, in Chromium | `focusctl ui` opening the browser with `open` |
 | The toast and recap boxes | The whole shell loop, against the fake platform | The launch agent being loaded by `launchd` |
 | The three-line LLM recap | `focusctl doctor`, `ui --no-open`, `--scope` | Time per app as read from real macOS |
-| Global hotkeys: `focusd --test-hotkeys` registered the focus and pause keys and printed each press (2026-11-16) | The return countdown from any app, and the away switch to where you left off (ADR 0005) | The declare-long hotkey (off by default) |
+| Global hotkeys: `focusd --test-hotkeys` registered the focus and pause keys and printed each press (2026-11-16) | The away switch to where you left off (ADR 0005) | The declare-long hotkey (off by default) |
+| The automatic return: a countdown, then the switch back to the terminal, from an app that is not an away app (2026-11-17) | Snoozing a return countdown with the focus key | |
 | | | Claude Code in VS Code, Cursor, the Desktop app |
 
 Where the build departs from `docs/design.md`, the ADRs win:
@@ -28,7 +29,8 @@ finished run **brings you back by itself after a 5 second countdown**, from any 
 next long prompt **moves you back to the app you left off in**. Two settings
 (`switching.auto_return`, `away.resume_last_app`) turn these off, which gives the manual mode
 that was the default until 2026-11-17. "Switching away and back" in the table above was seen
-on a Mac with a configured away app; the same switches from and to any app have not been.
+on a Mac with a configured away app. The automatic return from another app has now been seen
+there too; the away switch to where you left off has not.
 
 ## What exists
 
@@ -119,11 +121,10 @@ app; the project name on the toast says which session is waiting.
 
 ## Next steps, in order
 
-1. Run the loop on a Mac: prompt Claude, switch to another app, and let the countdown bring
-   you back; press the focus key during one countdown to snooze it; then send a second prompt,
-   leave the keyboard alone, and see that you are moved back to the app you were in. Also try
-   it with `switching.auto_return = false`, where the focus key on the "Go back?" box does
-   the return.
+1. Finish running the loop on a Mac. The countdown bringing you back has been seen. Still to
+   see: send a second prompt, leave the keyboard alone, and check that you are moved back to
+   the app you were in; press the focus key during a return countdown to snooze it; and with
+   `switching.auto_return = false`, press the focus key on the "Go back?" box.
 2. Run `focusctl ui` on a Mac and check that the page opens and the numbers look right
    against a day of real use.
 3. Test VS Code, Cursor and the Claude Desktop Code tab, and correct the app ids in

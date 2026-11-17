@@ -32,8 +32,8 @@ key. Turn off "send me back to the app I was called back from" and nothing moves
 
 **What it is today:** a developer build for **Claude Code in a terminal, on macOS**, built
 from source. [STATUS.md](STATUS.md) says what has been seen working on a real Mac, what has
-only been verified on Linux, and what has never been run. The automatic return from any app
-and the move back to where you left off are new and have not been run on a Mac yet.
+only been verified on Linux, and what has never been run. The automatic return has been
+seen working on a Mac; the move back to where you left off is new and has not been yet.
 
 It runs on your machine only, asks for no OS permission, and sends nothing anywhere by
 default. Secrets typed into a prompt are redacted before they are stored or shown. It does

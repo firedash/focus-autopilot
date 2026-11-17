@@ -1,6 +1,6 @@
 # ADR 0005: The full loop by default
 
-Date: 2026-11-17. Status: accepted, not yet run on a Mac. Where this record and
+Date: 2026-11-17. Status: accepted; the return has run on a Mac, the rest has not. Where this record and
 `docs/design.md` or ADR 0003 item 1 disagree, this record wins.
 
 ADR 0003 item 1 made manual mode the default: nothing moved the user, and a prompt waited for
@@ -65,8 +65,9 @@ These are the choices that implement it.
 7. **It is the app, not the window.** macOS activation without the Accessibility permission
    brings an app forward, not a chosen window; the app's own most recent window comes up.
 
-8. **Not verified on a Mac.** The return countdown and the switch back were seen working on
-   a Mac from a configured away app (ADR 0003). The same code now runs from any app, and the
-   switch to a remembered app uses the same activation call, but neither has been run there.
+8. **Partly verified on a Mac.** The return countdown and the switch back were seen working
+   on a Mac from a configured away app (ADR 0003), and on 2026-11-17, after the fix in item
+   3, the owner saw the automatic return work from another app. The switch to a remembered
+   app uses the same activation call but has not been run there, nor has the snooze key.
    `focus-core/tests/full_loop.rs` and `focus-runner/tests/shell_loop.rs` pin the behaviour
    against the fake platform.
