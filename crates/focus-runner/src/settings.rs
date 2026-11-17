@@ -68,6 +68,7 @@ pub const KEYS: &[Key] = &[
     key("home.extra_apps", Kind::List),
     key("switching.return_on_needs_input", Kind::Bool),
     key("switching.auto_return", Kind::Bool),
+    restart("switching.force_foreground", Kind::Bool),
     key("switching.away_after_seconds", Kind::Int(0, 3_600)),
     key(
         "switching.away_after_seconds_when_long",
@@ -121,6 +122,7 @@ fn value_of(c: &Config, name: &str) -> Value {
         "home.extra_apps" => json!(c.home.extra_apps),
         "switching.return_on_needs_input" => json!(w.return_on_needs_input),
         "switching.auto_return" => json!(w.auto_return),
+        "switching.force_foreground" => json!(w.force_foreground),
         "switching.away_after_seconds" => secs(w.away_after),
         "switching.away_after_seconds_when_long" => secs(w.away_after_when_long),
         "switching.short_grace_seconds" => secs(w.short_grace),

@@ -404,7 +404,10 @@ fn poll_slow<P: Platform>(
         Status::Running { .. } => "running",
         Status::Idle => "idle",
     });
-    if let Ok(apps) = platform.running_apps() {
+    if let Ok(mut apps) = platform.running_apps() {
+        // One entry per app for the page's picker: on Windows there is one per window.
+        let mut seen = std::collections::BTreeSet::new();
+        apps.retain(|app| seen.insert(app.id.to_ascii_lowercase()));
         ui.set_running_apps(apps);
     }
     if shell.tracker.save_due(now) {

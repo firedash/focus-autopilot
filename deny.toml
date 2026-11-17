@@ -3,8 +3,7 @@
 # come from. Run with `cargo deny check`.
 
 [graph]
-# The targets the project builds for. Windows is listed because the lockfile already resolves
-# its dependencies, even though the Windows adapter is not written.
+# The targets the project builds for.
 targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",

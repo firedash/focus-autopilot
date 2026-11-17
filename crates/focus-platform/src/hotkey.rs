@@ -115,6 +115,54 @@ pub fn pretty(chord: &Chord) -> String {
     out
 }
 
+/// How a chord reads on Windows: `Ctrl+Alt+Shift+Win+Space`.
+pub fn pretty_windows(chord: &Chord) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for (on, name) in [
+        (chord.ctrl, "Ctrl"),
+        (chord.alt, "Alt"),
+        (chord.shift, "Shift"),
+        (chord.cmd, "Win"),
+    ] {
+        if on {
+            parts.push(name);
+        }
+    }
+    parts.push(match chord.key.as_str() {
+        "SPACE" => "Space",
+        "RETURN" => "Enter",
+        "ESCAPE" => "Esc",
+        "TAB" => "Tab",
+        other => other,
+    });
+    parts.join("+")
+}
+
+/// How a chord reads on the OS this build is for.
+pub fn pretty_here(chord: &Chord) -> String {
+    if cfg!(windows) {
+        pretty_windows(chord)
+    } else {
+        pretty(chord)
+    }
+}
+
+/// Windows virtual-key codes for the keys `parse` accepts. Letters and digits are their
+/// ASCII codes.
+pub fn win_vk(key: &str) -> Option<u32> {
+    match key {
+        "SPACE" => Some(0x20),
+        "RETURN" => Some(0x0D),
+        "ESCAPE" => Some(0x1B),
+        "TAB" => Some(0x09),
+        _ => {
+            let mut chars = key.chars();
+            let only = chars.next().filter(|_| chars.next().is_none())?;
+            (only.is_ascii_uppercase() || only.is_ascii_digit()).then(|| u32::from(only))
+        }
+    }
+}
+
 /// macOS virtual key codes (ANSI layout) for the keys `parse` accepts.
 pub fn mac_keycode(key: &str) -> Option<u32> {
     Some(match key {
@@ -190,6 +238,31 @@ mod tests {
         assert_eq!(pretty(&win), "⌃⌥⇧P");
         assert_eq!(mac_keycode("SPACE"), Some(49));
         assert_eq!(mac_keycode("P"), Some(35));
+    }
+
+    #[test]
+    fn chords_read_and_register_the_windows_way_too() {
+        let win = parse("Ctrl+Alt+Space").unwrap().unwrap();
+        assert_eq!(pretty_windows(&win), "Ctrl+Alt+Space");
+        let all = parse("Control+Option+Shift+Command+Enter")
+            .unwrap()
+            .unwrap();
+        assert_eq!(pretty_windows(&all), "Ctrl+Alt+Shift+Win+Enter");
+        assert_eq!(win_vk("SPACE"), Some(0x20));
+        assert_eq!(win_vk("P"), Some(0x50));
+        assert_eq!(win_vk("7"), Some(0x37));
+        assert_eq!(win_vk("PP"), None);
+        assert_eq!(win_vk("p"), None);
+        // Every key the parser accepts has a code on both systems.
+        for key in ('A'..='Z').chain('0'..='9').map(|c| c.to_string()) {
+            assert!(
+                win_vk(&key).is_some() && mac_keycode(&key).is_some(),
+                "{key}"
+            );
+        }
+        for key in ["SPACE", "RETURN", "ESCAPE", "TAB"] {
+            assert!(win_vk(key).is_some() && mac_keycode(key).is_some(), "{key}");
+        }
     }
 
     #[test]

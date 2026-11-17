@@ -698,6 +698,15 @@
       title: "Advanced",
       collapsed: true,
       items: [
+        {
+          key: "switching.force_foreground",
+          type: "switch",
+          label: "Windows: retry a refused switch after one empty mouse event",
+          help:
+            "Windows only lets a program bring a window forward if it received the last input. The empty event " +
+            "(no movement, no click) gives Focus Autopilot that standing. Off: such a switch becomes a question " +
+            "and the focus key does it. Does nothing on a Mac. Takes effect when focusd restarts.",
+        },
         { key: "switching.input_quiet_ms", type: "number", label: "Before switching, wait for a pause in typing of", min: 0, max: 10000, unit: "ms" },
         { key: "switching.input_quiet_max_seconds", type: "number", label: "…but ask instead after waiting", min: 0, max: 60, ...SECONDS },
         {

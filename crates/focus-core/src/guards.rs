@@ -103,7 +103,12 @@ impl Core {
             .left_off
             .as_ref()
             .filter(|_| self.cfg.away.resume_last_app)
-            .and_then(|app| running(&app.id))
+            // The very window, where the OS tells windows apart; else the app.
+            .and_then(|left| {
+                apps.iter()
+                    .find(|app| app.window.is_some() && left.matches(app))
+                    .or_else(|| running(&left.id))
+            })
             // A session may have been started there since.
             .filter(|app| !self.hosts_a_session(app));
         left_off

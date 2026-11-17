@@ -6,22 +6,23 @@
 //! Commands on stdin: `click` (act on the toast), `pause`, `resume`, `quit`.
 #![forbid(unsafe_code)]
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn main() {
-    eprintln!("focusd needs macOS. On other systems use focus-headless; see STATUS.md.");
+    eprintln!("focusd needs macOS or Windows. On other systems use focus-headless; see STATUS.md.");
     std::process::exit(2);
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn main() {
-    if let Err(message) = mac::run() {
+    if let Err(message) = native::run() {
         eprintln!("focusd: {message}");
         std::process::exit(1);
     }
 }
 
-#[cfg(target_os = "macos")]
-mod mac {
+/// The daemon on a system that has a platform adapter.
+#[cfg(any(target_os = "macos", windows))]
+mod native {
     use std::io::IsTerminal as _;
     use std::path::PathBuf;
     use std::sync::{Arc, mpsc};
@@ -30,7 +31,10 @@ mod mac {
     use focus_core::{Config, Core, Input, UserAction};
     use focus_platform::hotkey;
     use focus_platform::known_apps;
-    use focus_platform::macos::MacPlatform;
+    #[cfg(target_os = "macos")]
+    use focus_platform::macos::MacPlatform as Native;
+    #[cfg(windows)]
+    use focus_platform::windows::WinPlatform as Native;
     use focus_platform::{Hotkeys as _, Platform as _};
     use focus_receiver::{Settings, config_file, random_hex};
     use focus_runner::{Control, paths, ui};
@@ -68,7 +72,7 @@ mod mac {
 
     /// Prints how this run is set up, registers the hotkeys, and returns the focus key as it
     /// reads on screen.
-    fn announce(platform: &MacPlatform, config: &Config) -> Option<String> {
+    fn announce(platform: &Native, config: &Config) -> Option<String> {
         if config.switching.auto_return {
             println!(
                 "returns: when Claude is done or needs you, a {} s countdown, then you are brought back.",
@@ -128,7 +132,7 @@ mod mac {
     /// `focusd --test-hotkeys`: registers the configured hotkeys and prints every press for 60
     /// seconds, and nothing else, so a hotkey that does nothing can be told apart from the rest
     /// of the app. Uses the config's chords if there is a config, else the defaults.
-    fn test_hotkeys(platform: &MacPlatform, config_path: &PathBuf) -> Result<(), String> {
+    fn test_hotkeys(platform: &Native, config_path: &PathBuf) -> Result<(), String> {
         use focus_platform::{HotkeyAction, Overlay as _};
         let config = std::fs::read_to_string(config_path)
             .ok()
@@ -162,7 +166,7 @@ mod mac {
         }
         if presses == 0 {
             println!(
-                "No presses seen. Registration reported no error, so macOS accepted the chord"
+                "No presses seen. Registration reported no error, so the OS accepted the chord"
             );
             println!("but nothing was delivered: the event loop is the likely cause.");
         } else {
@@ -172,18 +176,43 @@ mod mac {
     }
 
     /// Registers the hotkeys, reports problems, and returns the focus key as it reads on screen.
-    fn setup_hotkeys(platform: &MacPlatform, config: &Config) -> Option<String> {
+    fn setup_hotkeys(platform: &Native, config: &Config) -> Option<String> {
         let problems = platform.register(&keys(config));
         for problem in &problems {
             println!("hotkey problem: {problem}");
         }
         match hotkey::parse(&config.hotkeys.focus_key) {
             Ok(Some(chord)) if !problems.iter().any(|p| p.starts_with("focus")) => {
-                Some(hotkey::pretty(&chord))
+                Some(hotkey::pretty_here(&chord))
             }
             _ => None,
         }
     }
+
+    /// `focusd --list-apps`: the id and name of every running app, one line each. On Windows
+    /// the platform lists every window, so repeats are dropped.
+    fn print_apps(platform: &Native) -> Result<(), String> {
+        let mut seen = std::collections::BTreeSet::new();
+        for app in platform.running_apps().map_err(|e| format!("{e:?}"))? {
+            if seen.insert(app.id.to_ascii_lowercase()) {
+                println!("{}\t{}", app.id, app.name);
+            }
+        }
+        Ok(())
+    }
+
+    /// Settings the platform adapter itself reads, once, at startup.
+    #[cfg(windows)]
+    fn platform_settings(platform: &Native, config_path: &PathBuf) {
+        if let Ok(text) = std::fs::read_to_string(config_path)
+            && let Ok(config) = config_file::parse(&text)
+        {
+            platform.set_force_foreground(config.switching.force_foreground);
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn platform_settings(_platform: &Native, _config_path: &PathBuf) {}
 
     pub fn run() -> Result<(), String> {
         let mut config_path = paths::config_path().ok_or("no HOME")?;
@@ -217,15 +246,13 @@ mod mac {
                 other => return Err(format!("unknown argument {other}")),
             }
         }
-        let platform = MacPlatform::new();
+        let platform = Native::new();
+        platform_settings(&platform, &config_path);
         if test_hotkeys_only {
             return test_hotkeys(&platform, &config_path);
         }
         if list_apps {
-            for app in platform.running_apps().map_err(|e| format!("{e:?}"))? {
-                println!("{}\t{}", app.id, app.name);
-            }
-            return Ok(());
+            return print_apps(&platform);
         }
 
         let (config, apps) = load(&config_path, port)?;

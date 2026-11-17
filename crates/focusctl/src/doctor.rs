@@ -212,10 +212,16 @@ pub fn events(stats: &Value) -> Check {
     }
 }
 
-/// The first `claude` on `path_env`, as the shell would find it.
+/// The first `claude` on `path_env`, as the shell would find it. On Windows the command is
+/// `claude.exe` (the native installer) or `claude.cmd` (npm).
 pub fn find_claude(path_env: &str) -> Option<PathBuf> {
+    let names: &[&str] = if cfg!(windows) {
+        &["claude.exe", "claude.cmd", "claude"]
+    } else {
+        &["claude"]
+    };
     std::env::split_paths(path_env)
-        .map(|dir| dir.join("claude"))
+        .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
         .find(|candidate| candidate.is_file())
 }
 

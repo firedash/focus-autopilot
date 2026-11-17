@@ -91,6 +91,7 @@ pub fn parse_noting(text: &str) -> Result<(Config, Vec<String>), LoadError> {
         s.secs("stale_after_seconds", &mut w.stale_after)?;
         s.flag("return_on_needs_input", &mut w.return_on_needs_input)?;
         s.flag("auto_return", &mut w.auto_return)?;
+        s.flag("force_foreground", &mut w.force_foreground)?;
         s.millis("verify_after_ms", &mut w.verify_after)
     })?;
     r.section("countdown", |s| {

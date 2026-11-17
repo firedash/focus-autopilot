@@ -110,6 +110,10 @@ pub struct Switching {
     /// `auto_return`: when Claude is waiting and the user is in another app, count down and
     /// bring them back. Off: show a prompt and wait for the focus key.
     pub auto_return: bool,
+    /// `force_foreground`: Windows only. When Windows refuses to bring a window forward,
+    /// send one empty mouse event (no movement, no button) and ask again. Read by the
+    /// Windows shell at startup; the core does not use it.
+    pub force_foreground: bool,
     /// `verify_after_ms`
     pub verify_after: Duration,
 }
@@ -129,6 +133,7 @@ impl Default for Switching {
             stale_after: Duration::from_secs(600),
             return_on_needs_input: true,
             auto_return: true,
+            force_foreground: true,
             verify_after: Duration::from_millis(400),
         }
     }

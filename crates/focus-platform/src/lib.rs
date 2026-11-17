@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The platform layer (design section 8): everything that reads from or acts on the OS goes
 //! through [`Platform`]. This is the only crate that may use `unsafe`, each block with a written
-//! justification. The macOS adapter is written and type-checked but has not run on a Mac; the
-//! Windows adapter is not written (milestone M2).
+//! justification. There is an adapter for macOS and one for Windows, and a fake for tests.
 //!
-//! No call here may trigger an OS permission prompt, read input content, read window titles
-//! or synthesize input.
+//! No call here may trigger an OS permission prompt, read input content or read window
+//! titles. Nothing synthesizes a keystroke or a click; the Windows adapter can send one empty
+//! mouse event to be allowed a switch (see `windows.rs` and ADR 0006).
 
 pub mod fake;
 pub mod hotkey;
@@ -16,6 +16,10 @@ pub mod macos;
 mod macos_hotkeys;
 #[cfg(target_os = "macos")]
 mod macos_overlay;
+#[cfg(windows)]
+pub mod windows;
+#[cfg(windows)]
+mod windows_overlay;
 
 pub use hotkey::{HotkeyAction, Hotkeys};
 

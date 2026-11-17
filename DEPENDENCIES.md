@@ -17,10 +17,12 @@ isn't enough. CI will fail when one is added without an entry.
 | serde_json `preserve_order` | focusctl | Keep key order when merging settings.json | MIT/Apache-2.0 | Same |
 | objc2, objc2-foundation, objc2-app-kit, objc2-core-graphics | focus-platform (macOS only) | `NSWorkspace`, `NSRunningApplication`, idle time, sound | MIT/Apache-2.0/Zlib | OS APIs; typed bindings instead of raw FFI |
 | Carbon framework (system) | focus-platform (macOS only) | Global hotkeys via `RegisterEventHotKey`, hand-written FFI with a safety comment on each `unsafe` block | Apple system framework | No permission needed, unlike key-event monitoring; not in `objc2` |
+| windows-sys | focus-platform (Windows only) | The foreground window and its executable, the window list, idle time, bringing a window forward, hotkeys via `RegisterHotKey`, the on-screen boxes, a system sound | MIT/Apache-2.0 | OS APIs; Microsoft's own bindings instead of hand-written declarations. Already in the lockfile through tokio |
 | tempfile | focusctl (tests) | Temporary folders for file tests | MIT/Apache-2.0 | Tests only |
 
 `focus-core` uses the standard library only, with no dependencies at all. `focus-platform`
-uses the standard library everywhere except macOS, where it uses the `objc2` crates above and
+uses the standard library everywhere except Windows, where it uses `windows-sys`, and macOS,
+where it uses the `objc2` crates above and
 declares a few functions from the system Carbon framework by hand (`RegisterEventHotKey` and
 the event calls around it), because the `objc2` crates have no binding for them; it needs no
 permission. `focus-headless` and `focusd` use workspace crates only; `focus-runner` adds `serde`,

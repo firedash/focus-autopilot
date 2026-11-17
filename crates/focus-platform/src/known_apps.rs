@@ -3,8 +3,8 @@
 //! sent from. `home.extra_apps` in the config adds to this list. An entry ending in `*`
 //! matches by prefix.
 //!
-//! UNVERIFIED: these ids were written from memory. Check each against a real install during
-//! the M2 platform spike (`focusctl test-switch`) before relying on it.
+//! UNVERIFIED: these ids were written from memory. `focusd` prints the real id of the app in
+//! front (`front: ...`), and says so when a prompt comes from an app that is not listed.
 
 /// Bundle ids.
 pub const MACOS: &[&str] = &[
@@ -24,10 +24,17 @@ pub const MACOS: &[&str] = &[
     "com.anthropic.claudefordesktop",
 ];
 
-/// Executable names.
+/// Executable names. A classic console window can report the console host or the shell in
+/// it, depending on the Windows version, so both are listed.
 pub const WINDOWS: &[&str] = &[
     "WindowsTerminal.exe",
     "conhost.exe",
+    "OpenConsole.exe",
+    "cmd.exe",
+    "powershell.exe",
+    "pwsh.exe",
+    "wezterm-gui.exe",
+    "alacritty.exe",
     "Code.exe",
     "Cursor.exe",
     "Windsurf.exe",

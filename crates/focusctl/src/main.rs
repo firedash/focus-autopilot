@@ -86,8 +86,7 @@ fn parse_args() -> Result<Args, String> {
 }
 
 fn home() -> Result<PathBuf, String> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
+    focus_runner::paths::home_dir()
         .ok_or_else(|| "the HOME environment variable is not set".to_owned())
 }
 
