@@ -100,7 +100,7 @@ something verified here. Each one also needs its app in the home-app list; if it
 | Terminal (Terminal, iTerm2, Ghostty, Warp, ...) | yes, on a Mac | works |
 | VS Code, Claude Code extension | no | Anthropic's docs say the extension shares `~/.claude/settings.json` with the CLI, hooks included |
 | Cursor, same extension or `claude` in its terminal | no | the docs offer the extension for Cursor; `claude` in a terminal inside it is the terminal case. Cursor's own built-in agent is a different product with its own hooks and is not supported |
-| Claude Desktop app, Code tab | no, and uncertain | the docs say hooks fire there, but users have reported some events not firing in Desktop, so it may not work fully. The chat tab is not Claude Code and sends no hooks |
+| Claude Desktop app, Code tab, local session | partly, on Windows | on Windows the prompt and the finish both reached `focusd`, and the app's window was recognised as `claude.exe`; the approval events and the Mac app are untried. A cloud session runs elsewhere and fires no hooks on your machine, and the chat tab is not Claude Code |
 | JetBrains IDEs | no | Anthropic's hooks page does not mention JetBrains, so nothing is known |
 | Claude Code on the web or other cloud sessions | not supported | they fire no local hooks |
 

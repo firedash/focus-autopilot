@@ -5,7 +5,8 @@ Last updated 2026-11-17.
 **Windows:** there is a Windows build as of today. It has passed its tests on a Windows CI
 machine. Seen on a person's Windows desktop so far: `focusd` starts and `focusctl doctor`
 finds it, the config and the hooks; it names the window in front as the user moves between
-windows; in the hotkey self-test the pause key and the focus key
+windows; a prompt sent from a local session in the Claude desktop app's Code tab arrives, as
+does the hook when Claude finishes; in the hotkey self-test the pause key and the focus key
 (`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
 app) register and their presses are delivered. Not yet reported: the boxes, the switch back
 and the move away. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
@@ -107,7 +108,7 @@ Configuration tab has a picker for it.
 | Terminal | yes | works |
 | VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
 | Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
-| Claude Desktop, Code tab | no | docs say hooks fire; users report some events not firing |
+| Claude Desktop, Code tab, local session | partly, on Windows | the prompt and the finish hooks arrived and the window was recognised as `claude.exe` (2026-11-17); approval events and the Mac app untried |
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
 
