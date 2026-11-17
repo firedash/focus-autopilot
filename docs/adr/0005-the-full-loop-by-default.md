@@ -53,10 +53,19 @@ These are the choices that implement it.
 
 5. **So with no settings at all, the app now switches the user away.** Not on the first
    prompt, when there is nowhere to go, but from the second on. This reverses the manual-mode
-   default on purpose. The away guards are unchanged: the run must have gone on for
-   `away_after_seconds` (30), the user must not have touched the keyboard or mouse for
-   `away_requires_idle_seconds` (8), the terminal must still be in front, and a countdown
-   with "Not now" comes first. To get manual mode back, turn off both settings.
+   default on purpose. The away guards: the run must have gone on for `away_after_seconds`
+   (30), the terminal must still be in front, and a countdown with "Not now" comes first. To
+   get manual mode back, turn off both settings.
+
+   **No idle time is required before the away countdown** (`away_requires_idle_seconds` is
+   now 0 by default; it was 8). On a Mac the owner found that even 3 seconds without input
+   was often not met, so the switch did not come. The safeguard that matters is kept: after
+   the countdown the switch still waits for a pause in the typing
+   (`switching.input_quiet_ms`), and after 5 seconds of continuous input it becomes a
+   question. One thing the idle requirement did by accident is now done on purpose: when the
+   user comes back to the home window on their own while the run is going, the away
+   threshold counts again from that moment, so coming back to look at Claude is not answered
+   by being moved out again three seconds later.
 
    A moment with nothing in front on the way back, up to 5 seconds, does not lose the app.
    The shell prints where the user left off and, while an away switch is held back, which

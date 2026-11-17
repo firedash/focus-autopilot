@@ -334,10 +334,12 @@ impl Core {
         match observation {
             Observation::Frontmost(app) => {
                 let previous = std::mem::replace(&mut self.frontmost, app);
+                let previous_front = previous.clone();
                 if let Some(previous) = previous.filter(|app| !self.hosts_a_session(app)) {
                     self.elsewhere = Some((previous, now));
                 }
                 self.note_left_off(now);
+                self.note_back_at_home(previous_front.as_ref(), now);
                 self.note_manual_away();
             }
             Observation::RunningApps(apps) => self.running_apps = Some((apps, now)),
@@ -371,6 +373,23 @@ impl Core {
             || !self.pending(now).is_empty();
         if claude_active {
             self.left_off = Some(previous);
+        }
+    }
+
+    /// Restarts the away threshold of every running run whose home window the user has just
+    /// arrived at from somewhere else.
+    fn note_back_at_home(&mut self, previous: Option<&AppRef>, now: Instant) {
+        let Some(front) = self.frontmost.clone() else {
+            return;
+        };
+        for session in self.sessions.values_mut() {
+            let Some(home) = &session.run.home else {
+                continue;
+            };
+            let arrived = home.matches(&front) && !previous.is_some_and(|p| home.matches(p));
+            if arrived && session.state == SessionState::Running {
+                session.run.back_at_home = Some(now);
+            }
         }
     }
 

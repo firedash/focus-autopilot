@@ -651,6 +651,7 @@
           key: "switching.away_requires_idle_seconds",
           type: "number",
           label: "Only once I haven't touched the keyboard or mouse for",
+          help: "0: no waiting. The switch itself always waits for a pause in your typing.",
           min: 0,
           max: 600,
           ...SECONDS,

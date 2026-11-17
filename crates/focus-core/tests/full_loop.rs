@@ -231,7 +231,9 @@ fn a_moment_with_nothing_in_front_does_not_lose_where_the_user_left_off() {
 
 #[test]
 fn the_core_says_what_is_holding_an_away_switch_back() {
-    let mut sim = called_back_from_the_browser(Config::default());
+    let mut config = Config::default();
+    config.switching.away_requires_idle = std::time::Duration::from_secs(8);
+    let mut sim = called_back_from_the_browser(config);
     let now = |sim: &Sim| sim.core.away_wait(sim.instant());
     assert_eq!(now(&sim), None, "no run is going");
     sim.at(80_000);
@@ -260,4 +262,53 @@ fn the_core_says_what_is_holding_an_away_switch_back() {
         now(&sim).as_deref(),
         Some("nowhere to go: no app you were called back from, and no away app running")
     );
+}
+
+#[test]
+fn by_default_a_user_who_is_typing_still_gets_the_away_countdown() {
+    // No idle time is required before the countdown. The switch itself still waits for a
+    // pause in the typing, so a keystroke does not land in the other app.
+    let mut sim = called_back_from_the_browser(Config::default());
+    sim.at(80_000);
+    sim.typing = true;
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(200_000);
+    assert_eq!(sim.toasts()[1].1, ToastKind::AwayCountdown);
+    // Five seconds of typing past the countdown and the switch becomes a question.
+    assert_eq!(sim.toasts()[2].1, ToastKind::AwayPrompt);
+    assert!(away_switches(&sim).is_empty(), "no switch while typing");
+
+    // A pause in the typing just after the countdown lets the switch through.
+    let mut sim = called_back_from_the_browser(Config::default());
+    sim.at(80_000);
+    sim.typing = true;
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(109_000);
+    assert_eq!(sim.toasts().len(), 1, "not before the run is old enough");
+    sim.at(114_000);
+    assert_eq!(sim.toasts()[1], (110_000, ToastKind::AwayCountdown));
+    sim.typing = false;
+    sim.input();
+    sim.at(120_000);
+    assert_eq!(sim.activations().last(), Some(&(114_600, BROWSER)));
+}
+
+#[test]
+fn coming_back_to_look_at_claude_is_not_answered_by_moving_the_user_out_again() {
+    let mut sim = called_back_from_the_browser(Config::default());
+    sim.at(80_000);
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(82_000);
+    // The user leaves on their own, and a minute into the run comes back to have a look.
+    sim.focus(MAIL);
+    sim.at(140_000);
+    sim.focus(TERMINAL);
+    sim.at(149_000);
+    assert!(
+        away_switches(&sim).is_empty(),
+        "nine seconds after coming back, still here"
+    );
+    // The threshold counts again from when they came back.
+    sim.at(200_000);
+    assert_eq!(away_switches(&sim), vec![MAIL]);
 }

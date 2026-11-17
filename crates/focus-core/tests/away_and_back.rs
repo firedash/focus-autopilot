@@ -282,7 +282,10 @@ fn on_windows_only_the_exact_home_window_counts() {
     assert!(sim.toasts().is_empty());
     sim.front = Some(window(1));
     sim.feed(Input::Observed(Observation::Frontmost(sim.front.clone())));
+    // Back at the home window: the threshold counts again from here.
     sim.at(70_000);
+    assert!(sim.toasts().is_empty());
+    sim.at(100_000);
     assert_eq!(sim.toasts().len(), 1);
 }
 

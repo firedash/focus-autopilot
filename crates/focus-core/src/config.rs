@@ -120,7 +120,7 @@ impl Default for Switching {
             away_after: Duration::from_secs(30),
             away_after_when_long: Duration::from_secs(10),
             short_grace: Duration::from_secs(45),
-            away_requires_idle: Duration::from_secs(8),
+            away_requires_idle: Duration::ZERO,
             input_quiet: Duration::from_millis(600),
             input_quiet_max: Duration::from_secs(5),
             debounce: Duration::from_secs(5),

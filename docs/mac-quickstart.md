@@ -232,11 +232,10 @@ apps = ["com.apple.Notes"]
 [switching]
 short_grace_seconds = 5
 away_after_seconds = 5
-away_requires_idle_seconds = 3
 ```
 
-The three `[switching]` lines only make the away switch come sooner (after 5 seconds of a run
-and 3 without input, in place of 30 and 8), which is handy while trying it out.
+The two `[switching]` lines only make the away switch come sooner (after 5 seconds of a run,
+in place of 30 or 45), which is handy while trying it out.
 
 ## What to check first if it misbehaves
 
@@ -259,10 +258,12 @@ and 3 without input, in place of 30 and 8), which is handy while trying it out.
 - **You are not moved away after your next prompt.** The `focusd` window says why. It prints
   `where you left off: <app>` when it has somewhere to send you, and
   `not switching away: <reason>` while it holds back: the run has to go on for 30 seconds
-  first (45 when it looks like a short one, 10 when it looks long), then you must leave the
-  keyboard and mouse alone for 8 seconds with the terminal in front. Both are on the
-  Configuration tab under "Switching away". No `where you left off` line means it has
-  nowhere to send you: you were not called back from another app since `focusd` started.
+  first (45 when it looks like a short one, 10 when it looks long), counted from when you
+  last arrived at the terminal, with the terminal in front. If your `config.toml` sets
+  `away_requires_idle_seconds`, you must also leave the keyboard and mouse alone that long;
+  the default is 0. All of these are on the Configuration tab under "Switching away". No
+  `where you left off` line means it has nowhere to send you: you were not called back from
+  another app since `focusd` started.
 - **The hotkey does nothing.** Run `focusd --test-hotkeys`. A `problem:` line means the OS
   refused the chord (another app may own it): pick another in `[hotkeys]`. Registered but no
   presses means the events are not being delivered; type `click` in the `focusd` window

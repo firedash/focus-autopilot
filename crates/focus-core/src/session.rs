@@ -305,7 +305,11 @@ impl Session {
         if self.run.declared_long {
             return Some(self.run.started);
         }
-        Some(self.run.started + away_threshold(self.run.tier, switching))
+        let from = self
+            .run
+            .back_at_home
+            .map_or(self.run.started, |at| at.max(self.run.started));
+        Some(from + away_threshold(self.run.tier, switching))
     }
 
     /// When a finished run can no longer be continued by a Stop hook and nobody is waiting

@@ -32,9 +32,12 @@ pub fn app(id: &str) -> AppRef {
     }
 }
 
+/// An away app, and the idle guard at the 8 seconds the design specified, which many of
+/// these tests use to hold a typing user in place. The default is 0.
 pub fn config() -> Config {
     let mut config = Config::default();
     config.away.apps = vec![TERRARIA.to_owned()];
+    config.switching.away_requires_idle = Duration::from_secs(8);
     config
 }
 
