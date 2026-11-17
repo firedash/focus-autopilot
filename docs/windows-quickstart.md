@@ -33,7 +33,8 @@ cargo build --release -p focusd -p focusctl
 This edits `%USERPROFILE%\.claude\settings.json` and creates
 `%LOCALAPPDATA%\io.github.firedash.focusautopilot\config.toml`. Restart any running Claude
 Code session, and fully quit and reopen the Claude desktop app if you use its Code tab.
-Undo with `.\target\release\focusctl.exe uninstall-hooks`.
+Undo with `.\target\release\focusctl.exe uninstall-hooks`. [hooks.md](hooks.md) shows exactly
+what is written and how to do it by hand.
 
 ## 3. Check the hotkeys
 

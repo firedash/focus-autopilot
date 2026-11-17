@@ -66,6 +66,9 @@ cargo build --release -p focusd -p focusctl
 ./target/release/focusd                     # leave it running
 ```
 
+`install-hooks` is what connects Claude Code to the app. [docs/hooks.md](docs/hooks.md) shows
+exactly what it writes, how to do it by hand, and which places it covers.
+
 Then start `claude` in another terminal window (restart any session that was already running),
 give it a task, and switch to another app. No settings are needed. If no box appears,
 `./target/release/focusctl doctor` checks the setup and says how to fix each failure. The full

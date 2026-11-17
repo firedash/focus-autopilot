@@ -28,7 +28,8 @@ Needs Xcode command line tools (`xcode-select --install`). Rust 1.97.0 is picked
 
 This also creates `~/Library/Application Support/io.github.firedash.focusautopilot/config.toml`
 with a random token. Restart any running Claude Code sessions. Undo with
-`./target/release/focusctl uninstall-hooks`.
+`./target/release/focusctl uninstall-hooks`. [hooks.md](hooks.md) shows exactly what is
+written and how to do it by hand.
 
 ## 3. Run
 
