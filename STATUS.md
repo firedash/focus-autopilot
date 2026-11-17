@@ -10,10 +10,10 @@ does the hook when Claude finishes; after a countdown Windows let `focusd` bring
 window forward (`ACTIVATE claude.exe`, then `front: claude.exe`), and the focus key snoozed a
 countdown in a real run; in the hotkey self-test the pause key and the focus key
 (`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
-app) register and their presses are delivered. **Not confirmed: that the boxes can be seen.**
-The owner did not see one in two runs, though both were poor chances (one box was hidden at
-once by a bug since fixed, the other was up during a screenshot). `focusd --test-box` now
-shows them on their own. The move away has not been tried. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
+app) register and their presses are delivered; and in `focusd --test-box` both the toast and
+the recap card are visible at the top of the screen. Not yet seen: a box during a real run
+(the two so far were poor chances), and the move away after the next prompt.
+See [docs/windows-quickstart.md](docs/windows-quickstart.md).
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
 decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back after a
