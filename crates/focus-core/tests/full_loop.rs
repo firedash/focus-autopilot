@@ -5,7 +5,7 @@
 mod support;
 
 use focus_core::{Config, ToastKind};
-use support::{BROWSER, Sim, TERMINAL, TERRARIA, app, config, prompt, stop};
+use support::{BROWSER, Sim, TERMINAL, TERRARIA, VSCODE, app, config, prompt, stop};
 
 const MAIL: &str = "com.example.Mail";
 
@@ -180,4 +180,23 @@ fn coming_back_on_your_own_while_claude_works_is_remembered_too() {
     sim.hook_for("s1", "p2", prompt("Next"));
     sim.at(300_000);
     assert_eq!(away_switches(&sim), vec![MAIL]);
+}
+
+/// VS Code is on the home-app list, but with no Claude session in it, it is just the app the
+/// user is working in: they are brought back from it, and sent back to it.
+#[test]
+fn an_editor_with_no_claude_session_in_it_is_like_any_other_app() {
+    let mut sim = fresh(Config::default());
+    sim.running.push(app(VSCODE));
+    sim.at(5_000);
+    sim.focus(VSCODE);
+    sim.at(60_000);
+    sim.hook(stop("Parser refactored."));
+    sim.at(70_000);
+    assert_eq!(sim.toasts(), vec![(60_000, ToastKind::ReturnCountdown)]);
+    assert_eq!(sim.activations(), vec![(65_000, TERMINAL)]);
+    sim.at(80_000);
+    sim.hook_for("s1", "p2", prompt("Now add tests for it"));
+    sim.at(300_000);
+    assert_eq!(away_switches(&sim), vec![VSCODE]);
 }

@@ -32,12 +32,12 @@ impl Core {
         self.start_return(next, now, fx)
     }
 
-    /// The user left the away app for a home app on their own.
+    /// The user left the away app for a window with a Claude session on their own.
     fn came_home(&mut self, now: Instant, fx: &mut Vec<Effect>) -> bool {
         let at_home = self
             .frontmost
             .as_ref()
-            .is_some_and(|front| self.is_home(front));
+            .is_some_and(|front| self.hosts_a_session(front));
         if !at_home {
             return false;
         }
@@ -76,19 +76,30 @@ impl Core {
         if self.returns_by_countdown() && !just_switched_away {
             self.show_return_countdown(next.session, next.home, 0, now, fx)
         } else {
+            // Say why the user is asked and not moved: it is the first thing to check when a
+            // countdown was expected.
+            let why = if !self.cfg.switching.auto_return {
+                "asked_because_auto_return_is_off"
+            } else if just_switched_away {
+                "asked_because_just_switched_away"
+            } else {
+                "asked_because_another_session_is_here"
+            };
+            fx.push(log(why, &next.session));
             self.show_return_prompt(next.session, next.home, 0, fx)
         }
     }
 
     /// Whether a return from where the user is now happens by itself after a countdown. Not
-    /// from another home window: someone working with one Claude session is asked, not moved,
-    /// when another one finishes.
+    /// from a window with another Claude session in it: someone working with one session is
+    /// asked, not moved, when another one finishes. An app that is merely on the home-app
+    /// list, such as an editor with no session, counts as anywhere else.
     fn returns_by_countdown(&self) -> bool {
-        let in_a_home_window = self
+        let with_another_session = self
             .frontmost
             .as_ref()
-            .is_some_and(|front| self.is_home(front));
-        self.cfg.switching.auto_return && !in_a_home_window
+            .is_some_and(|front| self.hosts_a_session(front));
+        self.cfg.switching.auto_return && !with_another_session
     }
 
     fn show_return_countdown(

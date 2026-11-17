@@ -250,6 +250,12 @@ and 3 without input, in place of 30 and 8), which is handy while trying it out.
 - **`focusd` won't start: `unknown keys: ...`.** `config.toml` has a setting the app doesn't
   know, usually a typo; correct or delete that line. A setting an older build had (such as
   `[return]`) does not stop it: `focusd` skips it and prints a `note:` saying you can delete it.
+- **A box asks "Go back?" when you expected a countdown.** The `focusd` window prints a
+  `log: asked_because_...` line just before it, which says why: `auto_return_is_off`,
+  `another_session_is_here` (the app you are in has a Claude session of its own),
+  `just_switched_away` (Claude finished within 5 seconds of moving you), `input_never_paused`
+  (you typed or moved the mouse for 5 seconds straight after the countdown) or
+  `the_switch_was_refused` (macOS did not bring the window forward).
 - **The hotkey does nothing.** Run `focusd --test-hotkeys`. A `problem:` line means the OS
   refused the chord (another app may own it): pick another in `[hotkeys]`. Registered but no
   presses means the events are not being delivered; type `click` in the `focusd` window

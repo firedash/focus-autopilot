@@ -31,16 +31,21 @@ These are the choices that implement it.
    within `switching.debounce_seconds` of an away switch gets the prompt, so the user is not
    flipped straight back.
 
-3. **Not from another home window.** If the user is in a window they prompt Claude from
-   (another terminal, an editor) when a different session finishes, they get the prompt, not
-   a countdown. Someone working with one Claude session is asked, not moved. This kept an
+3. **Not from a window with another Claude session in it.** If the user is in an app that
+   some other session was prompted from when this one finishes, they get the prompt, not a
+   countdown. Someone working with one Claude session is asked, not moved. This kept an
    existing rule: sessions waiting at different windows are returned to one at a time, and
-   the second by prompt.
+   the second by prompt. The first version of this rule asked in any app on the home-app
+   list, and on its first run on a Mac the owner, working in such an app with no session in
+   it, got "Go back?" where a countdown was expected. An editor or the Claude app with no
+   Claude Code session in it is now treated like any other app, for the return and as a place
+   to be sent back to. When the user is asked and not moved, the log says why
+   (`asked_because_...`).
 
 4. **The next away switch goes to where the user left off.** When the user arrives at a home
    window from another app while Claude is working or waiting for them, whether focusd
    brought them or they came themselves, the core remembers that app. The next away switch
-   goes there first, if it is still running and is not a home app; otherwise to the first
+   goes there first, if it is still running and has no Claude session in it; otherwise to the first
    running app in `away.apps`; otherwise nowhere. `away.resume_last_app` (default on) turns
    this off, and then only `away.apps` is used. Arriving at a home window with nothing going
    on is not coming back to Claude and changes nothing, so the first prompt of a sitting goes

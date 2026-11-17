@@ -188,6 +188,15 @@ impl Core {
             .any(|entry| app_id_matches(entry, &app.id))
     }
 
+    /// True when some Claude session was prompted from `app`. Narrower than [`Self::is_home`]:
+    /// an editor on the home-app list with no session in it is just another app the user
+    /// may be doing their steady work in.
+    pub(crate) fn hosts_a_session(&self, app: &AppRef) -> bool {
+        self.sessions
+            .values()
+            .any(|s| s.run.home.as_ref().is_some_and(|home| home.matches(app)))
+    }
+
     pub(crate) fn is_away_app(&self, app: &AppRef) -> bool {
         self.cfg
             .away
@@ -275,8 +284,8 @@ impl Core {
         }
     }
 
-    /// Remembers the app the user came from when they arrive at a home window while Claude
-    /// is working or waiting for them. Arriving with nothing going on is not coming back to
+    /// Remembers the app the user came from when they arrive at a window with a Claude
+    /// session in it while Claude is working or waiting for them. Arriving with nothing going on is not coming back to
     /// Claude, so it changes nothing.
     fn note_left_off(&mut self, previous: Option<AppRef>, now: Instant) {
         let Some(previous) = previous else {
@@ -285,8 +294,8 @@ impl Core {
         let arrived_home = self
             .frontmost
             .as_ref()
-            .is_some_and(|front| self.is_home(front));
-        if !arrived_home || self.is_home(&previous) {
+            .is_some_and(|front| self.hosts_a_session(front));
+        if !arrived_home || self.hosts_a_session(&previous) {
             return;
         }
         let claude_active = self

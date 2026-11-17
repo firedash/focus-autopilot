@@ -104,8 +104,8 @@ impl Core {
             .as_ref()
             .filter(|_| self.cfg.away.resume_last_app)
             .and_then(|app| running(&app.id))
-            // It may have been made a home app since.
-            .filter(|app| !self.is_home(app));
+            // A session may have been started there since.
+            .filter(|app| !self.hosts_a_session(app));
         left_off
             .or_else(|| self.cfg.away.apps.iter().find_map(|id| running(id)))
             .cloned()

@@ -56,6 +56,7 @@ impl Core {
                         step,
                     }
                 } else if now >= since + quiet_max {
+                    fx.push(log("asked_because_input_never_paused", &session));
                     self.show_return_prompt(session, home, snoozes, fx)
                 } else {
                     let step = ReturnStep::Countdown(Phase::Quiet { since });
@@ -119,6 +120,7 @@ impl Core {
                     self.complete_return(&session, how, now, fx);
                     Mode::Idle
                 } else {
+                    fx.push(log("asked_because_the_switch_was_refused", &session));
                     self.show_return_prompt(session, home, snoozes, fx)
                 }
             }
