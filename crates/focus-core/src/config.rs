@@ -184,7 +184,7 @@ impl Hotkeys {
 
     pub fn windows() -> Self {
         Self {
-            focus_key: "Ctrl+Alt+Space".into(),
+            focus_key: "Ctrl+Alt+Shift+Space".into(),
             pause: "Ctrl+Alt+Shift+P".into(),
             declare_long: String::new(),
         }
@@ -348,7 +348,7 @@ mod tests {
         assert!(c.ui.sound_on_return);
         assert_eq!(c.recap.mode, RecapMode::Basic);
         assert_eq!(c.history.retention_days, 90);
-        assert_eq!(Hotkeys::windows().focus_key, "Ctrl+Alt+Space");
+        assert_eq!(Hotkeys::windows().focus_key, "Ctrl+Alt+Shift+Space");
         assert_eq!(Hotkeys::macos().pause, "Control+Option+Command+P");
         assert_eq!(c.validate(|_| false), Ok(()));
     }

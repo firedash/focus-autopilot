@@ -37,7 +37,7 @@ Undo with `.\target\release\focusctl.exe uninstall-hooks`.
 .\target\release\focusd.exe --test-hotkeys
 ```
 
-Press `Ctrl+Alt+Space` and `Ctrl+Alt+Shift+P` from any window. Each press should print a
+Press `Ctrl+Alt+Shift+Space` and `Ctrl+Alt+Shift+P` from any window. Each press should print a
 line. A `problem:` line means another program owns that combination: pick another under
 `[hotkeys]` in `config.toml`.
 
@@ -55,7 +55,7 @@ how you can see it recognises your windows.
    `config.toml`: the built-in list of terminals and editors was written from memory.
 2. Switch to another window. When Claude finishes, a box appears at the top of the screen
    with a sound, counts down 5 seconds, and brings the window you prompted from forward,
-   with a recap for a few seconds. `Ctrl+Alt+Space` during the countdown snoozes it.
+   with a recap for a few seconds. `Ctrl+Alt+Shift+Space` during the countdown snoozes it.
 3. Send another prompt and wait. After about 30 seconds a box says "Claude will take a
    while" and you are moved back to the window you were in.
 
@@ -75,7 +75,7 @@ how you can see it recognises your windows.
   force_foreground = false
   ```
 
-  Then a refused switch shows "Go back?" and `Ctrl+Alt+Space` does it.
+  Then a refused switch shows "Go back?" and `Ctrl+Alt+Shift+Space` does it.
 - **Not there yet:** start at login, and the LLM recap is untried.
 
 ## If something is off

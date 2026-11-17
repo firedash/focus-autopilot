@@ -49,7 +49,11 @@ simulator ran. These are the choices in the adapter (`focus-platform/src/windows
    monitor that holds the foreground window, and scale with the system's scaling setting.
 
 6. **Hotkeys use `RegisterHotKey`, tied to the shell's thread.** No keyboard hook, so no
-   other key is ever seen. The defaults are `Ctrl+Alt+Space` and `Ctrl+Alt+Shift+P`. A chord
+   other key is ever seen. The defaults are `Ctrl+Alt+Shift+Space` and `Ctrl+Alt+Shift+P`. The design's
+   `Ctrl+Alt+Space` was the first default; on the owner's machine the Claude desktop app
+   already owned it, which is the program most users of this one will have. In that same
+   self-test the pause key registered and its presses were delivered: the first thing seen
+   working on a real Windows desktop. A chord
    another program owns is refused with that reason. The box shows the chord in Windows
    spelling.
 

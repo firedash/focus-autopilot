@@ -582,7 +582,7 @@ max_snoozes = 3
 away_prompt_seconds = 30
 
 [hotkeys]                     # "" turns a hotkey off; defaults differ by OS
-focus_key = "Control+Option+Command+Space"   # Windows: "Ctrl+Alt+Space"
+focus_key = "Control+Option+Command+Space"   # Windows: "Ctrl+Alt+Shift+Space" (ADR 0006)
 pause = "Control+Option+Command+P"           # Windows: "Ctrl+Alt+Shift+P"
 declare_long = ""                            # V1
 
