@@ -31,7 +31,8 @@ design, [docs/adr/0003-shell-decisions.md](docs/adr/0003-shell-decisions.md) rec
 
 **This is a developer build. Read [STATUS.md](STATUS.md) before anything else:** it says what
 has been seen working on a real Mac, what has only been verified on Linux, and what compiles for
-macOS but has never been run. The global hotkeys are in that last group.
+macOS but has never been run. The focus and pause hotkeys have been confirmed on a Mac with
+`focusd --test-hotkeys`.
 
 ## What it looks like
 

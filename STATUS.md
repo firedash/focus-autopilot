@@ -12,10 +12,11 @@ macOS parts were written from Linux:
 
 | Seen working on a real Mac | Verified on Linux only | Compiles for macOS, never run |
 | --- | --- | --- |
-| Hooks from Claude Code in a terminal | Everything in `focus-core`, the receiver, `focusctl` | Global hotkeys (focus, pause, declare-long): builds, links and passes its tests on a macOS CI runner, but no key press has ever been delivered |
+| Hooks from Claude Code in a terminal | Everything in `focus-core`, the receiver, `focusctl` | The focus key acting on a real toast during a run (the key itself is delivered; see left) |
 | Switching away and back | The Statistics and Configuration page, in Chromium | `focusctl ui` opening the browser with `open` |
 | The toast and recap boxes | The whole shell loop, against the fake platform | The launch agent being loaded by `launchd` |
 | The three-line LLM recap | `focusctl doctor`, `ui --no-open`, `--scope` | Time per app as read from real macOS |
+| Global hotkeys: `focusd --test-hotkeys` registered the focus and pause keys and printed each press (2026-11-16) | | The declare-long hotkey (off by default) |
 | | | Claude Code in VS Code, Cursor, the Desktop app |
 
 Where the build departs from `docs/design.md`, the ADRs win:
@@ -39,7 +40,7 @@ departure is that **manual mode is the default**: nothing switches you away on i
 | Run history in `runs.jsonl`, loaded into the estimator | `focus-runner` | done |
 | `focusctl`: `install-hooks`, `uninstall-hooks`, `rotate-token`, `--scope user/project/local`, `ui`, `doctor`, `install-agent`, `uninstall-agent` | `focusctl` | done and tested on Linux |
 | macOS adapter: front app, running apps, activation, idle time, sound, toast and recap panels | `focus-platform` | run on a Mac |
-| Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys` | `focus-platform` | parser tested; registration never run |
+| Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys` | `focus-platform` | focus and pause registered and delivered on a Mac in the self-test; not yet seen acting on a toast in a real run; declare-long untried |
 | Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
 | CI: format, lint, test and repository rules on Linux; build, lint and test on macOS; `cargo deny` | `.github/workflows/ci.yml` | passing on `main`, including a real macOS build, link and test run |
 | SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, THREAT_MODEL, PERMISSIONS, AUDIT, CODEOWNERS, pull request template, dependabot, `deny.toml` | repository root, `.github/` | written |
@@ -111,8 +112,8 @@ app; the project name on the toast says which session is waiting.
 
 ## Next steps, in order
 
-1. Run `focusd --test-hotkeys` on a Mac. Nothing else is as untested, and the page's
-   Hotkeys section depends on it.
+1. Use the focus key on a real toast: prompt Claude, switch to another app, and press it when
+   the box appears. The self-test showed the key is delivered; this shows the whole return.
 2. Run `focusctl ui` on a Mac and check that the page opens and the numbers look right
    against a day of real use.
 3. Test VS Code, Cursor and the Claude Desktop Code tab, and correct the app ids in

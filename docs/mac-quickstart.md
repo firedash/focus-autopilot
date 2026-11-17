@@ -1,7 +1,8 @@
 # Running Focus Autopilot on your Mac (developer build)
 
 This is a developer build. The switching, hooks, on-screen boxes and recap have run on a Mac
-with Claude Code in a terminal. The global hotkeys, the statistics and configuration page on
+with Claude Code in a terminal. The focus and pause hotkeys have been confirmed with the self-test below, though not yet in a
+full run. The statistics and configuration page on
 a real Mac, and other Claude Code surfaces have not been tried. Expect to find and fix
 problems; if something isn't working, start with `focusctl doctor` (below).
 
@@ -51,7 +52,8 @@ there (`--verbose` forces this when output goes to a file). The window you promp
 VS Code, JetBrains, Cursor and so on; list in `crates/focus-platform/src/known_apps.rs`). Add
 others under `[home] extra_apps` in `config.toml`.
 
-**Check the hotkey first.** It has never been seen working, and this takes a minute:
+**Check the hotkey first.** It has worked on one Mac; yours may have another app holding the
+same keys, and this takes a minute:
 
 ```bash
 ./target/release/focusd --test-hotkeys
