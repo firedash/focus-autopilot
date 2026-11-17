@@ -1,62 +1,73 @@
 # Focus Autopilot — Feature Backlog & Technical Design (v1: Claude Code on macOS and Windows)
 
-Nov 14, 2026 · firedash
+Rewritten 2026-11-17 to describe what is built · firedash
 
-> **Changes since this document was written.** The build departed from the design in a few
-> places; [ADR 0003](adr/0003-shell-decisions.md) and
-> [ADR 0004](adr/0004-statistics-and-configuration-page.md) record each and win over the text
-> below.
-> [ADR 0005](adr/0005-the-full-loop-by-default.md) and
-> [ADR 0006](adr/0006-the-windows-adapter.md) are the latest and win over the rest. The
-> Windows adapter departs from "Never used" in section 8 in one way: it sends one empty mouse
-> event when Windows refuses a switch (ADR 0006 item 4).
-> In short: (1) **returns are automatic from any app**, after a 5 second countdown the focus
-> key snoozes, and **the next away switch goes to the app the user left off in**, ahead of
-> `away.apps`; turning off `switching.auto_return` and `away.resume_last_app` gives the
-> manual mode that was the default for a while (a toast, and one key takes you back). (2) The LLM recap holds back the basic card instead of replacing
-> it (section 10). (3) Anthropic's docs say Claude Code fires the same hooks in IDE extensions
-> and the Desktop app as in the terminal, so those surfaces should need no receiver change;
-> only the terminal has been tested, and each would need its app in the home-app list. (4) Secrets are redacted at the receiver and again on the recap card, not only before the LLM
-> recap; every toast and the recap card name the project; `runs.jsonl` is written and loaded;
-> `focusctl install-agent` provides launch at login; `focusd` logs event names only when its
-> output is a file. (5) The recap card carries every other waiting session's outcome, not just its name, and
-> same-named folders show as `parent/name`. (6) Exact-window return, the Tauri shell, the
-> menu-bar icon and an installer are not built; ADR 0003 item 16 lays out the routes.
-> (7) There is a **Statistics and Configuration page**, a local web page served by `focusd` and
-> opened with `focusctl ui`, in place of the tray menu and settings window; it records time
-> per app (names and durations only) unless turned off. `config.toml` is re-read when it
-> changes. See ADR 0004.
+**How to read this.** This document describes the app as it is built. Three other places
+hold what it deliberately leaves out:
+
+| For | Read |
+| --- | --- |
+| Why each choice was made, and what was tried and withdrawn | The decision records in [adr/](adr/) |
+| What has been seen working on a real Mac or Windows desktop, and test counts | [STATUS.md](../STATUS.md) |
+| The design as first written on 2026-11-14, with its market survey, build plan and build prompt | [design-original.md](design-original.md) |
+
+The decision records call that first version "the design" and say where they depart from
+it. Their conclusions are folded into the text below, so this file and the records should
+agree; if they don't, the newer of the two is right and the other needs fixing.
+
+Section numbers are stable. Code comments cite them (`design section 7`), so a section may
+be rewritten but not renumbered.
+
+Things that are planned but not built are marked **Not built** where they appear, and listed
+together in section 4.
 
 ## 1. Overview
 
-Focus Autopilot (working name) is a local background app that moves a developer between intermittent prompting work with a coding agent and steady work in an app they choose, driven by the agent's state. v1 supports Claude Code only, on macOS and Windows: when Claude finishes or needs permission while you are elsewhere, it tells you and one key takes you back with a short recap of where you left off. Optionally, when a prompt runs long enough it also switches you to an away app you chose.
+Focus Autopilot is a local background program that moves a developer between prompting a
+coding agent and steady work in another app, driven by the agent's state. It supports Claude
+Code only. When Claude finishes or needs approval while you are elsewhere, it plays a sound,
+counts down and brings you back to the window you prompted from, with a short recap. Once
+your next prompt has been running for a while, it moves you back to the app you left.
 
-**Problem.** Prompt-and-wait coding leaves idle gaps that vary from seconds to 20 minutes. Pomodoro timers don't fit that rhythm, and moving to other work means either checking back constantly or forgetting to return. Existing tools cover only half the loop: they bring you back, or they entertain you while you wait, but none does both with real apps and a recap (see section 3).
+**Problem.** Prompt-and-wait coding leaves idle gaps that vary from seconds to 20 minutes.
+Moving to other work means either checking back constantly or forgetting to return.
+Notification hooks tell you Claude is done; finding the window, working out what happened and
+getting back to your own work are left to you.
 
-**Target user.** A developer running Claude Code who wants to use wait time for steady work of their own choosing, such as writing, reading, another project or a break, without forgetting to return.
+**Target user.** A developer running Claude Code who wants to use wait time for steady work
+of their own choosing, without forgetting to return.
 
-**v1 goals**
+**What v1 does**
 
-- Detect when a Claude Code turn starts, needs input, and ends, using Claude Code hooks.
-- Bring the user back to the coding window on completion or permission prompts with one key, and optionally switch them to a configured away app on long runs.
-- Warn before every automatic switch with a short countdown and an easy snooze, so keystrokes never land in the wrong window.
-- Show a recap card on return: what you asked, what Claude did, and what needs your decision.
-- Estimate wait length from elapsed time and local history, and use it to decide whether to switch at all.
-- Run on macOS and Windows from one codebase: a shared core with thin per-OS adapters.
-- Earn trust as an open-source project: small, readable, few dependencies, and nothing leaves the machine by default (section 13).
+- Detects when a Claude Code turn starts, needs input and ends, using Claude Code hooks.
+- Brings the user back to the window they prompted from, after a countdown, when Claude is
+  done or needs them.
+- Moves the user away on a long run: to the app they left off in, or else to a configured
+  away app.
+- Announces every automatic switch with a countdown that one key stops, and waits for a
+  pause in typing before switching, so keystrokes don't land in the wrong window.
+- Shows a recap card on return: what you asked, what Claude did, what needs a decision.
+- Estimates wait length from elapsed time, local history and live events, to decide when to
+  switch away.
+- Serves a local page with statistics and every setting.
+- Runs on macOS and Windows from one codebase: a shared core with one adapter per OS.
+- Keeps everything on the machine by default, and asks for no OS permission.
 
 **Non-goals for v1**
 
-- Support for agents other than Claude Code (Codex, Cursor's own agent, Antigravity are later). Claude Code itself also runs in IDE extensions and the Desktop app; those are targets, not yet verified (see ADR 0003).
-- Linux support (planned for V2).
+- Agents other than Claude Code. Cursor's own agent, Codex and others have different hook
+  systems.
+- Linux, except for the headless test runner.
 - Pausing or controlling the away app, or any app-specific integration.
-- Auto-approving permission prompts or answering Claude's questions.
-- Reading keystrokes, screen contents or Claude Code transcripts.
+- Approving permission prompts or answering Claude's questions.
+- Reading keystrokes, screen contents, window titles or Claude Code transcripts.
 - Claude Code sessions running in the cloud, which fire no local hooks.
-- Cloud sync, accounts, analytics or multi-machine use.
-- Mobile apps.
+- Cloud sync, accounts, analytics, multi-machine use, mobile apps.
 
-**Supported platforms.** macOS 14 (Sonoma) or later, as one universal build for Apple silicon and Intel; Windows 10 22H2 and Windows 11 on x64. Claude Code: any version whose hooks reference documents HTTP hooks and `prompt_id`; the README records the tested version and `focusctl doctor` checks it. English only in v1.
+**Supported platforms.** macOS 14 or later; Windows 10 and 11. Both are built from source;
+there is no installer. Only Claude Code in a terminal has been tested end to end. Other
+surfaces (IDE extensions, the Desktop app's Code tab) fire the same hooks according to
+Anthropic's documentation and are covered in STATUS.md. English only.
 
 **Terms**
 
@@ -64,227 +75,293 @@ Focus Autopilot (working name) is a local background app that moves a developer 
 | --- | --- |
 | Session | One Claude Code conversation, identified by `session_id` |
 | Run | One prompt and everything Claude does until it stops, identified by `prompt_id` |
-| Home window | The terminal, IDE or Claude app window the prompt was sent from |
-| Away app | Optional. An app the user chose for steady work during waits, which focusd switches to on long runs. With none set (the default) the user goes wherever they like |
-| Switch | An automatic focus change, always announced by a countdown toast |
-| Fallback prompt | The one-click or one-key toast shown when the OS refuses a switch or an automatic one would be unsafe |
+| Home app | An app a prompt can be sent from: a terminal, an IDE, the Claude app. A built-in list, extended by `home.extra_apps` |
+| Home window | The window a run's prompt was sent from. On macOS this is the app; on Windows the exact window |
+| Left-off app | The app the user was in when they last came back to a home window while Claude was working or waiting |
+| Away app | An app named in `away.apps`. Optional; used when there is no left-off app |
+| Switch | An automatic focus change, always announced by a countdown |
+| Toast | The small box that announces a switch or asks a question. The code and the user-facing text also call it "the box" |
+| Prompt (toast) | A toast that asks and waits ("Go back?", "Switch to Obsidian?"), shown when an automatic switch is refused, unsafe or turned off |
 | Focus key | The hotkey that acts on whichever toast is showing |
-| focusd | The always-running app (product name Focus Autopilot) |
-| focusctl | The command-line tool for hooks, diagnostics, recording and audits |
+| focusd | The always-running program |
+| focusctl | The command-line tool for hooks, the token, the page, diagnostics and launch at login |
 
 ## 2. Working model and product principles
 
-The unit of work is the dispatch, wait, review loop, not a clock block. Focused attention belongs at the two ends: writing a sharp prompt or spec, and reviewing the result. The wait in the middle should be spent according to how long it is.
+The unit of work is the dispatch, wait, review loop, not a clock block. Attention belongs at
+the two ends: writing the prompt and reviewing the result. The wait in the middle should be
+spent according to how long it is.
 
-**Wait-time tiers (defaults, user-configurable)**
+**Wait-time tiers.** The boundaries are fixed in `estimator.rs`; what each tier does to the
+away switch is configurable (section 9).
 
 | Tier | Expected wait | Behavior |
 | --- | --- | --- |
-| Short | under 30 s | Stay put. Leaving costs more than it saves. |
-| Medium | 30 s to about 5 min | Switch to the away app, or stay for same-context micro-tasks (skim last diff, draft next prompt). |
-| Long | over about 5 min | Real break: switch to the away app and suggest a break. |
+| Short | under 30 s | Stay put. Leaving costs more than it saves |
+| Medium | 30 s to under 5 min | Switch away early |
+| Long | 5 min and over | Switch away early |
 
 **Principles**
 
-1. **Never surprise the user.** Every automatic switch is preceded by a visible countdown (default 3 s) that a click or the focus key cancels or snoozes. This is the biggest risk, because people already complain about apps stealing focus.
-2. **React to elapsed time first, predict second.** Agents give no ETA, so v1 decides from elapsed time and refines with history and live tool events (section 9).
-3. **Steady work must be easy to leave.** Work that can be put down at any moment fits best (reading, writing, review, planning). Anything that punishes interruption, such as a live call or a real-time game, does not. The app warns before switching into an app marked as immersive.
-4. **Return with context.** Coming back should take seconds: a recap card names the last prompt, what Claude did, and any decision needed.
-5. **Stay out of the agent's way.** Hooks must be fast and fail-safe: if the app is down, Claude Code works exactly as before.
-6. **The user is always in control.** The tray and one global hotkey pause all automation.
-7. **Only manage a context the user is in.** Switch away only from the home window while the user is idle; switch back automatically only from an away app. Anywhere else, show the fallback prompt and let the user decide.
-8. **Observe as little as possible.** focusd reads the frontmost app, global idle time and hook events. It never reads keystrokes, screen contents or transcripts.
+1. **Never surprise the user.** Every automatic switch is preceded by a visible countdown
+   that the focus key cancels or snoozes. A countdown of 0 is refused by config validation.
+2. **React to elapsed time first, predict second.** Agents give no ETA, so the app decides
+   from elapsed time and refines with history and live tool events (section 9).
+3. **Steady work must be easy to leave.** Work that can be put down at any moment fits best.
+   An app flagged immersive gets a longer countdown with a warning.
+4. **Return with context.** A recap card names the prompt, what Claude did and any decision
+   needed.
+5. **Stay out of the agent's way.** Hooks are answered at once and never veto anything. If
+   focusd is down, Claude Code works as before.
+6. **The user is always in control.** One hotkey pauses all automation, and two settings
+   turn the automatic switches into questions (section 7).
+7. **Only manage a context the user is in.** Switch away only from a run's home window.
+   Bring the user back from any app, except a window that holds another Claude session:
+   someone working with one session is asked, not moved, when another finishes.
+8. **Observe as little as possible.** focusd reads the frontmost app, the list of running
+   apps, global idle time and hook events. It never reads keystrokes, window titles, screen
+   contents or transcripts.
 
 ## 3. Market snapshot
 
-No tool found runs the full loop: switch away on prompt, switch back on completion, with a recap, for real apps. Existing tools cover pieces of it. Findings come from web search results as of 2026-11-13 and were not exhaustively verified.
+No tool found in November 2026 ran the full loop: switch away on a long prompt, switch back
+on completion, with a recap, for real apps. Existing tools covered one piece each: focus-back
+extensions and notification hooks (one direction, no recap), waiting games (in the terminal
+or an overlay, not your own apps), and session dashboards (monitoring only).
 
-| Tool | Category | What it does | Gap vs Focus Autopilot |
-| --- | --- | --- | --- |
-| [Claude Focus](https://marketplace.visualstudio.com/items?itemName=evileye.claude-focus) | Focus back | VS Code extension that brings the window to the front when Claude Code needs attention or finishes | VS Code only; no away-switch, no recap |
-| [Hook recipe, issue #53126](https://github.com/anthropics/claude-code/issues/53126) | Focus back | Windows hooks on Stop and PermissionRequest that beep and focus VS Code | Manual script; one direction |
-| [code-notify-hook](https://www.pkgstats.com/pkg:@poli.digital/code-notify-hook) | Focus back | Notifications with click-to-focus on the exact IDE or terminal window | Needs a click; no away-switch |
-| [claude-notifications-go](https://newreleases.io/project/github/777genius/claude-notifications-go/release/v1.40.0) | Focus back | Windows notifications can bring the originating terminal into focus | One direction; no recap |
-| [agent-arcade](https://github.com/Kuldeep-045/agent-arcade) | Waiting games | Terminal games that pause and beep when the agent finishes | Games live in the terminal, not your real apps |
-| [Agent Arcade overlay](https://danwahlin.github.io/agent-arcade/) | Waiting games | Transparent desktop overlay platformer | Built-in games only |
-| [Backgrind](https://backgrind.com/play/minecraft/) | Overlay | Always-on-top agent window over borderless-fullscreen games, chimes on decision or finish | Puts the agent over the game; does not switch or recap |
-| [Claude Code Agent View](https://pasqualepillitteri.it/en/news/2384/claude-code-agent-view-cli-dashboard-sessions-2026) | Session dashboard | Lists all sessions by state | No focus automation |
-| [AgentManager](https://chatgate.ai/post/agentmanager) | Session dashboard | Floating macOS panel for Claude Code sessions | Monitoring only |
+Two findings shaped the product. Claude Code's terminal already shows its own recap when you
+return to a session, so this recap had to work across apps. And users file issues asking
+agents to stop stealing focus, so the countdown and snooze are requirements, not polish.
 
-**Implications.** Claude Code's terminal already shows its own recap when you leave a session and return ([ClaudeDevs](https://x.com/ClaudeDevs/status/2046613932518023259)), so the recap should be cross-app and agent-agnostic. Users also file issues asking to stop focus stealing ([#94460](https://github.com/anthropics/claude-code/issues/94460)), so the countdown and snooze are product requirements, not polish.
+The survey table with links is in
+[design-original.md, section 3](design-original.md#3-market-snapshot). It was built from web
+search results on 2026-11-13 and was not exhaustively verified. The README's "Why not just a
+notification hook?" compares against the simplest alternative.
 
 ## 4. Feature backlog
 
-The MVP closes the loop on macOS and Windows: hooks in, state machines with guards, switch away and back with a countdown and fallback, and a basic recap. V1 adds estimation, the LLM recap, multi-session queueing and exact-window return on macOS. V2 and later widen agents and platforms.
+IDs are stable; code comments and decision records cite them. The acceptance criteria as
+first written are in [design-original.md](design-original.md#4-feature-backlog). "Built"
+means the code exists and is tested against the fake platform or on Linux. STATUS.md says
+what has been seen working on a real desktop.
 
-| ID | Epic | Feature | Priority | Acceptance criteria |
-| --- | --- | --- | --- | --- |
-| A1 | Hook ingestion | `focusctl install-hooks` and `uninstall-hooks` manage the hooks listed in section 6 in the user's settings.json | MVP | `--dry-run` prints the diff; backs up, merges and writes atomically; writes through symlinks; refuses files that aren't strict JSON; a repeated install changes nothing; uninstall leaves everything else byte for byte |
-| A2 | Hook ingestion | Hardened local event receiver on 127.0.0.1 | MVP | Replies 200 within 10 ms; rejects a wrong token, a foreign Host header, any Origin header, non-JSON bodies and bodies over 8 MB; a stopped app never blocks Claude Code |
-| A3 | Hook ingestion | `focusctl record` writes scrubbed traces for test fixtures | MVP | String values become same-length placeholders; field names, structure and timing are kept; output is safe to commit |
-| A4 | Hook ingestion | `focusctl rotate-token` | MVP | Config and hooks get the new token in one step; the old token is rejected at once |
-| B1 | Session state | Per-session state machine and the global switch controller (section 7) | MVP | Replayed traces end in the expected states, including interrupts, permission prompts, questions, Stop-hook continuations and two overlapping sessions |
-| B2 | Session state | Resume heuristic after a needs-input pause (section 7) | MVP | An approve-then-long-command trace returns to RUNNING after input and 8 s idle; an unanswered prompt never triggers an away switch |
-| C1 | Platform | macOS and Windows adapters for frontmost app, running apps, idle time, activation, hotkeys, overlay and sound | MVP | Every call works on both OSes without an OS permission prompt; activation results are verified correctly in 9 of 10 manual attempts |
-| C2 | Platform | Home window captured at prompt submit (section 8) | MVP | Prompts from each built-in home app record that app, and on Windows the exact window; an unknown app is ignored until added as a home app |
-| C3 | Platform | Ordered away-app list; the first running app is used | MVP | With none running, no away switch happens and the tray says why; the away and home lists can't overlap |
-| C4 | Platform | Immersive flag for away apps | V1 | Flagged apps get a 5 s countdown with a warning |
-| C5 | Platform | Exact-window return on macOS with the optional Accessibility permission | V1 | With permission, returns to the window the prompt came from; without it, app-level return works and no permission prompt appears unless the user enables the option |
-| C6 | Platform | Opt-in forceful activation on Windows | Later | Built only if the M2 spike shows most switches are refused; off by default and documented in PERMISSIONS.md |
-| D1 | Switch policy | Away switch after the threshold, with the guards in section 7 | MVP | After 30 s with no Stop, the user in the home window and idle 8 s: countdown, then the away app, or the fallback prompt if the OS refuses |
-| D2 | Switch policy | Return on Stop, a permission prompt or a question | MVP | From an away app: countdown, then the home window and recap; from any other app: the fallback prompt; nothing if the user is already home |
-| D3 | Switch policy | Countdown toast with cancel and snooze | MVP | A click or the focus key cancels an away switch for the rest of the run, or snoozes a return for 60 s, at most 3 times; the toast never takes keyboard focus |
-| D4 | Switch policy | Pause | MVP | The tray offers 30 min, 1 h and until resumed, and a hotkey toggles it; while paused, state still updates but nothing switches |
-| D5 | Switch policy | Debounce rules (section 7) | MVP | A Stop within 5 s of an away switch shows the fallback prompt instead of switching; a needs-input that clears within 2 s does nothing |
-| D6 | Switch policy | Input-quiet guard | MVP | A switch waits for 600 ms without keyboard or mouse input, up to 5 s; if input continues, the fallback prompt appears instead |
-| D7 | Switch policy | Fallback prompt when the OS refuses a switch | MVP | Refusal is detected within 400 ms; one click or the focus key completes the switch on both OSes |
-| D8 | Switch policy | Sound on return | MVP | A system sound, on by default and configurable, plays even when the toast can't be seen |
-| D9 | Switch policy | Suggest an away activity by tier | V2 | The suggestion appears in the countdown |
-| D10 | Switch policy | Optional pause integration for away apps | Later | Per-app opt-in; never sends keystrokes by default |
-| F1 | Recap | Basic recap card: prompt, start of the last message, files touched, what needs a decision | MVP | Appears within 1 s of returning; never takes focus; renders all text as plain text; closes after 10 s or soon after the user starts typing |
-| F2 | Recap | LLM recap through the local Claude Code CLI (section 10) | V1 | Off by default; replaces the basic text within 20 s, and the basic text is shown if it does not; runs with no tools and no hooks; never reads the transcript |
-| F3 | Recap | Run statistics on the card: duration, tool calls, sub-agents, background tasks still running | V1 | Counts match the replayed trace |
-| E1 | Estimation | Append each run's metadata to a local JSON Lines file | V1 | One line per run with the fields in section 11; no prompt text, paths or commands |
-| E2 | Estimation | History-based estimate chooses the tier | V1 | With 5 or more similar runs, the predicted tier matches the actual one for most replayed runs; otherwise elapsed time decides |
-| E3 | Estimation | Live signals raise the estimate | V1 | A replayed trace with a sub-agent start or a test command moves the run to the Long tier |
-| E4 | Estimation | Declare-long hotkey | V1 | Pressing it during a run sets the Long tier and starts the away switch |
-| E5 | Estimation | Learned model beyond the median | Later | Beats the median on held-out runs |
-| H1 | Multi-session | Queue returns from several sessions | V1 | Two sessions finishing close together return one at a time, needs-input first; the card lists the rest |
-| G1 | Settings | TOML config with documented defaults and live reload | MVP | Starts with no config file; an invalid edit keeps the last good config and shows the error in the tray |
-| G2 | Settings | First-run wizard (section 8) | MVP | The user finishes with hooks installed, an away app chosen and one test switch seen |
-| G3 | Settings | Launch at login | MVP | Off until enabled in the wizard or tray; uses the OS login-item mechanism |
-| G4 | Settings | `focusctl doctor` | MVP | Checks hooks, receiver, port, hotkeys, idle-time access, Claude Code version and events seen, with a fix for each failure |
-| G5 | Settings | Ignore projects by folder pattern | V1 | Events from matching folders are ignored entirely |
-| G6 | Settings | Away-app profiles by project or time of day | V2 | The profile is chosen from the project or schedule |
-| I1 | Insights | Local dashboard: time waiting, time away, time to return | V2 | Reads only the local runs file; no network calls |
-| O1 | Open source | Repository files from the first public commit: LICENSE, SECURITY.md, CONTRIBUTING.md, CODE\_OF\_CONDUCT.md, CODEOWNERS, THREAT\_MODEL.md, PERMISSIONS.md, DEPENDENCIES.md, AUDIT.md | MVP | All files exist and are filled in; AUDIT.md names every listener, file written, process spawned and OS API that observes the user |
-| O2 | Open source | CI on every pull request (section 13) | MVP | Main is branch-protected; a pull request can't merge unless every check passes |
-| O3 | Security | Negative tests and fuzz targets for the receiver and the settings.json merge | MVP | Forged and malformed requests are rejected in tests; fuzz targets run in CI without crashes |
-| O4 | Security | No telemetry and no outbound network except the opt-in LLM recap | MVP | The Linux integration test fails on any non-loopback connection or any write outside the allowed paths |
-| O5 | Open source | Signed releases with checksums, SBOM and build provenance | V1 | macOS opens the app without Gatekeeper overrides; Windows binaries are signed once SignPath approval arrives; unsigned binaries rebuild from the tag with matching checksums |
-| J1 | Other agents | Codex adapter (turn-complete notify) | V2 | The same state machine runs on a different event source |
-| J2 | Other agents | Adapters for Cursor, Antigravity, Gemini CLI | V2 | One adapter per agent behind the common event schema |
-| J3 | Platforms | Linux (X11 first, Wayland best effort) | V2 | Same acceptance as C1 on Linux |
+| ID | Feature | Status | As built |
+| --- | --- | --- | --- |
+| A1 | `focusctl install-hooks` and `uninstall-hooks` | Built | Section 6. Also `--scope user/project/local` and `--settings FILE` |
+| A2 | Hardened local event receiver | Built | Section 6 and 13. The 10 ms reply budget has not been measured |
+| A3 | `focusctl record` for scrubbed fixtures | Not built | Fixtures are hand-written |
+| A4 | `focusctl rotate-token` | Built | |
+| B1 | Per-session state machine and switch controller | Built | Section 7 |
+| B2 | Resume heuristic after a needs-input pause | Built | Counts input only while the home window is in front (ADR 0001 item 8) |
+| C1 | macOS and Windows adapters | Built | Section 8. The front app is polled, not notified |
+| C2 | Home window captured at prompt submit | Built | App on macOS, exact window on Windows |
+| C3 | Ordered away-app list | Built, changed | The left-off app comes first, then `away.apps` (ADR 0005 item 4) |
+| C4 | Immersive flag for away apps | Built | Countdown of at least 5 s, with a warning line |
+| C5 | Exact-window return on macOS | Not built | Two routes examined; one tried and withdrawn (ADR 0003 items 16, 21) |
+| C6 | Forceful activation on Windows | Built, changed | One empty mouse event when Windows refuses, on by default (ADR 0006 item 4) |
+| D1 | Away switch after the threshold | Built, changed | No idle time required by default; 8 s hold-off after coming back (ADR 0005 item 5) |
+| D2 | Return on Stop, a permission prompt or a question | Built, changed | A countdown from any app, not only from an away app (ADR 0005 item 1) |
+| D3 | Countdown toast with cancel and snooze | Built, changed | The focus key only. The toast ignores the mouse, so it cannot be clicked |
+| D4 | Pause | Partly built | The pause hotkey toggles it. The core accepts timed pauses but nothing offers them |
+| D5 | Debounce rules | Built | Section 7 |
+| D6 | Input-quiet guard | Built | Section 7 |
+| D7 | Prompt when the OS refuses a switch | Built | The focus key completes the switch |
+| D8 | Sound on return | Built | |
+| D9 | Suggest an away activity by tier | Not built | V2 |
+| D10 | Pause integration for away apps | Not built | Later |
+| F1 | Basic recap card | Built | Section 10. Also names the project and other waiting sessions |
+| F2 | LLM recap through the local Claude Code CLI | Built, changed | The basic card is held back, not shown and replaced (ADR 0003 item 4) |
+| F3 | Run statistics on the card | Built | |
+| E1 | Run history in a JSON Lines file | Built | Section 11 |
+| E2 | History-based estimate chooses the tier | Built | Section 9 |
+| E3 | Live signals raise the estimate | Built | A test command gives Medium, not Long; both switch at 10 s (ADR 0002 item 4) |
+| E4 | Declare-long hotkey | Built | Off by default |
+| E5 | Learned model beyond the median | Not built | Later |
+| H1 | Queue returns from several sessions | Built | Section 7 (ADR 0002 item 5) |
+| G1 | TOML config with defaults and live reload | Built, changed | An unknown key is an error, not a warning (ADR 0003 item 22, ADR 0004 item 6) |
+| G2 | First-run wizard | Not built | `focusctl install-hooks` and the Configuration tab cover setup |
+| G3 | Launch at login | Partly built | macOS only: `focusctl install-agent` writes a launch agent. Not built for Windows |
+| G4 | `focusctl doctor` | Built | Checks the config, the hooks, the receiver, events seen, the `claude` CLI and the launch agent |
+| G5 | Ignore projects by folder pattern | Built | Pattern rules in ADR 0002 item 8 |
+| G6 | Away-app profiles by project or time of day | Not built | V2 |
+| I1 | Local dashboard | Built early | The Statistics tab (section 8, ADR 0004). It also records time per app, which the first design did not |
+| O1 | Repository trust files | Built | No CHANGELOG or REPRODUCIBLE.md |
+| O2 | CI on every pull request | Partly built | Section 13 |
+| O3 | Negative tests and fuzz targets | Partly built | Negative tests over a real socket; no fuzz targets |
+| O4 | No telemetry, no outbound network | Built | True by construction; the `strace` test that would enforce it is not built |
+| O5 | Signed releases with checksums, SBOM, provenance | Not built | |
+| J1 | Codex adapter | Not built | V2 |
+| J2 | Adapters for Cursor, Antigravity, Gemini CLI | Not built | V2 |
+| J3 | Linux | Not built | V2. `focus-headless` runs there with a fake platform |
+
+Also not built, and not in the backlog: a menu-bar or tray icon, an installer, changing
+hotkeys without a restart, statistics per project, and `focusctl audit`.
 
 ## 5. Architecture
 
-One local desktop process ("focusd") receives Claude Code hook events over HTTP, tracks each session's state, decides when to switch, moves focus through OS adapters, and shows a countdown and a recap. Nothing leaves the machine except the optional recap call to the Anthropic API.
+One local process, `focusd`, receives Claude Code hook events over HTTP, tracks each
+session's state, decides when to switch, moves focus through an OS adapter, and shows a
+countdown and a recap. Nothing leaves the machine except the opt-in recap, which runs the
+user's own `claude` command.
 
-&#91;embedded content: architecture · 8 components in one local process\]
+```mermaid
+flowchart LR
+    CC["Claude Code hooks"] -->|"POST /hook"| R["focus-receiver"]
+    B["Browser: Statistics and Configuration"] -->|"/ui and /api"| R
+    R -->|"normalized events"| L["focus-runner: shell loop"]
+    P["focus-platform: OS adapter"] -->|"front app, idle time, hotkeys"| L
+    L -->|"Input"| C["focus-core: every decision"]
+    C -->|"Effect"| L
+    L -->|"activate, toast, recap, sound"| P
+    L --> F[("config.toml, runs.jsonl, usage.json")]
+    L -.->|"opt-in"| CL["claude CLI for the recap"]
+```
 
-Hook events enter on the left. The policy engine is the only part that decides, and the window controller is the only part that touches other apps.
+The core is the only part that decides. The platform crate is the only part that touches
+other apps.
 
-**Proposed v1 stack (confirm in section 15):** Rust, with a Tauri 2 shell for the tray, global hotkeys and the small UI. One codebase covers macOS and Windows, Rust rules out whole classes of memory bugs in code that parses outside input, and Cargo's tooling makes the dependency tree checkable. The workspace is split so an auditor can read the important parts first:
+**Stack.** A Rust workspace with no UI framework. The on-screen boxes are native windows in
+`focus-platform`; the settings and statistics page is three static files served by the
+receiver. The first design proposed a Tauri shell with a tray and a wizard; it was not used
+(ADR 0003 item 2, ADR 0004 item 1).
 
-- `focus-core`: every decision (state machines, guards, estimator, recap builder). No I/O, no OS calls, no `unsafe`.
-- `focus-receiver`: the HTTP receiver and payload parsing into normalized events. No UI and no OS calls, so it runs headless in tests.
-- `focus-platform`: the per-OS adapters plus a fake used in tests. The only crate allowed `unsafe`, each block with a written safety justification.
-- `focus-app` and `focusctl`: the thin Tauri shell (wiring, overlay, tray, wizard, store) and the command-line tool (hooks, token, recording, doctor, audit, test switch).
-- `focus-headless`: a dev-only runner that wires the receiver and core to the fake platform for the Linux integration test.
+**Crates**
 
-Electron, the earlier proposal, was dropped because its Chromium and npm dependency tree is too large to audit. A native app per OS would behave best but doubles the UI work. Tauri 2.8 and later can create non-focusable windows ([Tauri 2.8 release notes](https://v2.tauri.app/release/tauri-runtime/v2.8.0/)), but floating one over a full-screen game without taking focus must be proven on both OSes in milestone M2. If it falls short, the overlay moves into `focus-platform` as a small native window (a non-activating panel on macOS, a no-activate topmost window on Windows).
+| Crate | Responsibility | Rules |
+| --- | --- | --- |
+| `focus-core` | Session state machines, guards, the switch controller, the estimator, recap text, redaction | No I/O, no OS calls, no `unsafe`, no dependencies |
+| `focus-receiver` | The loopback HTTP server, request checks, payload parsing into normalized events, `config.toml` parsing, and the page's files and API routes | No OS calls; runs headless in tests |
+| `focus-platform` | The `Platform`, `Overlay` and `Hotkeys` traits; the macOS and Windows adapters; a fake for tests; the built-in home-app list | The only crate allowed `unsafe`, each block with a `// SAFETY:` comment |
+| `focus-runner` | The shell loop shared by both runners; time per app; statistics; the settings the page may change; run history; the recap CLI call | |
+| `focusd` | The daemon: receiver, core and the real adapter | macOS and Windows |
+| `focus-headless` | A dev runner: receiver, core and the fake platform, with effects printed | Runs anywhere |
+| `focusctl` | Hooks, the token, the page launcher, `doctor`, launch at login | |
 
-**Components**
-
-| Component | Responsibility |
-| --- | --- |
-| Hook client | Claude Code's own HTTP hooks POST each event's JSON to focusd; no script or shim |
-| Event receiver | HTTP server on 127.0.0.1 that checks each request, replies 200 at once, parses only known fields and queues a normalized event |
-| Session manager | One state machine per `session_id` (section 7) |
-| Policy engine | The global switch controller: guards, countdowns, fallback prompts, debounce and pause (section 7) |
-| Estimator | Wait tier and range from history and live signals (section 9) |
-| Window controller | The platform layer: frontmost app, running apps, idle time, activation, hotkeys, overlay windows and sound, one adapter per OS (section 8) |
-| Overlay UI | Non-focusable toast and recap card, tray menu, first-run wizard |
-| Recap service | Builds the recap from the run's events, with an optional LLM summary (section 10) |
-| Store | TOML config, JSON Lines run history (V1) and rotating logs; no database (section 11) |
-
-**Data flow.** Claude Code fires a hook, the event receiver acknowledges it, the session manager updates state, the policy engine asks the estimator and then the window controller to act, and the overlay UI shows the countdown and recap.
-
-**Core contract.** `focus-core` is a deterministic state machine: inputs in, effects out, no I/O. The shell owns every side effect, so each decision is testable with recorded traces and a fake clock, and the code an auditor must trust sits in one place.
+**Core contract.** `focus-core` is a deterministic state machine: inputs and the time go in,
+effects come out, and there is no I/O. The shell owns every side effect, so each decision is
+testable with recorded traces and a fake clock. The definitions live in `focus-core/src/io.rs`
+and `events.rs`; this is their shape:
 
 ```rust
 pub enum Input {
-    Hook(AgentEvent),       // normalized Claude Code payload (section 6)
-    Observed(Observation),  // frontmost app changed, idle seconds, switch verified or refused
-    User(UserAction),       // toast click, focus key, pause, declare-long, wizard test
-    Config(Config),
+    Hook(AgentEvent),            // normalized Claude Code payload (section 6)
+    Observed(Observation),       // front app, idle time, running apps, activation result
+    User(UserAction),            // focus key, pause, resume, declare-long
+    Config(Box<Config>),         // a saved or hand-edited config, applied live
+    History(Vec<RunSample>),     // past runs from runs.jsonl, at startup
+    Summary { id, text },        // the LLM recap's reply
+    SummaryFailed { id },        // the CLI failed; show the basic card now
 }
 
 pub enum Effect {
-    ShowToast(Toast),       // countdown or fallback prompt (section 8)
+    ShowToast(Toast),
     HideToast,
-    Activate(AppRef),       // the shell verifies after verify_after_ms and reports back
-    Probe(ProbeKind),       // ask the shell for idle time or the frontmost app now
+    Activate { target, verify_after },  // the shell verifies and reports back
+    Probe(ProbeKind),                   // read idle time, the front app or running apps now
     ShowRecap(RecapCard),
     PlaySound(Sound),
-    AppendRun(RunRecord),   // V1
-    Log(LogEvent),          // event names, ids and outcomes only
+    AppendRun(RunRecord),               // one line for runs.jsonl
+    SummarizeRecap { id, prompt, timeout },
+    Log(LogEvent),                      // an event name and a session id, never content
 }
 
 impl Core {
-    pub fn new(config: Config) -> Self;
+    pub fn new(config: Config, known_home_apps: Vec<String>) -> Self;
     pub fn handle(&mut self, input: Input, now: Instant) -> Vec<Effect>;
     pub fn tick(&mut self, now: Instant) -> Vec<Effect>;
     pub fn next_deadline(&self) -> Option<Instant>;
 }
 ```
 
-The shell runs the core on one thread, sleeps until the next input or `next_deadline()`, and executes effects in order. Calls that touch windows (activation, overlay, hotkeys) run on the main thread, as AppKit requires. The platform layer is one trait with a macOS implementation, a Windows implementation and a fake for tests:
+`Core::new` takes the built-in home-app list because that list lives in `focus-platform`,
+which depends on the core (ADR 0001 item 1).
+
+**Shell loop.** `focus-runner` runs the core on one thread. Each pass carries out the effects
+from the pass before, then sleeps until the next message or the earliest deadline among the
+core, the overlay and its own polls. Hooks and typed commands arrive on one queue. Window,
+overlay and hotkey calls run on that same thread, which on macOS is the main thread.
+
+**Polling.** The core asks for idle time only when a decision needs it: once a second while
+an away switch could start or a session at the home window awaits an answer, and every
+100 ms during the input-quiet wait (ADR 0001 item 3). Separately, the shell reads the front
+app twice a second on both OSes; neither adapter subscribes to change notifications yet
+(ADR 0003 item 7, ADR 0006 item 7).
+
+**Platform layer.** Three traits in `focus-platform/src/lib.rs`, each with a macOS
+implementation, a Windows implementation and a fake:
 
 ```rust
 pub trait Platform {
-    fn frontmost(&self) -> Result<AppRef>;              // app id, pid, window handle on Windows
-    fn watch_frontmost(&self, tx: Sender<AppRef>);      // OS change notifications, no polling
-    fn running_apps(&self) -> Result<Vec<AppInfo>>;
-    fn seconds_since_input(&self) -> Result<f64>;       // global idle time, never input content
-    fn activate(&self, target: &AppRef) -> Result<()>;  // a request; the core verifies it
+    fn frontmost(&self) -> Result<Option<AppRef>>;   // id, name, pid; window handle on Windows
+    fn watch_frontmost(&self, tx: Sender<Option<AppRef>>);
+    fn running_apps(&self) -> Result<Vec<AppRef>>;
+    fn seconds_since_input(&self) -> Result<f64>;    // global idle time, never input content
+    fn activate(&self, target: &AppRef) -> Result<()>; // a request; the core verifies it
     fn play_sound(&self, sound: Sound);
+}
+
+pub trait Overlay {
+    fn show_toast(&self, text: &str);
+    fn hide_toast(&self);
+    fn show_recap(&self, lines: &[String], for_how_long: Duration);
+    fn tick(&self, now: Instant);
+    fn next_deadline(&self) -> Option<Instant>;
 }
 ```
 
-**Starter dependencies.** Each still needs a DEPENDENCIES.md entry; anything else needs a written reason.
+`Hotkeys` registers the configured chords and reports presses.
 
-| Crate | Used for | Note |
-| --- | --- | --- |
-| tauri 2.8 or later, tauri-plugin-global-shortcut | Shell, tray, webview UI, hotkeys | 2.8 added non-focusable windows; no shell, fs, http or updater plugins |
-| hyper 1.x with hyper-util and http-body-util | Local receiver | Runs on the async runtime Tauri already ships; no web framework |
-| serde, serde\_json with preserve\_order, toml | Payloads, settings.json merge, config |  |
-| subtle, getrandom | Constant-time token check, token generation |  |
-| sha2 | Project keys in run history (V1) |  |
-| tracing, tracing-subscriber, tracing-appender | Rotating logs |  |
-| objc2 and its AppKit, Foundation, CoreGraphics and ServiceManagement crates | macOS APIs | Typed bindings, only in focus-platform |
-| windows | Win32 APIs | Microsoft's official bindings, only in focus-platform |
-
-Not used: an HTTP client, telemetry or crash reporting, an auto-updater, a database, Node.js or npm packages.
+**Dependencies.** [DEPENDENCIES.md](../DEPENDENCIES.md) lists every direct dependency with
+its purpose, license and why the standard library is not enough; CI fails when one is added
+without an entry. In short: `hyper` and `tokio` for the loopback server, `serde`, `serde_json`,
+`toml` and `toml_edit` for parsing and editing, `subtle`, `getrandom` and `sha2` for the token
+and project hashes, `objc2` crates on macOS and `windows-sys` on Windows. Not used: an HTTP
+client, telemetry or crash reporting, an auto-updater, a database, Node.js or npm.
 
 ## 6. Claude Code integration
 
-Claude Code gives hooks no ETA, progress, duration or token counts, so focusd works from event timing and a few payload fields. Every event below supports the `http` hook type; `SessionStart` doesn't, which is why focusd doesn't use it ([hooks reference](https://code.claude.com/docs/en/hooks), read 2026-11-14).
+Claude Code gives hooks no ETA, progress, duration or token counts, so focusd works from
+event timing and a few payload fields. Every event below supports the `http` hook type.
+`SessionStart` doesn't, which is why focusd doesn't use it
+([hooks reference](https://code.claude.com/docs/en/hooks), read 2026-11-14).
 
-**Hooks to register**
+**Hooks registered**
 
 | Event | Matcher | focusd uses it to | Fields read |
 | --- | --- | --- | --- |
 | UserPromptSubmit | none | Start a run and capture the home window | `permission_mode`, `prompt` |
-| PreToolUse | all tools | Count tools, spot slow commands, questions and touched files, resume after a pause | `tool_name`, `agent_id`, `effort.level`; from `tool_input` only `command` (Bash, PowerShell) and `file_path` (Edit, Write) |
-| PermissionRequest | all tools | Enter needs-input and return | `tool_name`, a one-line summary of `tool_input` |
-| PermissionDenied | all tools | Leave needs-input | `tool_name` |
-| Notification | permission\_prompt, elicitation\_dialog, elicitation\_url\_dialog | Backup needs-input signal | `notification_type` |
+| PreToolUse | all tools | Count tools, spot slow commands, questions and touched files; leave needs-input | `tool_name`, `effort.level`; from `tool_input` only `command` (Bash, PowerShell) and `file_path` (Edit, Write) |
+| PermissionRequest | all tools | Enter needs-input | `tool_name`, and the same two `tool_input` fields |
+| PermissionDenied | all tools | Leave needs-input | none |
+| Notification | `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog` | Backup needs-input signal | `notification_type` |
 | Elicitation | all MCP servers | Enter needs-input: an MCP server is asking the user | `mcp_server_name` |
-| SubagentStart, SubagentStop | all agent types | Count sub-agents and raise the estimate | `agent_id`, `agent_type` |
-| Stop | none | End the run; return and recap | `stop_hook_active`, `last_assistant_message`, the number of `background_tasks` |
+| SubagentStart, SubagentStop | all agent types | Count sub-agents and raise the estimate | none |
+| Stop | none | End the run | `stop_hook_active`, `last_assistant_message`, the number of `background_tasks` |
 | StopFailure | all errors | End the run with an error | `error` |
-| SessionEnd | all reasons | Forget the session | `reason` |
+| SessionEnd | all reasons | Forget the session | none |
 
-Every event also carries `session_id`, `prompt_id`, `cwd` and `hook_event_name`. If `prompt_id` is missing, as on an older Claude Code, the event belongs to the session's current run.
+Every event also carries `session_id`, `prompt_id`, `cwd` and `hook_event_name`. If
+`prompt_id` is missing, as on an older Claude Code, the event belongs to the session's
+current run.
 
-**Questions count as needs-input.** A PreToolUse for `AskUserQuestion` (Claude asks a question) or `ExitPlanMode` (Claude wants a plan approved) means Claude is waiting for the user, so it's handled like a permission prompt.
+**Questions count as needs-input.** A PreToolUse for `AskUserQuestion` or `ExitPlanMode`
+means Claude is waiting for the user, so it is handled like a permission prompt.
 
-**Deliberately not registered.** PostToolUse and PostToolUseFailure carry full tool output, such as file contents and test logs, that focusd doesn't need, and they fire after a tool finishes, which is too late to help. Stop doesn't fire when the user interrupts with Esc, so section 7 handles interrupts with idle and staleness rules.
+**Deliberately not registered.** PostToolUse and PostToolUseFailure carry full tool output
+that focusd doesn't need, and fire too late to help. Stop doesn't fire when the user
+interrupts with Esc, so section 7 handles interrupts with a staleness rule.
 
-**Payload handling.** The receiver deserializes only the fields above into typed structs and skips the rest unparsed. It accepts bodies up to 8 MB, because a Write's `tool_input` and a long `last_assistant_message` can be large; bigger bodies get 413 and are logged as dropped. Kept strings are truncated (prompt 500 characters, message 1,500, command 200, path 300) and stripped of control characters and ANSI escapes. Payloads carry no timestamp, so focusd stamps each event with its own monotonic receive time.
+**Payload handling.** The receiver deserializes only the fields above into typed structs;
+a field of an unexpected type reads as absent. Bodies over 8 MB are refused. Kept strings
+are stripped of control characters and ANSI escapes, redacted (section 10) and truncated:
+prompt 500 characters, message 1,500, command 200, path 300. Redaction reads 128 characters
+past the cut so a key that straddles it is seen whole. Payloads carry no timestamp, so each
+event is stamped with a monotonic receive time. The receiver also computes the project key,
+a salted hash of `cwd`, so the core needs no hashing, and the prompt's full length before
+truncation, which the estimator buckets (ADR 0002 item 1).
 
-**Hook entries.** Every event uses the same receiver URL; the event name comes from `hook_event_name` in the body. A minimal pair:
+**Hook entries.** Every event uses the same receiver URL; the event name comes from
+`hook_event_name` in the body. A minimal pair:
 
 ```json
 {
@@ -302,27 +379,46 @@ Every event also carries `session_id`, `prompt_id`, `cwd` and `hook_event_name`.
 }
 ```
 
-HTTP hooks always run synchronously (only command hooks can be async), so the receiver answers immediately with `200` and an empty body, which Claude Code treats as success with no decision. `timeout: 2` caps the delay if focusd ever hangs.
+HTTP hooks run synchronously, so the receiver answers at once with `200` and an empty body,
+which Claude Code treats as success with no decision. `timeout: 2` caps the delay if focusd
+ever hangs.
 
-**Token.** The installer writes a random 256-bit token into each entry, so nothing depends on environment variables. It stops web pages and other users' processes from posting events. It doesn't stop software already running as the user, which can read both files (section 13). Developers often publish their dotfiles, so `focusctl rotate-token` replaces the token in config and hooks in one step.
+**Token.** The installer writes a random 256-bit token into each entry and into
+`config.toml`. It stops web pages and other users' processes from posting events. It doesn't
+stop software already running as the user, which can read both files (section 13).
+`focusctl rotate-token` replaces it in the config and the hooks in one step.
 
-**Installer rules (focusctl)**
+**Installer rules (`focusctl`)**
 
-- Target the user-level `~/.claude/settings.json` (on Windows `%USERPROFILE%\.claude\settings.json`) so every project is covered. `--scope project` or `--scope local` (V1) writes the project files instead.
-- `--dry-run` prints the exact diff. A real run backs up to `settings.json.focus-autopilot.bak`, merges, writes a temporary file in the same folder, then renames it over the original.
-- If the file is a symlink, as dotfile managers create, write to its target and say so; never replace the link with a regular file.
-- If the file isn't strict JSON (for example it has comments), stop with an error and change nothing.
-- Keep key order and the file's indentation; add focusd's entries beside existing hooks, never replace them. focusd's entries are the ones whose URL starts with `http://127.0.0.1:<port>/hook`, so uninstall removes only those.
-- If the file changes between read and rename, start over, at most 3 times.
-- The wizard runs `focusctl install-hooks`, showing the dry-run diff first, so the always-running app never edits another tool's settings itself.
+- The target is the user-level `~/.claude/settings.json` (`%USERPROFILE%\.claude\settings.json`
+  on Windows) so every project is covered. `--scope project` or `--scope local` writes the
+  project's files instead; `--settings FILE` names one.
+- `--dry-run` prints the change and writes nothing. A real run backs the file up beside
+  itself, merges, writes a temporary file in the same folder and renames it over the
+  original. The first backup is kept and never overwritten.
+- If the file is a symlink, as dotfile managers create, the write goes to its target.
+- If the file isn't strict JSON (comments, for example), the installer stops and changes
+  nothing.
+- Key order is kept. focusd's entries go beside existing hooks and never replace them.
+  They are the entries whose URL starts with `http://127.0.0.1:<port>/hook`; uninstall
+  removes only those.
+- If the file changes between read and rename, the installer starts over, at most 3 times.
+- `uninstall-hooks` restores the first backup's exact bytes when its content matches what
+  the uninstall produced, so formatting survives a round trip (ADR 0003 item 10).
 
-**Things that stop hooks firing.** In interactive sessions, Claude Code holds back all hooks, including user-level ones, until the folder's workspace trust dialog is accepted. Sessions started before install need a restart. Organizations can restrict HTTP hook URLs with `allowedHttpHookUrls`. `focusctl doctor` explains each case when no events arrive.
+**Things that stop hooks firing.** Claude Code holds back all hooks until the folder's
+workspace trust dialog is accepted. Sessions started before the install need a restart.
+Organizations can restrict HTTP hook URLs with `allowedHttpHookUrls`. `focusctl doctor` names
+these when focusd is running but has seen no events.
 
-**When focusd isn't running**, Claude Code treats each failed hook as a non-blocking error. Milestone M4 checks how visible that is; if it's noisy, Quit offers "Quit and remove hooks" and the wizard re-adds them.
+**When focusd isn't running**, Claude Code treats each failed hook as a non-blocking error.
 
-**WSL.** If Claude Code runs inside WSL2 on Windows, 127.0.0.1 may not reach the Windows host unless WSL's mirrored networking mode is on. `focusctl` detects WSL and prints the setup steps.
+**WSL.** Claude Code inside WSL2 cannot reach a focusd on Windows by default, because WSL's
+`127.0.0.1` is not Windows's. Nothing detects or works around this yet (ADR 0006 item 9).
 
-**First fixture.** A synthetic trace in the recorded format. `_t_ms` is the receive time in milliseconds since the trace started; it isn't part of Claude's payload.
+**First fixture.** `focus-core/tests/fixtures/approve_then_tests.jsonl` is a synthetic trace.
+`_t_ms` is the receive time in milliseconds since the trace started; it isn't part of
+Claude's payload.
 
 ```json
 {"_t_ms":0,"hook_event_name":"UserPromptSubmit","session_id":"s1","prompt_id":"p1","cwd":"/work/app","permission_mode":"default","prompt":"Run the tests and fix failures"}
@@ -334,168 +430,354 @@ HTTP hooks always run synchronously (only command hooks can be async), so the re
 
 ## 7. Session state machine and policy rules
 
-Each Claude Code session has four states: IDLE, RUNNING, NEEDS\_INPUT and DONE. Events move a session between them; the policy engine reacts to those moves.
+Two state machines live in `focus-core`. Each session has its own (`session.rs`). One switch
+controller serves all sessions, because focus is global (`mode.rs`, `engine.rs`, `away.rs`,
+`returns.rs`, `actions.rs`, `guards.rs`).
 
-&#91;embedded content: state machine · 4 states, 6 transitions\]
+### Sessions
 
-A new prompt always starts a run. A permission prompt or a Stop moves the session into a state that triggers the return to the coding window.
+Each Claude Code session is in one of four states.
 
-**Session transitions**
+```mermaid
+stateDiagram-v2
+    [*] --> RUNNING: first event seen
+    RUNNING --> NEEDS_INPUT: permission, question, plan or MCP request
+    NEEDS_INPUT --> RUNNING: next tool call, denial or resume heuristic
+    RUNNING --> DONE: Stop or StopFailure
+    NEEDS_INPUT --> DONE: Stop or StopFailure
+    DONE --> RUNNING: new prompt, or Claude continues within 60 s
+    RUNNING --> IDLE: no event for 600 s
+    IDLE --> RUNNING: new prompt or a later event
+```
 
-| Event | From | To | Side effects |
+| Event | From | To | What happens |
 | --- | --- | --- | --- |
-| UserPromptSubmit | any | RUNNING | New run: `prompt_id`, start time, prompt (memory only); home = the frontmost window if it's a home app; counters and flags reset |
-| PreToolUse, SubagentStart, SubagentStop | RUNNING | RUNNING | Update counters, touched files and the estimate |
-| PermissionRequest, Elicitation, a needs-input Notification, or PreToolUse for AskUserQuestion or ExitPlanMode | RUNNING | NEEDS\_INPUT | Note what's needed (memory only); return trigger |
-| The next PreToolUse, PermissionDenied or SubagentStart for the same run | NEEDS\_INPUT | RUNNING | Clear the note |
-| Resume heuristic: user input after entering NEEDS\_INPUT, then 8 s idle, and still no agent event | NEEDS\_INPUT | RUNNING | Most likely a long tool was approved; away guards apply again |
-| Stop | RUNNING or NEEDS\_INPUT | DONE | Close the run; return trigger; recap |
-| StopFailure | RUNNING or NEEDS\_INPUT | DONE (error) | Return trigger; the recap shows the error type |
-| Any event for the same run within 60 s of Stop, or Stop with `stop_hook_active` true | DONE | RUNNING | Another Stop hook made Claude continue; no second away switch in this run |
-| No agent event for 600 s (`stale_after_seconds`) | RUNNING | IDLE | Close the run quietly, with no return and no recap; covers interrupts and crashes |
-| SessionEnd | any | removed | Drop the session |
-| First event from an unknown session (focusd started mid-run) | none | RUNNING | No home window, so focusd never switches for this run |
-| An event whose `prompt_id` isn't the current run's | any | unchanged | Ignore a late event from an earlier run |
+| UserPromptSubmit | any | RUNNING | A new run: `prompt_id`, start time, prompt (memory only), an estimate from history. Home is the frontmost window if it is a home app. The run it replaces is written to history |
+| PreToolUse, SubagentStart | RUNNING | RUNNING | Counters, touched files and the estimate are updated |
+| PermissionRequest, Elicitation, a needs-input Notification, or PreToolUse for `AskUserQuestion` or `ExitPlanMode` | RUNNING | NEEDS_INPUT | What is needed is noted (memory only). The session starts waiting for the user |
+| PreToolUse, PermissionDenied or SubagentStart | NEEDS_INPUT | RUNNING | Claude moved on, so the user or a hook answered |
+| A second request, or the backup Notification | NEEDS_INPUT | NEEDS_INPUT | Still waiting; nothing changes |
+| Resume heuristic: input after entering NEEDS_INPUT while the home window is in front, then `resume_idle_seconds` (8) without input | NEEDS_INPUT | RUNNING | Most likely a long tool was approved; the away guards apply again |
+| Stop | RUNNING or NEEDS_INPUT | DONE | The run closes. The session starts waiting for the user |
+| StopFailure | RUNNING or NEEDS_INPUT | DONE | As Stop; the recap shows the error |
+| A Stop with `stop_hook_active`, or an event that shows Claude working within 60 s of the Stop, before the run is written to history | DONE | RUNNING | A Stop hook made Claude continue. No second away switch in this run |
+| SubagentStop, PermissionDenied or an ordinary Notification | DONE or IDLE | unchanged | A straggler from the run that just ended; ignored |
+| An event that shows Claude working, later than that | DONE or IDLE | RUNNING | A new run with no home window, so nothing switches for it |
+| No event for `stale_after_seconds` (600) | RUNNING | IDLE | The run closes quietly, with no return and no recap. Covers interrupts and crashes |
+| SessionEnd | any | removed | The session is dropped and its run written to history |
+| First event of an unknown session, other than a prompt | none | RUNNING | focusd started mid-run. No home window, so nothing switches for it |
+| An event whose `prompt_id` isn't the current run's | any | unchanged | A late event from an earlier run; ignored |
 
-**Switch controller.** Focus is global, so one controller owns every switch, however many sessions run. It shows at most one toast at a time.
+At most 256 sessions are tracked; events from further new sessions are dropped. Events from
+a folder matching `ignore.cwd_globs` are dropped before anything else.
 
-| State | Toast | Leaves when |
+**When a session is waiting for the user.** A session with a home window is waiting when it
+is DONE, or has been in NEEDS_INPUT for `needs_input_debounce_seconds` (2), until the user
+has been back at its home window. A needs-input that clears within the 2 s was approved by a
+hook or auto mode and never counts. `return_on_needs_input = false` makes only DONE count.
+Waiting sessions are ordered needs-input first, then oldest first.
+
+### Switch controller
+
+The controller is in one of four modes and shows at most one toast. Apart from the mode it
+keeps two records: whether focusd put the user in another app and when (`away`), and the
+left-off app.
+
+| Mode | Toast | What it is doing |
 | --- | --- | --- |
-| Home | none | All away guards pass → Away countdown. A return trigger → handled as in Away |
-| Away countdown | Switching to the away app in 3 s | Countdown ends and input is quiet → activate, then Away if verified or Away prompt if refused. Not now → Home, with no more away switches this run. The run ends or the user leaves the home window → Home |
-| Away prompt | Claude will take a while. Switch? | Click or focus key → activate → Away. The run ends, the user leaves the home window, or 30 s pass → Home |
-| Away | none | Return trigger with an away app in front → Return countdown; with another app in front → Return prompt. The user comes back on their own → Home, with the recap if away 20 s or more |
-| Return countdown | Back to Claude in 3 s | Countdown ends and input is quiet → activate, then Home with the recap if verified, or Return prompt if refused. Snooze → Snoozed |
-| Snoozed | none | 60 s pass → Return countdown, at most 3 times, then Return prompt. The user comes back → Home with the recap |
-| Return prompt | Claude is done in `<project>`. Go back? (stays until acted on; the project is the last folder of the session's `cwd`, so parallel sessions can be told apart) | Click or focus key → activate → Home with the recap. The user comes back → Home with the recap |
+| Idle | none | Watching for an away switch to start or a session to start waiting |
+| Away countdown | "Claude will take a while. Switching to Obsidian in 3 s." | Counting, then waiting for a pause in input, then verifying the switch |
+| Away prompt | "Claude will take a while. Switch to Obsidian?" | Waiting up to `away_prompt_seconds` (30) for the focus key |
+| Return | "Claude is done in api. Back to Terminal in 5 s." or "Claude is done in api. Go back?" | Counting, waiting for a pause in input, verifying, snoozed, or asking |
 
-**Away guards** (all must hold):
+Every automatic switch goes through the same three phases:
 
-1. A run is RUNNING with a home window, and no away switch has happened or been cancelled in it.
-2. Elapsed time has reached the tier threshold (section 9).
-3. The home window is frontmost (on Windows, that exact window).
-4. The user has been idle for 8 s (`away_requires_idle_seconds`).
-5. An away app is running, automation isn't paused, and no session is waiting on the user.
+1. **Counting.** The countdown toast is showing.
+2. **Quiet.** The countdown has ended. The switch waits for `input_quiet_ms` (600) without
+   keyboard or mouse input. If input continues for `input_quiet_max_seconds` (5), a prompt
+   replaces the switch, so a keystroke never lands in the wrong window.
+3. **Verifying.** Activation was requested. The shell reads the front app `verify_after_ms`
+   (400) later and reports whether the target is in front. No report within 2 s more counts
+   as refused. A refused switch becomes a prompt.
 
-**Return trigger.** When a run with a home window enters NEEDS\_INPUT or DONE: with an away app in front, whoever opened it, start the return countdown; with the home window in front, do nothing; with any other app in front, show the return prompt. Every return plays the sound.
+### Switching away
 
-**Debounce and safety**
+An away countdown starts when all of these hold. They are checked in this order, and
+`focusd` prints the first one that fails (`not switching away: ...`).
 
-- A Stop within 5 s of an away switch shows the return prompt instead of a countdown, so the user isn't flipped straight back.
-- A NEEDS\_INPUT that clears within 2 s is ignored, because a hook or auto mode approved it.
-- Every countdown rechecks its conditions when it ends. The input-quiet guard then waits for 600 ms without keyboard or mouse input, up to 5 s, before any activation; if input continues, the prompt replaces the switch.
+1. Automation is on: `enabled` is true and the app is not paused.
+2. No session is in NEEDS_INPUT.
+3. Some run is RUNNING, has a home window, and has not used its away switch.
+4. That run has gone on for its tier's threshold (section 9). If the user has just come back
+   to its home window from another app, at least 8 s have passed since, so coming back to
+   look at Claude is not answered by being moved out again.
+5. Its home window is in front.
+6. The user has been idle for `away_requires_idle_seconds`. The default is 0, so by default
+   this guard does nothing; the quiet phase is the safeguard that matters (ADR 0005 item 5).
+7. There is somewhere to go, from a list of running apps read within the last 3 s.
 
-**Several sessions.** Away guard 5 covers every session. Return triggers queue: needs-input before done, then oldest first. The MVP returns for the first and lists the others on the recap card; V1 adds a proper queue (H1).
+**Where it goes.** First the left-off app, if `away.resume_last_app` is on, the app is still
+running and no Claude session has been started in it. Otherwise the first running app in
+`away.apps`. Otherwise nowhere. On Windows the left-off target is the exact window.
 
-**Known limits.** An interrupted run looks like one that's still thinking until the user sends a new prompt or 600 s pass. The idle guard and a cancelled countdown keep that from causing a wrong switch. Background tasks reported at Stop may wake the session later; a wake-up with no home window never switches.
+**The left-off app** is remembered when the user arrives at a window with a Claude session
+in it, straight from an app with none, while Claude is working or waiting for them. A gap of
+up to 5 s with nothing in front does not lose it. Arriving with nothing going on changes
+nothing, so the first prompt of a sitting has no left-off app and uses `away.apps` if set.
+It is kept in memory only (ADR 0005 items 4 and 6).
+
+**During the countdown.** The focus key means "Not now": no away switch for the rest of the
+run. The countdown is withdrawn if the run ends, a session needs input, the home window
+stops being in front, or automation is paused. An immersive target gets at least 5 s and a
+warning line.
+
+**After the switch.** A verified switch uses up the run's away switch and sets the `away`
+record. A refused one shows the away prompt, which also uses up the away switch, so the
+prompt appears once (ADR 0001 item 5). The focus key on the prompt tries again.
+
+**Declare-long.** The declare-long hotkey applies to the running session whose home window
+is in front. It sets the Long tier, skips guards 4 and 6, and re-arms a switch cancelled
+with "Not now". The other guards, the countdown and the quiet phase still apply (ADR 0002
+item 6).
+
+### Coming back
+
+When a session starts waiting and the controller is idle:
+
+- **The home window is already in front.** Nothing is shown. The session counts as seen.
+- **The user is elsewhere.** The sound plays, and a return starts for the first waiting
+  session.
+
+A return is a countdown of `countdown.return_seconds` (5), then the quiet phase, then the
+switch. It is a prompt instead, with the reason logged (`asked_because_...`), when:
+
+- `switching.auto_return` is off.
+- The user is in a window with another Claude session in it. An app that is merely on the
+  home-app list, with no session, counts as any other app (ADR 0005 item 3).
+- The run ended within `debounce_seconds` (5) of an away switch, so the user is not flipped
+  straight back. This applies to Stop only, not to a permission prompt (ADR 0001 item 10).
+- Input never paused during the quiet phase, or the OS refused the switch.
+
+**During the countdown.** The focus key means "Snooze": the toast goes away for
+`snooze_seconds` (60) and the countdown starts again. After `max_snoozes` (3) the prompt is
+shown instead. On a prompt the focus key means "Go back now". A prompt stays until it is
+acted on or no longer needed.
+
+**Being back.** Whenever the home window is in front during a return, however the user got
+there, the toast is hidden, the recap is shown, and every session waiting at that window is
+settled together, because without window identity the core cannot tell which one the user
+is looking at (ADR 0003 item 17). A session waiting at a different window stays queued and
+gets its own return next; since the user is then in a window with a session, that one is a
+prompt (ADR 0002 item 5).
+
+**Coming back on your own.** If focusd moved the user away and they return to a window with
+a session while no return is under way, the `away` record is cleared and any session waiting
+at that window is settled. The recap is shown if they were away 20 s or more.
+
+### Pause and several sessions
+
+**Pause.** The pause hotkey toggles it. While paused, sessions keep updating and no toast is
+shown. A session that finished during the pause gets its return when automation resumes, if
+the user is still away (ADR 0001 item 11).
+
+**Several sessions.** Guard 2 covers every session: nothing switches the user away while any
+session needs them. Every toast and recap names the project, the last folder of `cwd`; two
+live sessions in different folders with the same last name are both shown as `parent/name`
+(ADR 0003 items 12 and 18).
+
+**Known limits.** An interrupted run looks like one that is still thinking until a new
+prompt arrives or 600 s pass. If Claude Code fires a PreToolUse for a second, parallel tool
+call while a permission prompt is still open, the session will look like it is running; the
+backup Notification should put it back, but the event order has not been confirmed against
+real traces (ADR 0001, "Known risk").
 
 ## 8. Window switching, overlay and UI
 
-Every platform call goes through one interface (section 5) with a macOS and a Windows adapter; Linux follows in V2. None of the calls below triggers an OS permission prompt, and PERMISSIONS.md states that as a promise. Both OSes treat a background app's request to change focus as something they may refuse, so the core verifies every switch.
+Every OS call goes through `focus-platform` (section 5). None triggers an OS permission
+prompt; [PERMISSIONS.md](../PERMISSIONS.md) states that as a promise and
+[AUDIT.md](../AUDIT.md) lists every call with the file it is made in. Both OSes treat a
+background app's request to change focus as something they may refuse, so the core verifies
+every switch.
 
 **Platform calls**
 
 | Need | macOS 14 and later | Windows 10 and 11 |
 | --- | --- | --- |
-| Frontmost app and window | `NSWorkspace.frontmostApplication`; changes from `NSWorkspaceDidActivateApplicationNotification` | `GetForegroundWindow`; changes from `SetWinEventHook` with `EVENT_SYSTEM_FOREGROUND` |
-| Running apps, for the wizard and away list | `NSWorkspace.runningApplications`, regular apps only | Visible top-level windows from `EnumWindows` and their executables |
-| Global idle time | `CGEventSourceSecondsSinceLastEventType` on the combined session state, the call Chromium uses for idle detection | `GetLastInputInfo` |
-| Activate an app | `NSRunningApplication.activate`; when focusd is the active app (after a toast click), first `NSApp.yieldActivation(to:)`, then `activate(from:)` | `ShowWindow(SW_RESTORE)` if minimized, then `SetForegroundWindow` on the saved window |
-| Hotkeys | Carbon `RegisterEventHotKey` | `RegisterHotKey` |
-| Overlay | Non-activating `NSPanel` above normal windows, joining all Spaces and full-screen apps | Topmost tool window with `WS_EX_NOACTIVATE`, shown without activating |
-| Sound | `NSSound` system sound | `PlaySound` with a system sound alias |
-| Launch at login | `SMAppService.mainApp`; macOS shows its login-item notice | A value under the user's `CurrentVersion\Run` registry key |
+| Frontmost app and window | `NSWorkspace.frontmostApplication`, polled twice a second | `GetForegroundWindow` and the executable that owns it, polled twice a second |
+| Running apps | `NSWorkspace.runningApplications`, regular apps only | Visible, titled, top-level windows from `EnumWindows`. The title's length is read, never the title |
+| Global idle time | `CGEventSourceSecondsSinceLastEventType` | `GetLastInputInfo` |
+| Activate | `NSRunningApplication.activateWithOptions` | `ShowWindow` to restore if minimized, then `SetForegroundWindow` on the saved window |
+| Hotkeys | Carbon `RegisterEventHotKey`, hand-declared | `RegisterHotKey` |
+| Overlay | Two borderless, non-activating `NSPanel`s that ignore the mouse | Two topmost, non-activating, click-through popup windows drawn with GDI |
+| Sound | `NSSound` | `MessageBeep` |
+| Launch at login | A launch agent plist written by `focusctl install-agent`; the user loads it | Not built |
 
-**Why switches get refused.** Since macOS 14, activation is a request the active app may decline, and a background app's request can fail silently ([Apple: cooperative activation](https://developer.apple.com/documentation/appkit/passing-control-from-one-app-to-another-with-cooperative-activation)). Windows lets a process take the foreground only under conditions such as being the foreground process or having received the last input event, and may refuse even then ([Microsoft: SetForegroundWindow](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-setforegroundwindow)). A click on focusd's toast gives it that standing on both OSes. Whether the focus key does too is tested in M2.
+**Why switches get refused.** Since macOS 14, activation is a request the active app may
+decline, and a background app's request can fail silently
+([Apple: cooperative activation](https://developer.apple.com/documentation/appkit/passing-control-from-one-app-to-another-with-cooperative-activation)).
+Windows lets a process take the foreground only under conditions such as having received the
+last input event
+([Microsoft: SetForegroundWindow](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-setforegroundwindow)).
+A hotkey press is input to focusd, so the focus key on a prompt works where a timed switch
+was refused.
 
-**Verify every switch.** 400 ms after an activation request (`verify_after_ms`), the shell reads the frontmost app and reports the result. If the target isn't in front, the controller shows the fallback prompt (section 7). On some setups most switches will take one keypress; that is a normal flow, not an error.
+**The one input focusd sends.** On Windows a switch made on a timer is normally refused. The
+adapter asks plainly first. If the window did not come forward, it sends one mouse event that
+moves nothing and presses nothing, which makes focusd the last process to receive input, and
+asks again. This is on by default (`switching.force_foreground`), because without it nearly
+every automatic switch on Windows would become a question. Off, a refused switch becomes the
+prompt. The macOS adapter sends nothing (ADR 0006 item 4).
 
-**Never used:** Apple Events (an Automation prompt per target app), event taps or low-level keyboard hooks (Input Monitoring), window titles or screen capture (Screen Recording), Accessibility (except the opt-in feature C5), thread-input attachment, synthesized keystrokes, and changes to the foreground-lock timeout. If Windows refuses most switches in testing, backlog item C6 may add an opt-in forceful mode, off by default.
+**Never used:** Apple Events, event taps, keyboard or mouse hooks, window titles, screen
+capture, Accessibility, thread-input attachment, synthesized keystrokes or clicks, and
+changes to the foreground-lock timeout.
 
-**Capturing the home window.** At UserPromptSubmit the user has just pressed Enter, so focusd reads the frontmost app. If it's a home app, it becomes the run's home. On Windows the exact window handle is saved. On macOS, activating the app brings back its most recent window, normally the one the prompt came from; exact-window return needs Accessibility and is the opt-in V1 feature C5. If the frontmost app isn't a home app (a script, a phone, the browser), the run has no home and focusd never switches for it.
+**App identity.** An app is a bundle id on macOS and an executable name on Windows, such as
+`WindowsTerminal.exe`. On Windows the window handle is kept too, and two references match
+only if their handles do. So on Windows a return goes to the exact window the prompt came
+from, falling back to the frontmost window of that executable if it is gone. On macOS
+activation is per app: with several windows of one editor, the user lands in whichever
+window the OS raises. Exact-window return on macOS is **not built**; the blocker is that a
+hook names the project, not the window (ADR 0003 item 16).
 
-Built-in home apps live in `focus-platform/src/known_apps.rs` as bundle ids and executable names, extended by `home.extra_apps`:
+**Capturing the home window.** At UserPromptSubmit the user has just pressed Enter, so the
+frontmost app is the one the prompt came from. If it is a home app, it becomes the run's
+home. If not (a script, another machine, an unlisted app), the run has no home, nothing
+switches for it, and `focusd` prints the config line that would add the app.
 
-- macOS: Terminal, iTerm2, Ghostty, WezTerm, kitty, Alacritty, Warp, VS Code, VS Code Insiders, Cursor, Windsurf, Zed, JetBrains IDEs, Claude.
-- Windows: Windows Terminal, Console Host, VS Code, Cursor, Windsurf, JetBrains IDEs, Claude.
+Built-in home apps are in `focus-platform/src/known_apps.rs`, extended by `home.extra_apps`.
+An entry ending in `*` matches by prefix. The ids were written from memory and are corrected
+as surfaces are tested:
 
-**Toasts.** One small overlay near the top-right corner of the display that holds the frontmost window, or else the display with the pointer. It never takes keyboard focus and renders text as plain text. The focus key always does the thing that won't happen on its own.
+- macOS: Terminal, iTerm2, Ghostty, WezTerm, kitty, Alacritty, Warp, VS Code, VS Code
+  Insiders, Cursor, Windsurf, Zed, JetBrains IDEs, Claude.
+- Windows: Windows Terminal, the console host and the shells that can own a console window,
+  WezTerm, Alacritty, VS Code, Cursor, Windsurf, JetBrains IDEs, Claude.
 
-| Toast | Example text | Click or focus key |
+**Toasts.** One box at the top of the screen; on Windows, of the monitor that holds the
+foreground window. It cannot
+take keyboard focus and it ignores the mouse, so every click goes to whatever is underneath.
+Text is plain text. The focus key always does the thing that won't happen on its own.
+
+| Toast | Example text | Focus key |
 | --- | --- | --- |
-| Away countdown | Claude will take a while. Switching to Obsidian in 3 s. | Not now: no away switch this run |
+| Away countdown | Claude will take a while. Switching to Obsidian in 3 s. | Not now |
 | Away prompt | Claude will take a while. Switch to Obsidian? | Switch now |
-| Return countdown | Claude is done. Back to your terminal in 3 s. | Snooze 60 s |
-| Return prompt | Claude needs your approval. Go back? | Go back now |
+| Return countdown | Claude is done in api. Back to Terminal in 5 s. | Snooze |
+| Return prompt | Claude needs your approval in api. Go back? | Go back now |
 
-Default focus key: Control+Option+Command+Space on macOS, because Control+Option+Space already switches input sources there, and Ctrl+Alt+Space on Windows. It's registered only while a toast is visible. Default pause hotkey: Control+Option+Command+P on macOS and Ctrl+Alt+Shift+P on Windows. Both are configurable and can be turned off; if one can't be registered, the tray and doctor say so.
+The return headline is one of: Claude is done, needs your approval, has a question, needs
+your input, or stopped with an error.
 
-**Recap card.** Shown after a return, or when the user comes back after 20 s or more away. Same corner, never focusable, plain text, at most 6 lines:
+**Hotkeys.** Registered once at startup; a change needs a restart. A chord that cannot be
+registered, such as one another program owns, is reported at startup. `focusd --test-hotkeys` registers the chords and prints
+each press for 60 s.
 
-```text
-Asked:   Run the tests and fix failures
-Claude:  Fixed the failing sum test; all 42 tests pass.
-Touched: src/sum.ts
-4 min · 23 tool calls · 1 sub-agent        (V1)
-```
+| Hotkey | macOS default | Windows default |
+| --- | --- | --- |
+| Focus key | Control+Option+Command+Space | Ctrl+Alt+Shift+Space |
+| Pause | Control+Option+Command+P | Ctrl+Alt+Shift+P |
+| Declare-long | off | off |
 
-For a needs-input return, the second line reads "Needs: approval to run npm test" or "Needs: an answer to Claude's question". The card closes after 10 s, on a click, or 3 s after the user starts typing (idle time resets).
+On Windows, Ctrl+Alt+Space was the first default; the Claude desktop app owns it (ADR 0006
+item 6). An empty string turns a hotkey off.
 
-**Tray menu.** A status line (Idle, Claude running 0:42, Away, Paused until 15:30); Pause for 30 min, 1 h or until resumed; Away apps (choose from running apps, reorder); Open config; Reload config; Run doctor; Open logs folder; Clear history (V1); Remove hooks; Quit, which offers "Quit and remove hooks".
+**Recap card.** A second box in the same place, shown for `ui.recap_seconds` (10). Its
+contents are in section 10.
 
-**First-run wizard.** The only focusable window:
+**Statistics and Configuration page.** A local web page served by focusd on the receiver's
+port and opened with `focusctl ui`. It takes the place of the tray menu, settings window and
+first-run wizard of the first design. **Statistics** shows where time went while Claude
+worked; **Configuration** changes every setting in an explicit list, validates the whole
+config before writing, keeps the file's comments, and applies the change at once. The page is
+three static files with no framework and no build step. Its defences, the token handoff and
+the data it reads are in [ADR 0004](adr/0004-statistics-and-configuration-page.md).
 
-1. What focusd does and never does: no keystrokes, no screen reading, no network.
-2. Install hooks: show the `focusctl install-hooks --dry-run` diff, apply on confirm.
-3. Choose away apps from the running apps, with advice to run any full-screen app, such as a game, borderless windowed.
-4. Test: a real away switch and return with countdowns; if the OS refuses, the wizard shows the one-key prompt working.
-5. Launch at login (off by default) and sound on return (on by default).
-6. Done: restart open Claude Code sessions, then send any prompt.
+**Running focusd.** In a terminal, or from the launch agent. In a terminal it prints the
+front app, each hook, each toast and each recap, and takes typed commands: `click` acts on
+the toast, `pause`, `resume`, `quit`. When its output is a file it prints event names and
+outcomes only, unless `--verbose` is given (ADR 0003 item 14). `--list-apps` prints the ids
+of running apps, and `--test-box` shows both boxes without a run.
 
-**Display limits.** Overlays and clean switching need borderless-windowed mode. Exclusive full-screen games may flash, minimize or ignore the switch, and may hide the toast; the sound still plays.
+**Display limits.** The boxes float over normal and borderless windows. Exclusive
+full-screen games may hide them or ignore a switch; the sound still plays.
 
 ## 9. Wait-time estimation
 
-Claude Code gives no ETA, so v1 starts with elapsed time only and adds estimates in layers. Each layer is optional: if it has no data, the one before it decides. The output is a tier (Short, Medium, Long) and a range, never a single confident number.
+Claude Code gives no ETA, so the estimate is built in layers, each optional: if one has no
+data, the one before it decides. The output is a tier and a range, never a single number.
+The code is `focus-core/src/estimator.rs`.
 
-**Layer 0: elapsed time (MVP).** No estimate. Switch away when elapsed time reaches `awayAfterSeconds` (default 30 s).
+**Layer 0: elapsed time.** With no estimate the tier is Unknown and the away switch is
+considered at `away_after_seconds` (30).
 
-**Layer 1: history (V1).** Log every run (section 11). Group runs by project key (a salted hash of the folder), `permission_mode` and prompt length (under 200 characters, 200 to 1,000, over 1,000). The estimate is the median duration of the last 20 runs in the group, with the 25th to 75th percentile as the range. Use it only with 5 or more samples; otherwise use the median of all runs with the same prompt length, then Layer 0.
+**Layer 1: history.** Runs are grouped by project key, `permission_mode` and prompt length
+(under 200 characters, 200 to 1,000, over 1,000). The estimate is the median of the last 20
+runs in the group, with the 25th to 75th percentile as the range. With fewer than 5 in the
+group, every run with the same prompt length is used; with fewer than 5 of those, Layer 0
+decides. Only runs that ended with a Stop count: stale and failed runs say nothing about how
+long such a run takes (ADR 0002 item 2).
 
-**Layer 2: live signals (V1).** While the run is going, raise a floor under the estimate when these events appear. The values are starting guesses to tune from real logs.
+**Layer 2: live signals.** While the run is going, these events raise a floor under the
+estimate. The values are starting guesses.
 
 | Signal | Estimate floor |
 | --- | --- |
-| SubagentStart | 300 s |
-| PreToolUse of Bash or PowerShell whose command starts with a test, build or install tool (for example pytest, npm, pnpm, yarn, cargo, go test, gradle, mvn, dotnet, xcodebuild, docker build, make) | 120 s |
+| A sub-agent starts | 300 s |
+| A Bash or PowerShell command starting with `pytest`, `npm`, `pnpm`, `yarn`, `cargo`, `gradle`, `gradlew`, `mvn`, `dotnet`, `xcodebuild`, `make`, `go test` or `docker build` | 120 s |
 | More than 15 tool calls so far | 180 s |
 
-**Layer 3: user override (V1).** A hotkey during RUNNING marks the run as Long.
+**Layer 3: the user's call.** The declare-long hotkey marks the run as Long (section 7).
 
-**How the tier changes behavior**
+**How the tier changes the away switch**
 
-| Estimated tier | Away switch happens |
-| --- | --- |
-| Short (under 30 s) | Not before 45 s elapsed (grace), in case the estimate is wrong |
-| Unknown | At 30 s elapsed |
-| Medium or Long | At 10 s elapsed |
+| Estimated tier | Away switch considered at | Setting |
+| --- | --- | --- |
+| Short | 45 s, in case the estimate is wrong | `short_grace_seconds` |
+| Unknown | 30 s | `away_after_seconds` |
+| Medium or Long | 10 s | `away_after_seconds_when_long` |
 
-All away guards in section 7 still apply, so the idle guard usually adds a few seconds. Log the predicted tier and the actual duration for every run so later layers can be compared against the baseline. Don't ask the model how long it will take: models estimate their own runtime poorly.
+The other away guards in section 7 still apply. Every run's predicted tier and actual
+duration are written to history, so later layers can be compared against the baseline.
 
 ## 10. Recap service
 
-The recap card answers three questions in a few lines: what did I ask, what did Claude do, and what does it need from me. It's built from hook payloads only; focusd never reads the transcript.
+The recap card answers three questions in a few lines: what did I ask, what did Claude do,
+and what does it need from me. It is built from hook payloads only; focusd never reads the
+transcript.
 
-**Inputs** (memory only, discarded when the next run starts or the card closes):
+**When it is shown.** When the user is back at a home window after a return, whether focusd
+switched them or they came themselves during one. Also when they come back on their own
+20 s or more after focusd moved them away. Not when they were already at the home window as
+Claude finished.
+
+**Inputs** (memory only, discarded when the next run starts):
 
 - The prompt, first 500 characters.
-- Touched files from Edit and Write calls (up to 5 shown) and commands run (first 200 characters, up to 3).
-- For needs-input: the tool name and a one-line summary of what awaits approval, or that Claude asked a question.
-- From Stop: `last_assistant_message` (first 1,500 characters) and the number of background tasks still running. From StopFailure: the error type.
+- Touched files from Edit and Write calls, up to 5 shown.
+- For needs-input: what awaits approval, or that Claude asked a question.
+- From Stop: `last_assistant_message`, first 1,500 characters, and the number of background
+  tasks still running. From StopFailure: the error.
 
-**Basic mode (MVP, no network).** Layout in section 8. Text is set with `textContent`, never parsed as HTML or Markdown, because prompts and agent output can contain markup.
+**Basic mode (the default, no network)**
 
-**LLM mode (V1, opt-in).** focusd runs the user's own Claude Code CLI, so there's no API key to store and the text only goes to the provider the user already uses ([CLI reference](https://code.claude.com/docs/en/cli-reference)):
+```text
+Project: api
+Asked:   Run the tests and fix failures
+Claude:  Fixed the failing sum test; all 42 tests pass.
+Touched: src/sum.ts
+4 min · 23 tool calls · 1 sub-agent
+Also:    web - Header fixed.
+```
+
+For a needs-input return the third line reads `Needs:   approval to run npm test`, or what
+else is needed. Each other waiting session gets an `Also:` line with its outcome, two at
+most and then a count, so a finished session's result is never reduced to a name (ADR 0003
+item 17). Each line is cut at 120 characters.
+
+**LLM mode (opt-in, `recap.mode = "llm"`).** focusd runs the user's own Claude Code CLI, so
+there is no API key to store and the text only goes to the provider the user already uses
+([CLI reference](https://code.claude.com/docs/en/cli-reference)):
 
 ```text
 claude -p --model haiku --tools "" --strict-mcp-config
@@ -503,51 +785,60 @@ claude -p --model haiku --tools "" --strict-mcp-config
           --max-turns 1 --output-format text
 ```
 
-- Spawned directly with an argument array, never through a shell, with an empty folder in focusd's data directory as the working directory and the input on stdin.
-- `--tools ""` removes all built-in tools; `--strict-mcp-config` without `--mcp-config` loads no MCP servers; `disableAllHooks` stops the recap session from firing focusd's own hooks.
-- 20 s timeout. The basic card is held back while the summary is pending and shown only if the summary fails, is empty, or misses the timeout, so the user never sees a long card replaced by a short one.
-- `focusctl doctor` runs `claude auth status` before the option can be turned on.
+- It is started with an argument array, never through a shell, in an empty folder in the
+  data directory, with the input on stdin.
+- `--tools ""` removes all built-in tools; `--strict-mcp-config` with no config loads no MCP
+  servers; `disableAllHooks` stops the recap session from firing focusd's own hooks.
+- The basic card is held back while the summary is pending. It is shown instead if the CLI
+  fails, the reply is empty, or `recap.llm_timeout_seconds` (20) pass, so the user never sees
+  a long card replaced by a short one (ADR 0003 item 4).
+- The reply is used only if it is for the latest card. At most three lines are kept, each cut
+  at 120 characters at a word boundary. The `Also:` lines are added under it.
 
-Recap prompt, sent on stdin:
+The prompt sent on stdin asks for exactly three plain-text lines, `Asked:`, `Did:` and
+`Needs:`, each under 100 characters, from the facts given and nothing else. Its text is in
+`focus-core/src/recap_llm.rs`.
 
-```text
-Summarize this coding-agent run for a developer returning from a break.
-Reply with exactly three lines of plain text, no markdown, each under 100 characters:
-Asked: <what the developer asked>
-Did: <what the agent did>
-Needs: <the decision the developer must make, or "nothing">
-Use only the facts below. Do not guess.
----
-<prompt, tool summary, last message>
-```
-
-The reply is cut to three lines, and each line to 120 characters at a word boundary with an ellipsis, so a model that ignores the length ask can't produce a wall of text.
+**Redaction.** Likely secrets are replaced with `[redacted]` in three places: at the
+receiver before anything is stored, on the recap card before it is shown, and in the text
+sent to the LLM. The patterns are known API-key prefixes, `name=value` and `name: value`
+pairs for secret-like names, `--password x` style flags, bearer tokens and PEM blocks. A bare
+word such as "token" in a sentence is left alone. It is a best-effort filter, not a
+guarantee: a secret in plain prose and an attached short flag (`mysql -pSecret`) are not
+caught (ADR 0002 item 10, ADR 0003 items 11 and 19).
 
 **Privacy rules**
 
-- Send only the truncated fields above, never file contents or the transcript.
-- Before sending, redact likely secrets: common API-key formats, `password=` and `token=` pairs, and PEM blocks. The same redaction runs earlier and more widely: the receiver redacts prompts, commands, messages and errors before anything is stored, and the recap card is redacted again before it is shown, so a key typed into a prompt never appears on screen.
-- Off by default. The wizard explains that summaries count toward the user's Claude usage.
+- Only the truncated fields above are used, never file contents or the transcript.
+- LLM mode is off by default; summaries count toward the user's Claude usage.
 
 ## 11. Config and data model
 
-Everything is local: one TOML config, one JSON Lines history file (V1) and rotating logs. Every option has a default, so the app runs with no config file. No prompt text, messages, commands, paths or tokens are ever written to history or logs.
+Everything is local. Every option has a default, so the app runs with a config file that
+holds only the token. No prompt text, message, command, path or token is written to history,
+usage or a log file.
 
-**Files**
+**Data folder.** `FOCUS_AUTOPILOT_HOME` if set. Otherwise
+`~/Library/Application Support/io.github.firedash.focusautopilot` on macOS and
+`%LOCALAPPDATA%\io.github.firedash.focusautopilot` on Windows, which is per-user and not
+roamed between machines. On Unix the files are created with mode 0600; on Windows they rely
+on the user profile's access rules.
 
-| File | macOS | Windows | Contents |
-| --- | --- | --- | --- |
-| config.toml | `~/Library/Application Support/<bundle id>` | `%APPDATA%\<bundle id>` | The settings below, including the hook token |
-| runs.jsonl (V1) | same folder | same folder | One line per run, metadata only; trimmed to `history.retention_days` once a day |
-| logs | `~/Library/Logs/<bundle id>` | `%LOCALAPPDATA%\<bundle id>\logs` | Daily files, 7 kept; event names, ids and outcomes only |
-| recap-workdir (V1) | data folder | data folder | Empty working directory for LLM recaps |
+| File | Written by | Contents |
+| --- | --- | --- |
+| `config.toml` | `focusctl` (the token), the Configuration tab, or by hand | The settings below, including the hook token |
+| `runs.jsonl` | focusd | One line per finished run, metadata only. Lines older than `history.retention_days` are dropped when the file is loaded |
+| `usage.json` | focusd | Time per app in half-hour slots: app ids, names, milliseconds. No window titles. Only when `stats.track_app_time` is on |
+| `open-ui.html` | `focusctl ui` | A redirect to the page with the token after the `#`, so the token is never on a command line |
+| `recap-workdir/` | focusd | An empty working folder for LLM recaps |
+| `focusd.log` | The launch agent | Event names, app names and outcomes |
 
-The bundle id is `io.github.<owner>.focusautopilot`. On macOS the data folder is created with mode 0700 and its files 0600; `%APPDATA%` is already private to the user on Windows. `FOCUS_AUTOPILOT_HOME` overrides the data folder for tests.
+Outside the data folder, `focusctl` writes Claude Code's settings file and its backup
+(section 6) and, on request, the launch agent plist.
 
 **config.toml with every default**
 
 ```toml
-# Focus Autopilot. Delete a line to return to its default.
 enabled = true
 
 [receiver]
@@ -558,273 +849,307 @@ token = "<written by focusctl install-hooks>"
 extra_apps = []               # bundle ids (macOS) or executable names (Windows) treated as home apps
 
 [away]
-apps = []                     # empty = manual mode (nothing switches you away). Else ordered; the first running app wins, e.g. ["Obsidian.exe"]
-immersive = []                # subset of apps that get a longer countdown with a warning (V1)
+apps = []                     # used when there is no left-off app; ordered, the first running app wins
+immersive = []                # subset of apps that get a longer countdown with a warning
+resume_last_app = true        # the next away switch goes to the app you left off in
 
 [switching]
+auto_return = true            # count down and bring the user back; false = ask and wait for the focus key
+return_on_needs_input = true  # false = return only when Claude is done
 away_after_seconds = 30
 away_after_seconds_when_long = 10
 short_grace_seconds = 45
-away_requires_idle_seconds = 8
+away_requires_idle_seconds = 0
 input_quiet_ms = 600
 input_quiet_max_seconds = 5
 debounce_seconds = 5
 needs_input_debounce_seconds = 2
 resume_idle_seconds = 8
 stale_after_seconds = 600
-return_on_needs_input = true
 verify_after_ms = 400
+force_foreground = true       # Windows only: one empty mouse event when a switch is refused
 
 [countdown]
-seconds = 3
+seconds = 3                   # before a switch away
+return_seconds = 5            # before a switch back
 snooze_seconds = 60
 max_snoozes = 3
 away_prompt_seconds = 30
 
-[hotkeys]                     # "" turns a hotkey off; defaults differ by OS
-focus_key = "Control+Option+Command+Space"   # Windows: "Ctrl+Alt+Shift+Space" (ADR 0006)
+[hotkeys]                     # "" turns a hotkey off; read once at startup
+focus_key = "Control+Option+Command+Space"   # Windows: "Ctrl+Alt+Shift+Space"
 pause = "Control+Option+Command+P"           # Windows: "Ctrl+Alt+Shift+P"
-declare_long = ""                            # V1
+declare_long = ""
 
 [ui]
 sound_on_return = true
 recap_seconds = 10
-launch_at_login = false
+launch_at_login = false       # parsed but not read; use focusctl install-agent
 
 [recap]
-mode = "basic"                # "basic" or "llm" (V1)
+mode = "basic"                # "basic" or "llm"
 llm_timeout_seconds = 20
 
-[history]                     # V1
+[history]
 retention_days = 90
 salt = "<random, written on first run>"
 
-[ignore]                      # V1
+[ignore]
 cwd_globs = []
 
 [stats]
 track_app_time = true         # record time per app (names and durations only) for the Statistics tab
 ```
 
-Unknown keys produce a warning in the tray and log and are ignored. An invalid value on reload keeps the last good config and shows the error; on first start the default is used for that key. focusd checks the file's modification time every 2 s, so no file-watching dependency is needed.
+**Manual mode.** Turning off `switching.auto_return` and `away.resume_last_app`, with
+`away.apps` empty, gives the mode that was the default until 2026-11-17: nothing switches
+the user away, and a return is a prompt answered with the focus key.
 
-**runs.jsonl line (V1)**
+**Validation.** These are refused: a port of 0, a countdown of 0 in either direction, an
+away app that is also a home app, and an immersive app that isn't in `away.apps`.
+
+**Loading and reloading.** An unknown key or a wrongly typed value is an error, so a typo
+cannot leave a setting silently at its default. The one exception is a setting an earlier
+build had (`config_file::RETIRED`), which is skipped with a printed note. At startup an
+error stops focusd. While running, focusd checks the file's modification time every 2 s and
+applies a valid change; an invalid one keeps the last good config and prints the reason
+(ADR 0003 item 22, ADR 0004 item 6). The page can change only the settings listed in
+`focus-runner/src/settings.rs`; the token, the port and the salt are not among them.
+
+**runs.jsonl line**
 
 ```json
-{"v":1,"run_id":"<prompt_id>","project":"<first 16 hex of SHA-256(salt + cwd)>","start":"2026-11-14T08:31:02Z","duration_s":184,"outcome":"done","permission_mode":"default","effort":"high","prompt_len":"medium","tools":23,"subagents":1,"slow_commands":2,"needed_input":true,"predicted_tier":"long","away":"auto","return":"prompt","snoozes":0}
+{"v":1,"run_id":"<prompt_id>","project":"<salted hash of cwd>","start":"2026-11-14T08:31:02Z","duration_s":184,"outcome":"done","permission_mode":"default","effort":"high","prompt_len":"medium","tools":23,"subagents":1,"slow_commands":2,"needed_input":true,"predicted_tier":"long","away":"auto","return":"prompt","snoozes":0}
 ```
 
-`outcome` is done, error or stale; `away` is none, auto, prompt, cancelled or manual; `return` is none, auto, prompt or manual. The per-install salt means project keys can't be matched across machines.
+`outcome` is done, error or stale; `away` is none, auto, prompt, cancelled or manual;
+`return` is none, auto, prompt or manual. The per-install salt means project keys can't be
+matched across machines. A run is written once, when it can no longer change: 60 s after its
+Stop if nobody is waiting on it, or when it goes stale, is replaced by a new prompt, or its
+session ends. A run first seen mid-way is never written (ADR 0002 item 3).
 
 ## 12. Risks, edge cases and mitigations
 
-The highest risk is that automatic switching annoys the user or endangers their work. The countdown, the input-quiet guard, the frontmost-app rules and pause are the main defenses, and all are in the MVP.
+The highest risk is that automatic switching annoys the user or endangers their work. The
+countdown, the quiet phase, the verified switch and pause are the main defenses.
 
 | Risk or edge case | Mitigation |
 | --- | --- |
-| Focus changes while the user is typing, so keystrokes land in the wrong window (users already report this with Claude's own app: [#94460](https://github.com/anthropics/claude-code/issues/94460), [#102066](https://github.com/anthropics/claude-code/issues/102066)) | Countdown before every switch; input-quiet guard; non-focusable toast; cancel, snooze and pause |
-| A permission prompt gets an accidental answer after a focus jump | Countdown and input-quiet guard; focusd never sends keys |
-| The user interrupts with Esc and Claude Code sends no Stop | Away switch needs 8 s idle in the home window; a cancelled countdown ends away switches for the run; the stale timeout closes the run |
-| A long command runs after a permission approval with no events | The resume heuristic (input, then 8 s idle) re-arms the away switch |
-| The OS refuses automatic switches (macOS cooperative activation, Windows foreground rules, elevated target apps on Windows) | Verify after 400 ms; one-click or one-key fallback prompt; never bypass OS protections by default |
-| Hooks don't fire: sessions started before install, an untrusted workspace, managed policy | The wizard and doctor explain each case; the tray shows "no events seen yet" |
-| A hook slows or blocks Claude Code | The receiver answers in milliseconds; `timeout: 2`; no vetoing |
-| Failed hooks are noisy while focusd isn't running | Check visibility in M4; Quit offers "Quit and remove hooks" |
-| The recap run triggers focusd's own hooks | `disableAllHooks` through `--settings`, plus a dedicated working directory |
-| Untrusted text (prompts, agent output, commands) rendered in the UI | Plain text only, strict CSP, no HTML or Markdown rendering |
-| Secrets in prompts or output reach the recap model | Opt-in, truncation, redaction, no file contents |
-| settings.json is a symlink or has comments | Write through the link; refuse files that aren't strict JSON |
+| Focus changes while the user is typing, so keystrokes land in the wrong window | A countdown before every switch; the quiet phase; a toast that cannot take focus; cancel, snooze and pause |
+| A permission prompt gets an accidental answer after a focus jump | The same; focusd never sends keys |
+| The user is moved out again just after coming back to look | An 8 s hold-off after arriving at the home window; "Not now" ends away switches for the run |
+| The user interrupts with Esc and Claude Code sends no Stop | The away switch needs the home window in front; the stale timeout closes the run |
+| A long command runs after a permission approval with no events | The resume heuristic re-arms the away switch |
+| The OS refuses an automatic switch | Verify after 400 ms; the prompt and the focus key; on Windows, the empty mouse event |
+| The empty mouse event on Windows counts as input | It resets the system idle timer once per refused switch; `switching.force_foreground = false` turns it off |
+| Hooks don't fire: sessions started before install, an untrusted workspace, managed policy | `focusctl doctor` names each case |
+| A hook slows or blocks Claude Code | The receiver answers at once; `timeout: 2`; no vetoing |
+| The recap run triggers focusd's own hooks | `disableAllHooks` through `--settings`, plus a dedicated working folder |
+| Untrusted text (prompts, agent output, app names) shown in a box or the page | Plain text only; the page sets every string with `textContent` under a strict Content-Security-Policy |
+| Secrets in prompts or output are shown, stored or sent to the recap model | Redaction at the receiver, on the card and before the LLM; truncation; LLM mode is opt-in. Known gaps in section 10 |
+| Time per app is a record of what the user does | Local, owner-readable, app names and durations only; one switch turns it off and the Statistics tab erases it |
+| `settings.json` is a symlink or has comments | Write through the link; refuse files that aren't strict JSON |
 | The token is published with someone's dotfiles | Low impact (loopback events only); `focusctl rotate-token` |
-| Global hotkeys clash with the OS, IDEs or games | Three-modifier defaults; the focus key is registered only while a toast shows; configurable; doctor reports failures |
-| The macOS idle-time call needs a permission on some version | Checked in the M2 spike; if so, idle guards fall back to time-only rules there |
-| Exclusive full-screen games ignore the switch or hide the toast | Recommend borderless windowed; sound on return; warn for immersive apps |
-| The Tauri overlay takes focus or can't float over games | M2 spike; native overlay fallback in focus-platform |
-| Several monitors or Spaces | Activate apps rather than move windows; show the toast on the frontmost window's display |
-| Two sessions finish together | One switch at a time; queue; the card lists the rest |
-| Short runs cause flip-flopping | Short-tier grace period; a Stop within 5 s of an away switch gets the prompt, not an automatic return |
-| Claude Code inside WSL2 can't reach focusd | focusctl detects WSL and prints setup steps, such as turning on mirrored networking |
-| Port 47821 is already in use | Startup error in the tray; change `receiver.port` and rerun `focusctl install-hooks` |
-| Hook payloads change between Claude Code versions | Typed parsing that ignores unknown fields; a missing `prompt_id` falls back to the current run; tested version range in the README |
-| A public repo attracts malicious pull requests or dependency attacks | CODEOWNERS, required reviews, dependency policy and pinned CI actions (section 13) |
-| Anthropic adds native focus or recap features | Stay agent-agnostic and cross-app; the away-and-back loop is the differentiator |
+| A web page reads statistics or changes settings through the page's API | Host, Origin and `Sec-Fetch-Site` checks, the token on every call, JSON-only writes, no CORS headers (ADR 0004 item 2) |
+| Global hotkeys clash with the OS, IDEs or other apps | Three-modifier defaults; configurable; a clash is reported at startup and by `--test-hotkeys` |
+| The built-in home-app ids are wrong | `focusd` prints the real id of the front app and the config line to add it |
+| Several windows of one app on macOS | The return lands in the app; the toast and recap name the project |
+| Two sessions finish together | One return at a time; sessions at the same window are settled together and listed on the card |
+| Short runs cause flip-flopping | The Short-tier grace; a Stop within 5 s of an away switch gets the prompt |
+| Exclusive full-screen apps ignore the switch or hide the box | The sound on return; the immersive warning |
+| Claude Code inside WSL2 can't reach focusd | Not handled |
+| Port 47821 is already in use | focusd fails at startup with the reason; change `receiver.port` and rerun `focusctl install-hooks` |
+| Hook payloads change between Claude Code versions | Typed parsing that ignores unknown fields; a missing `prompt_id` falls back to the current run |
+| A public repo attracts malicious pull requests or dependency attacks | CODEOWNERS, `cargo deny`, pinned CI actions (section 13) |
+| Anthropic adds native focus or recap features | The away-and-back loop across apps is the differentiator |
 
 ## 13. Open source, security and code standards
 
-Users will let this app watch their coding agent and move their focus, so trust is the product. These rules keep the code small enough for a stranger to audit in an afternoon, and they apply from the first commit. Numbers are targets to hold, not measurements.
+Users let this app watch their coding agent and move their focus, so trust is the product.
+The trust documents are separate files, kept next to the code they describe. This section
+states the rules and points to them.
+
+| Document | Holds |
+| --- | --- |
+| [THREAT_MODEL.md](../THREAT_MODEL.md) | Who is assumed hostile, each threat, its mitigation and the test that covers it |
+| [PERMISSIONS.md](../PERMISSIONS.md) | What the app does that an OS could gate, and why none of it needs a grant |
+| [AUDIT.md](../AUDIT.md) | Where in the code each listener, file, spawned process, OS call and `unsafe` block lives |
+| [DEPENDENCIES.md](../DEPENDENCIES.md) | Every direct dependency, its purpose and license |
+| [SECURITY.md](../SECURITY.md) | How to report a vulnerability |
 
 **Trust principles**
 
-1. **Small.** MVP target: under 6,000 lines of first-party Rust and UI code, excluding tests. Security-relevant code (receiver, installer, platform adapters) lives in clearly named files.
-2. **Few dependencies, each justified.** DEPENDENCIES.md lists every direct dependency with its purpose, license and why the standard library is not enough. CI fails when a dependency is added without an entry.
-3. **Local by default.** No telemetry, no crash upload, no self-updater. The only network traffic is loopback and the opt-in recap call.
-4. **Least privilege, stated openly.** The default install asks for no OS permission; PERMISSIONS.md lists the optional ones, why each is needed and what breaks without it.
-5. **Never act behind the user's back.** No synthesized keystrokes or clicks, no system-setting changes, and no bypassing OS focus protections by default.
-6. **Reversible.** Uninstall removes the hooks and the app's data directory and leaves the user's other settings as they were.
+1. **Small.** Security-relevant code (receiver, installer, platform adapters) lives in
+   clearly named files. The first design's size target of 6,000 lines has been passed;
+   STATUS.md has the current count and why.
+2. **Few dependencies, each justified.** `focus-core` has none.
+3. **Local by default.** No telemetry, no crash upload, no self-updater. The only network
+   traffic is loopback, plus the `claude` command when LLM mode is on.
+4. **Least privilege, stated openly.** The app asks for no OS permission.
+5. **Never act behind the user's back.** No synthesized keystrokes or clicks and no
+   system-setting changes. The one exception is the empty mouse event on Windows (section 8),
+   which is documented in PERMISSIONS.md and can be turned off.
+6. **Reversible.** `uninstall-hooks` removes exactly the entries the installer added and
+   leaves the user's other settings as they were.
 
-**Threat model**
+**The receiver's checks.** Loopback bind only. `Host` must be `127.0.0.1:<port>` or
+`localhost:<port>`, which blocks DNS rebinding. A hook with any `Origin` header is refused.
+The token is compared in constant time. JSON content type is required. Bodies are limited to
+8 MB for hooks and 64 KB for the page's API. A token bucket limits requests to 200 a second
+with a burst of 1,000. Stalled connections are cut off. Each check is a pure function in
+`focus-receiver/src/check.rs` with its own test.
 
-| Threat | Example | Mitigation |
-| --- | --- | --- |
-| Forged events sent to the receiver | A web page or another user's process posts to 127.0.0.1 to trigger switches | Bind to 127.0.0.1 only; random 256-bit token compared in constant time; require `Content-Type: application/json`; require a Host header of `127.0.0.1:<port>` or `localhost:<port>`, which blocks DNS rebinding; reject any request with an `Origin` header; token-bucket rate limit of 200 requests per second, burst 1,000 |
-| Malformed or hostile payloads | Huge, deeply nested or invalid JSON in a prompt or tool input | 8 MB body limit; typed parsing of known fields only; nesting-depth limit; fuzz tests |
-| Untrusted text in focusd's UI | A prompt or agent message containing HTML or script | Plain text through `textContent` only; strict Content-Security-Policy; no Markdown rendering; each window can call only the commands it needs |
-| Injection into OS commands | A folder or app name passed into a shell, PowerShell or AppleScript | Call OS APIs directly; the only spawned processes are `focusctl` and the opt-in `claude` recap, each started with an argument array, never a shell |
-| Damage to the user's Claude Code settings | The installer corrupts settings.json, drops other hooks or breaks a dotfiles symlink | Dry-run diff, backup, atomic write through symlinks, merge of marked entries only, refusal of non-JSON files, round-trip and fuzz tests |
-| Leaking secrets | Prompts, agent output or commands written to logs or sent away | Content stays in memory; logs and history hold only names, ids, counts and hashes; the opt-in recap sends truncated, redacted text through the user's own Claude Code |
-| Supply-chain compromise | A malicious dependency, CI action or release binary | The supply chain rules below |
-| Permission creep | A feature quietly needing Accessibility, Input Monitoring or Screen Recording | No permission in the default install; Accessibility only for the opt-in feature C5; changes to PERMISSIONS.md need CODEOWNERS review |
-
-Out of scope: malware already running as the user, which can read the token and config anyway.
+**Out of scope:** software already running as the user, which can read the token and config
+directly.
 
 **Code standards**
 
-- **Structure.** `focus-core` holds every decision, has no I/O and sets `#![forbid(unsafe_code)]`, as do all crates except `focus-platform`. There, every `unsafe` block carries a `// SAFETY:` comment, enforced by `clippy::undocumented_unsafe_blocks`. The shell crates only wire things together.
-- **Lints.** Set once in `[workspace.lints]`: rustc warnings denied; clippy `pedantic` at warn; `unwrap_used`, `expect_used`, `panic` and `todo` denied outside tests. `cargo fmt --check` runs in CI.
-- **UI.** Plain HTML, CSS and JavaScript files, with no Node.js, npm or bundler. CSP `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:` plus Tauri's IPC origin. Tauri capabilities give each window only the commands it calls.
-- **Concurrency.** The core runs on one thread and receives everything through a channel; window, overlay and hotkey calls run on the main thread. No shared mutable state between threads.
-- **Errors and panics.** Typed errors and no silent failures: a failed OS call is logged and, when the user is affected, shown in the tray or toast. A panic is a bug: the panic hook logs its location, automation switches to paused and the tray shows a warning.
-- **Readability.** Functions under about 50 lines and files under about 400; thresholds as named constants that match the config keys; comments explain why, not what.
-- **Tests.** At least 90% line coverage on `focus-core`, driven by recorded traces and an injectable clock; negative tests for the receiver; fuzz targets for payload parsing and the settings.json merge; a manual checklist per OS for the adapters.
-- **Logging.** Structured, levelled and rotated, and never containing prompt text, messages, commands, paths or tokens.
-- **Performance budgets.** Hook reply under 10 ms at the 99th percentile; idle CPU under 0.5%; memory under 80 MB with the webview loaded; a switch decision within 5 ms of an event.
-- **Decisions.** Each significant choice gets a short architecture decision record in `docs/adr/`.
+- **Structure.** Every crate except `focus-platform` sets `#![forbid(unsafe_code)]`;
+  `scripts/check-repo.py` checks it. In `focus-platform` every `unsafe` block carries a
+  `// SAFETY:` comment, enforced by `clippy::undocumented_unsafe_blocks`.
+- **Lints.** Set once in `[workspace.lints]`: rustc warnings denied; clippy `pedantic` at
+  warn; `unwrap_used`, `expect_used`, `panic` and `todo` denied outside tests.
+- **The page.** Plain HTML, CSS and JavaScript with no Node.js, npm or bundler; nothing
+  inline and nothing from another origin.
+- **Concurrency.** The core runs on one thread and receives everything through a channel.
+- **Processes.** Started with an argument array, never through a shell.
+- **Logging.** Event names, ids and outcomes. Never prompt text, messages, commands, paths
+  or tokens in a file.
+- **Readability.** Thresholds are named constants that match the config keys; comments
+  explain why, not what.
+- **Decisions.** Each significant choice gets a record in `docs/adr/`.
 
-**Supply chain and releases**
+**CI** (`.github/workflows/ci.yml`), on every push and pull request, with a read-only token
+and every third-party action pinned to a full commit:
 
-- Commit `Cargo.lock` and pin the toolchain in `rust-toolchain.toml`. Gate dependencies with `cargo-deny` (advisories, licenses, banned crates, allowed sources) and `cargo-audit`, and record crate reviews with `cargo-vet`.
-- Dependabot for Cargo and GitHub Actions, weekly and grouped; every update still passes full CI and needs a review.
-- Pin GitHub Actions to full commit SHAs. Workflows get read-only tokens by default, and only the release job, in a protected `release` environment, can read signing secrets.
-- Build releases only in CI from signed tags, with `cargo auditable` so each binary carries its dependency list. Publish SHA-256 checksums, a CycloneDX SBOM and build-provenance attestations.
-- Reproducibility: unsigned binaries must rebuild bit for bit from the tag with the pinned toolchain; REPRODUCIBLE.md explains how to compare a signed release after stripping its signature.
-- macOS: Developer ID signature, hardened runtime and notarization. Windows: free signing through the [SignPath Foundation](https://signpath.org/) program, whose certificate names SignPath Foundation as the publisher; until approval, Windows builds ship unsigned with checksums.
-- No auto-update in v1: "Check for updates" opens the releases page.
+| Job | Runs |
+| --- | --- |
+| Linux | `cargo fmt --check`, `cargo clippy`, `cargo test`, and `scripts/check-repo.py` (required files, SPDX headers, a DEPENDENCIES.md entry per dependency, `unsafe` confined to `focus-platform`) |
+| macOS | Clippy, build and tests; the only place the macOS adapter is linked |
+| Windows | Clippy, build and tests against a real Windows, then a smoke test that installs the hooks, starts `focusd`, sends one hook and checks it arrived |
+| Dependencies | `cargo deny`: advisories, licenses, banned crates, sources |
 
-**Repository and governance**
+`scripts/ui-check/run.sh` drives the page in Chromium. It is run by hand, because CI has no
+browser.
 
-- License: Apache-2.0, with SPDX headers on every file.
-- Branch protection on `main`: required reviews and status checks, no force pushes, signed commits.
-- CODEOWNERS requires a maintainer review for the receiver, installer, platform adapters, CI workflows, dependency files and PERMISSIONS.md.
-- SECURITY.md: private reporting through GitHub's private vulnerability reporting, a 7-day first-response target and coordinated disclosure.
-- A pull request template with a security checklist: does this add a permission, dependency, network call, file write or spawned process? Each needs a stated reason.
-- Conventional Commits, SemVer starting at 0.1.0, and a CHANGELOG generated from commits.
-- Contributions signed off under the Developer Certificate of Origin.
+**Supply chain.** `Cargo.lock` is committed and the toolchain is pinned in
+`rust-toolchain.toml`. Dependabot covers Cargo and GitHub Actions.
 
-**Audit aids**
+**Repository.** Apache-2.0 with SPDX headers on every source file. CODEOWNERS requires a
+maintainer's review for the security-relevant parts. The pull request template asks whether
+a change adds a permission, dependency, network call, file write or spawned process.
 
-- AUDIT.md, one page, says where in the code each of these lives: the network listener, every file read or written, every process spawned, every OS API that observes the user, every optional permission and every `unsafe` block.
-- `focusctl audit` prints the same facts from the built app: the dependency tree (from `cargo auditable` data), `unsafe` locations, registered hotkeys, the listener address and macOS entitlements.
-- A Linux integration test runs the receiver and core headless with the fake platform, under `strace` in a temporary home, and replays the fixtures. It fails on any `connect()` to a non-loopback address and on any write outside the data folder and the marked settings.json entries.
+**Not built.** These were in the first design and are still wanted:
 
-**CI checks on every pull request**
+- Fuzz targets for payload parsing and the settings merge.
+- The Linux test that runs the app under `strace` and fails on any non-loopback connection
+  or stray file write.
+- A coverage gate, a secret scan and the browser checks in CI.
+- `focusctl audit`.
+- Release engineering: signed and notarized builds, checksums, an SBOM, build provenance,
+  reproducible builds and REPRODUCIBLE.md.
+- Measuring the performance budgets: a hook reply under 10 ms at the 99th percentile, idle
+  CPU under 0.5%, a switch decision within 5 ms of an event.
 
-| Check | Example tools | Runs on |
-| --- | --- | --- |
-| Format and lint | cargo fmt, cargo clippy | Linux, macOS, Windows |
-| Core and receiver tests with coverage | cargo test, cargo-llvm-cov (90% on focus-core) | Linux |
-| Platform and app build and tests | cargo test, cargo build | macOS, Windows |
-| Fuzz smoke run | cargo-fuzz, 60 s per target | Linux |
-| Network and file-write integration test | focus-headless under strace | Linux |
-| Dependencies and licenses | cargo-deny, cargo-audit, GitHub dependency review | Linux |
-| Secret scan | gitleaks | Linux |
-| Required files, SPDX headers, DEPENDENCIES.md entries | small repo script | Linux |
-| Release build, signing, notarization, SBOM, attestation (tags only) | release workflow | macOS, Windows |
+## 14. Repository layout and tests
 
-## 14. Build plan for an LLM
+This section was "Build plan for an LLM". The milestones, the test plan as first written and
+the prompt that was given to the coding model are kept in
+[design-original.md, section 14](design-original.md#14-build-plan-for-an-llm).
 
-Build the MVP in seven milestones, starting from an empty repository. Each ends in something that runs and is tested before the next starts.
-
-**Prerequisites.** Rust stable pinned in `rust-toolchain.toml` (edition 2024); `cargo install tauri-cli --locked`; Xcode Command Line Tools on macOS; Visual Studio Build Tools with the C++ workload on Windows, where WebView2 ships with Windows 11 and current Windows 10. No Node.js.
-
-1. **M0, repository, CI and receiver.** Cargo workspace with the crates from section 5; the repository files from section 13; CI from section 13; config loading with defaults; `focus-receiver` with every check in the threat model; `focusctl record`. Done when CI is green on all three OSes, a sample payload is accepted, and negative tests reject forged requests.
-2. **M1, core state machines.** Session transitions and the switch controller from section 7 in `focus-core`, driven by fixture traces, a fake clock and the fake platform. Done when every fixture ends in the expected states and effects and core coverage is at least 90%.
-3. **M2, platform spike on both OSes.** Every call in section 8's table, plus `focusctl test-switch <app>`. Record the answers in an ADR: does background activation work on each OS; does the focus key grant switch rights like a click; does the toast float over a borderless game without taking focus; does the idle-time call need a permission. Done when the manual checklist passes 9 of 10 attempts per OS, counting the fallback prompt. Stop and report if a finding contradicts the design.
-4. **M3, policy end to end.** Away guards, countdowns, the input-quiet guard, verification and fallback prompts, debounce, pause and sound in the real app on the real platform. Done when replayed traces drive the expected switches on both OSes and a cancelled countdown produces none.
-5. **M4, hook installer.** `focusctl install-hooks`, `uninstall-hooks` and `rotate-token` with every rule in section 6, on both OSes. Done when install, repeated install and uninstall round-trip the file exactly, including a symlinked file, and the fuzz target passes. Also record how visible failed hooks are while focusd is stopped.
-6. **M5, recap, tray, wizard and doctor.** Basic recap card, tray menu, first-run wizard, launch at login and `focusctl doctor`. Done when a new user on each OS goes from install to a full away-and-back cycle with a real Claude Code prompt without reading the docs.
-7. **M6, release engineering.** A release workflow producing a universal macOS .dmg and a per-user Windows NSIS installer, with checksums, SBOM and provenance; signing and notarization when the secrets exist, unsigned artifacts otherwise. Done when a tag produces every artifact and the unsigned binaries rebuild from the tag with matching checksums.
-
-V1 then follows the backlog: run history and estimation (E1 to E4), the LLM recap (F2), run statistics (F3), the immersive flag and exact-window return (C4, C5), the multi-session queue (H1), ignore patterns (G5) and signed releases (O5).
-
-**Suggested repository layout**
+**Layout**
 
 ```text
 focus-autopilot/
   Cargo.toml  Cargo.lock  rust-toolchain.toml  deny.toml  rustfmt.toml  clippy.toml
-  README.md  LICENSE  SECURITY.md  CONTRIBUTING.md  CODE_OF_CONDUCT.md  CHANGELOG.md
-  ARCHITECTURE.md  THREAT_MODEL.md  PERMISSIONS.md  DEPENDENCIES.md  AUDIT.md  REPRODUCIBLE.md
-  docs/adr/                       architecture decision records
-  docs/manual-test-checklist.md   per-OS adapter checks
+  README.md  STATUS.md  LICENSE  SECURITY.md  CONTRIBUTING.md  CODE_OF_CONDUCT.md
+  THREAT_MODEL.md  PERMISSIONS.md  DEPENDENCIES.md  AUDIT.md
+  docs/
+    design.md                 this file
+    design-original.md        the design as first written; frozen
+    adr/                      decision records 0001 to 0006
+    mac-quickstart.md  windows-quickstart.md
+    images/                   screenshots of the page, from made-up data
   .github/
-    workflows/ci.yml  workflows/release.yml  dependabot.yml
-    CODEOWNERS  PULL_REQUEST_TEMPLATE.md
+    workflows/ci.yml  dependabot.yml  CODEOWNERS  pull_request_template.md
   crates/
-    focus-core/                   every decision; no I/O, no unsafe
-      src/  events.rs  session.rs  controller.rs  guards.rs  estimator.rs  recap.rs  config.rs
-      tests/fixtures/             synthetic and scrubbed traces (.jsonl)
-    focus-receiver/               HTTP receiver and parsing into AgentEvent
-    focus-platform/               OS adapters; the only crate with unsafe
-      src/  lib.rs  macos.rs  windows.rs  fake.rs  known_apps.rs
-    focus-app/                    Tauri shell: wiring, overlay, tray, wizard, store
-      ui/   toast.html  recap.html  wizard.html  app.css  app.js
-    focusctl/                     install-hooks, uninstall-hooks, rotate-token, record, doctor, audit, test-switch
-    focus-headless/               dev-only runner for the Linux integration test
-  fuzz/                           cargo-fuzz targets
+    focus-core/               every decision; no I/O, no unsafe, no dependencies
+      src/
+        engine.rs             the Core: inputs in, effects out, the settle loop
+        session.rs  run.rs    the per-session state machine and one run's data
+        mode.rs               the switch controller's modes and phases
+        guards.rs  away.rs    the away guards and the away half of the controller
+        returns.rs            the return half of the controller
+        actions.rs            idle readings, activation results and the focus key
+        hooks.rs              hook events entering the core; history, declare-long, recap requests
+        estimator.rs          tiers and estimates
+        recap.rs  recap_llm.rs  redact.rs  toast.rs
+        config.rs  events.rs  io.rs  glob.rs
+      tests/                  scenario tests driven by a simulator in tests/support/
+        fixtures/             synthetic traces (.jsonl)
+    focus-receiver/           the loopback server, checks, payload and config parsing
+      assets/ui/              the Statistics and Configuration page
+    focus-platform/           OS adapters and a fake; the only crate with unsafe
+    focus-runner/             the shell loop, usage, statistics, settings, history, recap CLI
+    focus-headless/           dev runner with the fake platform
+    focusd/                   the daemon
+    focusctl/                 install-hooks, uninstall-hooks, rotate-token, ui, doctor,
+                              install-agent, uninstall-agent
+  scripts/
+    check-repo.py             repository rules
+    ui-check/                 drives the page in a real browser; seeds made-up data
 ```
 
-**Test plan.** Unit-test `focus-core` with fixture traces and an injectable clock. Record real hook payloads on both OSes with `focusctl record` and add them as scrubbed fixtures. Run the receiver's negative tests, the fuzz targets and the strace integration test in CI. Adapters follow `docs/manual-test-checklist.md` on each OS: switch to and from a terminal, an IDE and a borderless game; repeat on a second monitor and across Spaces; repeat with an elevated target app on Windows; confirm the fallback prompt appears whenever a switch is refused.
+**How it is tested**
 
-**Prompt to paste into the coding LLM**
+- **The core.** Scenario tests in `focus-core/tests/` drive `Core` through a simulator
+  (`tests/support/mod.rs`) that plays hooks, the user and the OS against a fake clock. The
+  timings in those tests come from the config defaults in section 11.
+- **The receiver.** Negative tests over a real socket in `focus-receiver/tests/http.rs`:
+  forged, oversized and malformed requests are refused.
+- **The shell loop.** `focus-runner/tests/shell_loop.rs` runs the real loop against the fake
+  platform.
+- **The installer.** Round-trip tests in `focusctl` for install, repeated install and
+  uninstall, including a symlinked file.
+- **The adapters.** Each is compiled, linked and exercised on its own OS in CI. What a person
+  has seen working on a real desktop is tracked in STATUS.md, because CI cannot show that a
+  box is visible or that a switch lands where it should.
+- **The page.** `scripts/ui-check/run.sh`, by hand.
 
-```text
-You are building the MVP of Focus Autopilot, an open-source desktop app for macOS and Windows that switches a developer between prompting work in Claude Code and steady work in an away app they choose, with countdowns, a one-key fallback and a recap.
-
-Read the attached design document fully before writing code. Section 15 lists decisions that are final; don't reopen them. Start from an empty repository.
-
-Work through milestones M0 to M6 in order. After each milestone, run its checks, commit, and summarize what passed. Continue to the next milestone unless a check fails or the M2 spike contradicts the design; in those cases stop and report.
-
-Constraints:
-- Rust workspace with a Tauri 2.8+ shell, laid out as in section 14. Every decision lives in focus-core (no I/O, no unsafe). unsafe only in focus-platform, each block with a SAFETY comment.
-- Follow sections 6 and 7 exactly for hooks, payload fields, session transitions and the switch controller. If a payload field differs from https://code.claude.com/docs/en/hooks, follow the docs and record it in an ADR.
-- Treat section 13 as hard requirements: threat-model mitigations, code standards, CI checks and repository files.
-- The receiver replies 200 with an empty body immediately and never blocks, vetoes or changes anything Claude Code does.
-- Every automatic switch goes through the switch controller: guards, countdown, input-quiet guard, verification, fallback prompt. Never synthesize input, change system settings, use focus workarounds, or request an OS permission in the default flow.
-- Spawn processes only with argument arrays, never through a shell. Never build script text from runtime values.
-- Add no dependency outside the starter list in section 5 without a DEPENDENCIES.md entry giving purpose, license and why the standard library isn't enough.
-- Never write prompt text, agent output, commands, paths or tokens to logs or history.
-- Implement every config key in section 11 with its default.
-- When something is unspecified, choose what best fits sections 2 and 13, record it in docs/adr, and continue.
-
-Out of scope for the MVP: agents other than Claude Code, Linux, estimation beyond elapsed time, the LLM recap, the multi-session queue UI.
-```
+**Trying it without a Mac or Windows.** `cargo run -p focus-headless -- --port 47821` runs
+the receiver and core with the fake platform. Send hooks with `curl`, and type
+`front <app id>` to play the user switching apps. The README has the commands.
 
 ## 15. Decisions and assumptions
 
-Every earlier open question is decided here so the build can start without blockers. Claude Code should treat these as final; the last column says what evidence would justify revisiting one.
+Each row is a decision that stands. The record column says where the reasoning is.
 
-| Decision | Choice | Why | Revisit if |
+| Decision | Choice | Why | Record |
 | --- | --- | --- | --- |
-| Platforms | macOS 14 or later as a universal build; Windows 10 22H2 and 11 on x64; Linux in V2 | Where most developers run Claude Code locally; macOS 14 has the cooperative-activation APIs | Demand for Linux or Windows on Arm |
-| Stack | Rust workspace with a Tauri 2.8+ shell and a plain HTML, CSS and JavaScript UI; no Node.js | Memory-safe parsing, one codebase, a small auditable dependency tree; 2.8 adds non-focusable windows | The M2 spike shows Tauri can't host the overlay, which then moves to native code |
-| License | Apache-2.0 | Explicit patent grant and OSI approval; one license keeps the SignPath application simple | Never, once published |
-| Switching model | Try automatic, verify, fall back to one click or key; no OS workarounds | Trust, and honesty about OS limits | The spike shows Windows refuses nearly every switch; then consider C6 |
-| Home window | The frontmost known home app at prompt submit | Zero configuration and no process inspection | Many real runs end up with no home |
-| Away apps | A user-chosen ordered list; focusd never launches them | Launching an app is slow and surprising | Users ask for launching |
-| Away guards | Home window in front, 8 s idle, tier threshold reached | Never yank an active user | Reports of missed or unwanted switches |
-| Permission prompts | Return right away, after debounce and countdown | Claude is blocked until the user answers | Users find it too eager |
-| Claude Code surfaces | Any local surface that loads user settings: CLI, IDE extensions, desktop app | The same hooks fire everywhere | A surface fires no hooks; doctor reports it |
-| Recap | Basic in the MVP; opt-in LLM summary through the local `claude` CLI in V1; no API keys | Zero setup and no secrets to store | Summaries regularly take over 20 s |
-| Storage | TOML config and JSON Lines history; no database | Human-readable, auditable, no C dependency | History outgrows a simple file scan |
-| Hotkeys | Focus key registered only while a toast shows; three-modifier defaults | Avoids clashes, such as macOS input-source switching | Conflict reports |
-| Multi-session | MVP: global rules and one switch at a time; V1: queue UI | Safe now, richer later | Heavy parallel-session users |
-| Distribution | GitHub Releases with a notarized .dmg and a per-user NSIS installer that needs no admin rights; Homebrew and winget in V1 | Verifiable artifacts, no elevation |  |
-| Updates | No auto-update; the tray links to releases | No network traffic by default |  |
-| Name | Working name Focus Autopilot; names live in one branding module and `tauri.conf.json` | Easy to rename before 1.0 | The name check finds a conflict; similar names such as FocusPilot exist |
-| Bundle id | `io.github.<owner>.focusautopilot` | Needs no domain | The project gets a domain |
+| Platforms | macOS 14 or later and Windows 10 and 11, built from source | Where most developers run Claude Code locally | ADR 0006 |
+| Stack | A Rust workspace; native overlay windows; a local web page for settings and statistics; no Tauri, no Node.js | Memory-safe parsing of outside input, a small dependency tree, and a page that can be tested in a real browser without a Mac | ADR 0003 item 2, ADR 0004 item 1 |
+| License | Apache-2.0 | Explicit patent grant and OSI approval | |
+| Core and shell | The core decides and does no I/O; the shell carries out effects | Every decision is testable with a fake clock, and the code to audit is in one place | ADR 0001 |
+| The default loop | Return by countdown from any app; the next away switch goes to the left-off app | It is the loop the owner asked for after using manual mode | ADR 0005 |
+| Manual mode | Two settings away, not the default | It was the default from ADR 0003 item 1 until ADR 0005 | ADR 0005 item 5 |
+| Idle before an away switch | Not required by default | On a Mac even 3 s without input was often not met; the quiet phase is the safeguard that matters | ADR 0005 item 5 |
+| Switching model | Try automatic, verify, fall back to the focus key | Trust, and honesty about OS limits | ADR 0001 item 2, ADR 0003 item 8 |
+| Windows foreground rule | One empty mouse event, on by default | Without it nearly every timed switch would become a question | ADR 0006 item 4 |
+| Home window | The frontmost home app at prompt submit; the exact window on Windows | Zero configuration and no process inspection | ADR 0006 item 2 |
+| Exact-window return on macOS | Not built | The hook names the project, not the window; the editor-URL route opened stray windows | ADR 0003 items 16, 21 |
+| Away apps | Optional; focusd never launches an app | Launching an app is slow and surprising | |
+| Permission prompts | Return right away, after the 2 s debounce and the countdown | Claude is blocked until the user answers | |
+| Several sessions | Sessions waiting at one window are settled together; others queue | Without window identity the core cannot tell which window the user is looking at | ADR 0002 item 5, ADR 0003 item 17 |
+| Claude Code surfaces | Any local surface that loads user settings should work; only the terminal is tested | The same hooks fire everywhere, according to Anthropic's documentation | ADR 0003 item 5 |
+| Recap | Basic by default; opt-in LLM summary through the local `claude` CLI, with the basic card held back | No setup and no secrets to store | ADR 0002 item 9, ADR 0003 item 4 |
+| Redaction | At the receiver, on the card and before the LLM | A key typed into a prompt must not appear on a shared screen | ADR 0003 item 11 |
+| Storage | TOML config, JSON Lines history, one JSON usage file; no database | Human-readable and auditable | ADR 0003 item 13, ADR 0004 item 7 |
+| Config errors | An unknown key is an error; a bad edit to a running app keeps the last good config | A typo cannot leave a setting silently at its default | ADR 0003 item 22, ADR 0004 item 6 |
+| Time per app | Recorded locally by default; can be turned off and erased | The Statistics tab is empty without it | ADR 0004 item 7 |
+| Hotkeys | Registered at startup with three-modifier defaults | No permission needed, and no other key is ever seen | ADR 0003 item 3, ADR 0006 item 6 |
+| Launch at login | A launch agent plist the user loads, on macOS | It does not load anything itself | ADR 0003 item 15 |
+| Updates | No auto-update | No network traffic by default | |
+| Name | Working name Focus Autopilot; data folder `io.github.firedash.focusautopilot` | Needs no domain | |
 
-**Maintainer actions.** None of these block milestones M0 to M5.
-
-- [ ] Create the public GitHub repository; turn on private vulnerability reporting and branch protection.
-- [ ] Join the Apple Developer Program and create a Developer ID certificate for notarized macOS releases (M6).
-- [ ] Apply to the SignPath Foundation program for free Windows signing. It requires an OSI license, multi-factor authentication for the whole team and a credit line in the README, and the certificate names SignPath Foundation as publisher. Until approval, Windows builds ship unsigned with checksums.
-- [ ] Check the name on GitHub, crates.io, app stores and trademark registers before the first public release.
-- [ ] Record the first real hook traces on both OSes with `focusctl record` and commit them as fixtures.
+**Open questions and next steps** are in [STATUS.md](../STATUS.md), which is updated as
+things are tried on real machines.

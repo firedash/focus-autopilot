@@ -35,7 +35,8 @@ macOS parts were written from Linux:
 | The automatic return: a countdown, then the switch back to the terminal, from an app that is not an away app (2026-11-17) | Snoozing a return countdown with the focus key | |
 | | | Claude Code in VS Code, Cursor, the Desktop app |
 
-Where the build departs from `docs/design.md`, the ADRs win:
+`docs/design.md` describes the app as built. Where the build departed from the design as
+first written (`docs/design-original.md`), the ADRs say why:
 [0003](docs/adr/0003-shell-decisions.md) for the shell and
 [0004](docs/adr/0004-statistics-and-configuration-page.md) for the page and
 [0005](docs/adr/0005-the-full-loop-by-default.md) for the loop. The loop as of 0005: a
