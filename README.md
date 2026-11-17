@@ -159,8 +159,11 @@ Dark mode and a phone-width layout, both automatic:
 
 The design is [docs/design.md](docs/design.md), "Focus Autopilot — Feature Backlog & Technical
 Design (v1: Claude Code on macOS and Windows)"; section numbers in code comments refer to it.
-The design and the code call the optional app it switches you to the "away app". Where the
-build departs from the design, the records in [docs/adr/](docs/adr/) say why and win.
+The design and the code call the optional app it switches you to the "away app". The design
+describes what is built; the records in [docs/adr/](docs/adr/) say why each choice was made.
+The design as first written, before the build, is kept in
+[docs/design-original.md](docs/design-original.md), and is what the records mean by "the
+design".
 
 ### Layout
 
