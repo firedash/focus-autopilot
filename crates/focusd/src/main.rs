@@ -175,6 +175,36 @@ mod native {
         Ok(())
     }
 
+    /// `focusd --test-box`: shows the toast for 10 seconds and then the recap card for 6, and
+    /// nothing else, so "is the box drawn where I can see it" can be answered without racing
+    /// a run.
+    fn test_box(platform: &Native) {
+        use focus_platform::Overlay as _;
+        let show = |seconds: u64| {
+            let end = Instant::now() + std::time::Duration::from_secs(seconds);
+            while Instant::now() < end {
+                platform.tick(Instant::now());
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        };
+        println!("Look at the top centre of the screen. A box should be there for 10 seconds.");
+        platform.show_toast(
+            "This is the Focus Autopilot box.\nIf you can read this, the box works. It goes away in 10 s.",
+        );
+        show(10);
+        platform.hide_toast();
+        println!("Now the recap card, in the same place, for 6 seconds.");
+        let lines = [
+            "Project: test",
+            "Asked:   Show me the recap card",
+            "Claude:  This is what it looks like.",
+        ]
+        .map(str::to_owned);
+        platform.show_recap(&lines, std::time::Duration::from_secs(6));
+        show(7);
+        println!("Done. Say whether you saw both, one, or neither.");
+    }
+
     /// Registers the hotkeys, reports problems, and returns the focus key as it reads on screen.
     fn setup_hotkeys(platform: &Native, config: &Config) -> Option<String> {
         let problems = platform.register(&keys(config));
@@ -214,45 +244,79 @@ mod native {
     #[cfg(not(windows))]
     fn platform_settings(_platform: &Native, _config_path: &PathBuf) {}
 
-    pub fn run() -> Result<(), String> {
-        let mut config_path = paths::config_path().ok_or("no HOME")?;
-        let mut port = None;
-        let mut list_apps = false;
-        let mut force_verbose = false;
-        let mut test_hotkeys_only = false;
+    /// What to do instead of running the app, when a flag asks for it.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Only {
+        ListApps,
+        TestHotkeys,
+        TestBox,
+    }
+
+    struct Args {
+        config_path: PathBuf,
+        port: Option<u16>,
+        verbose: bool,
+        only: Option<Only>,
+    }
+
+    /// `Ok(None)` after printing the usage line.
+    fn parse_args() -> Result<Option<Args>, String> {
+        let mut parsed = Args {
+            config_path: paths::config_path().ok_or("no HOME")?,
+            port: None,
+            verbose: false,
+            only: None,
+        };
         let mut args = std::env::args().skip(1);
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--config" => {
-                    config_path = PathBuf::from(args.next().ok_or("--config needs a path")?);
+                    parsed.config_path = PathBuf::from(args.next().ok_or("--config needs a path")?);
                 }
                 "--port" => {
-                    port = Some(
+                    parsed.port = Some(
                         args.next()
                             .ok_or("--port needs a number")?
                             .parse::<u16>()
                             .map_err(|e| e.to_string())?,
                     );
                 }
-                "--list-apps" => list_apps = true,
-                "--verbose" => force_verbose = true,
-                "--test-hotkeys" => test_hotkeys_only = true,
+                "--list-apps" => parsed.only = Some(Only::ListApps),
+                "--verbose" => parsed.verbose = true,
+                "--test-hotkeys" => parsed.only = Some(Only::TestHotkeys),
+                "--test-box" => parsed.only = Some(Only::TestBox),
                 "--help" | "-h" => {
                     println!(
-                        "usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose] [--test-hotkeys]"
+                        "usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose] [--test-hotkeys] [--test-box]"
                     );
-                    return Ok(());
+                    return Ok(None);
                 }
                 other => return Err(format!("unknown argument {other}")),
             }
         }
+        Ok(Some(parsed))
+    }
+
+    pub fn run() -> Result<(), String> {
+        let Some(Args {
+            config_path,
+            port,
+            verbose: force_verbose,
+            only,
+        }) = parse_args()?
+        else {
+            return Ok(());
+        };
         let platform = Native::new();
         platform_settings(&platform, &config_path);
-        if test_hotkeys_only {
-            return test_hotkeys(&platform, &config_path);
-        }
-        if list_apps {
-            return print_apps(&platform);
+        match only {
+            Some(Only::TestHotkeys) => return test_hotkeys(&platform, &config_path),
+            Some(Only::TestBox) => {
+                test_box(&platform);
+                return Ok(());
+            }
+            Some(Only::ListApps) => return print_apps(&platform),
+            None => {}
         }
 
         let (config, apps) = load(&config_path, port)?;

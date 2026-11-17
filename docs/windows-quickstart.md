@@ -41,7 +41,17 @@ Press `Ctrl+Alt+Shift+Space` and `Ctrl+Alt+Shift+P` from any window. Each press 
 line. A `problem:` line means another program owns that combination: pick another under
 `[hotkeys]` in `config.toml`.
 
-## 4. Run
+## 4. Check the box
+
+```powershell
+.\target\release\focusd.exe --test-box
+```
+
+A dark box with an orange edge should appear at the top centre of the screen for 10 seconds,
+then the recap card for 6. If you see neither, say so: nothing else needs to be running for
+this test.
+
+## 5. Run
 
 ```powershell
 .\target\release\focusd.exe

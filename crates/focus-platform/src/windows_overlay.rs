@@ -38,6 +38,10 @@ const TOP_MARGIN: i32 = 48;
 /// Blue, green, red: a near-black with a little blue, like the macOS panels.
 const BACKGROUND: u32 = 0x001C_1717;
 const TEXT_COLOUR: u32 = 0x00FF_FFFF;
+/// Blue, green, red: a warm orange edge, so the box stands out over a dark window. Windows
+/// gives a popup no shadow or frame of its own.
+const EDGE: u32 = 0x0042_9EF5;
+const EDGE_WIDTH: i32 = 3;
 /// Out of 255: slightly see-through.
 const OPACITY: u8 = 240;
 const STANDARD_DPI: i32 = 96;
@@ -109,8 +113,12 @@ fn paint(hwnd: HWND) {
             return;
         }
         GetClientRect(hwnd, &raw mut client);
+        let edge = CreateSolidBrush(EDGE);
+        FillRect(hdc, &raw const client, edge);
+        DeleteObject(edge);
+        let inside = text_box(client, EDGE_WIDTH);
         let brush = CreateSolidBrush(BACKGROUND);
-        FillRect(hdc, &raw const client, brush);
+        FillRect(hdc, &raw const inside, brush);
         DeleteObject(brush);
         PAINTED.with_borrow(|painted| {
             let Some(shown) = painted.get(&hwnd.addr()) else {

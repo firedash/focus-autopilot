@@ -6,10 +6,14 @@ Last updated 2026-11-17.
 machine. Seen on a person's Windows desktop so far: `focusd` starts and `focusctl doctor`
 finds it, the config and the hooks; it names the window in front as the user moves between
 windows; a prompt sent from a local session in the Claude desktop app's Code tab arrives, as
-does the hook when Claude finishes; in the hotkey self-test the pause key and the focus key
+does the hook when Claude finishes; after a countdown Windows let `focusd` bring the Claude
+window forward (`ACTIVATE claude.exe`, then `front: claude.exe`), and the focus key snoozed a
+countdown in a real run; in the hotkey self-test the pause key and the focus key
 (`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
-app) register and their presses are delivered. Not yet reported: the boxes, the switch back
-and the move away. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
+app) register and their presses are delivered. **Not confirmed: that the boxes can be seen.**
+The owner did not see one in two runs, though both were poor chances (one box was hidden at
+once by a bug since fixed, the other was up during a screenshot). `focusd --test-box` now
+shows them on their own. The move away has not been tried. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
 
 **Where it stands:** a developer build runs on a Mac. `focusd` takes real Claude Code hooks,
 decides with `focus-core`, shows on-screen boxes, plays a sound and brings you back after a
