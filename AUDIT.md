@@ -19,8 +19,10 @@ The app itself makes **no outbound connection**. The one thing that reaches the 
 
 ## Files
 
-Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` on macOS, or
-`FOCUS_AUTOPILOT_HOME` (`crates/focus-runner/src/paths.rs`).
+Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` on macOS,
+`%LOCALAPPDATA%\io.github.firedash.focusautopilot\` on Windows, or `FOCUS_AUTOPILOT_HOME`
+(`crates/focus-runner/src/paths.rs`). "Mode 0600" below is what the files get on macOS and
+Linux; on Windows they rely on the user profile's own access rules.
 
 | File | Read or written by | Holds |
 | --- | --- | --- |
@@ -31,7 +33,7 @@ Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` 
 | `recap-workdir/` (data folder) | created by `focus-runner/src/recap_cli.rs` | an empty folder the `claude` command is run in |
 | `focusd.log` (data folder) | the launch agent's stdout, set in `focusctl/src/agent.rs` | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
 | `~/.claude/settings.json`, or the project's with `--scope` | `focusctl/src/files.rs`, `hooks.rs` | only entries whose URL is this app's hook URL are added or removed; a `.focus-autopilot.bak` copy is kept beside it |
-| `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent` |
+| `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent`, which is macOS only |
 
 `focusd` never reads Claude Code's transcripts or any file in your projects.
 
@@ -81,7 +83,7 @@ Only `focus-platform` may contain it; every other crate sets `#![forbid(unsafe_c
 
 | File | Blocks | What for |
 | --- | --- | --- |
-| `crates/focus-platform/src/macos_hotkeys.rs` | 6 | hand-declared Carbon functions for hotkeys, which the `objc2` crates do not bind |
+| `crates/focus-platform/src/macos_hotkeys.rs` | 6 | hand-declared Carbon functions for hotkeys, which the `objc2` crates do not bind: the block that declares them and five that call them |
 | `crates/focus-platform/src/macos_overlay.rs` | 2 | keeping a panel alive after it closes; taking the next AppKit event |
 | `crates/focus-platform/src/macos.rs` | 1 | turning the run loop once so the front-app reading is fresh |
 | `crates/focus-platform/src/windows.rs` | 20 | Win32 calls through `windows-sys`: every one is `unsafe` by declaration |

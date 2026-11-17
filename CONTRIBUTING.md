@@ -21,11 +21,13 @@ cargo test --workspace
 python3 scripts/check-repo.py
 ```
 
-The macOS code only builds on a Mac, but can be type-checked from Linux:
+The macOS and Windows code only builds on those systems, but both can be type-checked from
+Linux, and CI builds and tests on all three:
 
 ```bash
-rustup target add aarch64-apple-darwin
+rustup target add aarch64-apple-darwin x86_64-pc-windows-msvc
 cargo clippy --workspace --all-targets --target aarch64-apple-darwin
+cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc
 ```
 
 If you change the statistics and configuration page, also run it in a browser (needs Python,

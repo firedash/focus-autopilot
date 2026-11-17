@@ -10,7 +10,9 @@ next prompt is running, it sends you back to the app you were working in.
 **How it differs from what exists.** Notification hooks and notifier tools tell you Claude
 is done, and session dashboards list what is running; finding the window, working out what
 happened and getting back to your own work are left to you. This does those three: it brings
-you back, shows the recap, and returns you to where you left off.
+you back, shows the recap, and returns you to where you left off. The Claude desktop app's
+own notification already does the first two with one click, so if you use that app, read
+"Why not just a notification hook?" below before installing this.
 
 1. You send a prompt and go wherever you like: another window, another app, a break.
 2. Claude finishes or needs you. A box appears at the top of the screen, with a sound:
@@ -27,8 +29,8 @@ you back, shows the recap, and returns you to where you left off.
 4. You answer and send the next prompt. If it runs long, a box says so, and you are moved
    back to the app you were just in, where you left off.
 
-Every switch is announced by a countdown first, and `⌃⌥⌘Space` (Control+Option+Command+Space)
-stops it: "snooze" on the way back, "not now" on the way out. A switch waits for a pause in
+Every switch is announced by a countdown first, and the focus key (`⌃⌥⌘Space`, that is
+Control+Option+Command+Space, on a Mac; `Ctrl+Alt+Shift+Space` on Windows) stops it: "snooze" on the way back, "not now" on the way out. A switch waits for a pause in
 your typing, so keystrokes don't land in the wrong window. If you were already back when
 Claude finished, nothing is shown. Every box names the project, so several sessions running
 at once can be told apart.
@@ -36,15 +38,17 @@ at once can be told apart.
 Prefer to be asked? Turn off "Bring me back by itself" and the box waits until you press the
 key. Turn off "send me back to the app I was called back from" and nothing moves you away.
 
-**What it is today:** a developer build for **Claude Code in a terminal, on macOS**, built
-from source. A **Windows** build is new: it passes its tests on a Windows machine in CI but
-no person has used it yet ([docs/windows-quickstart.md](docs/windows-quickstart.md)). [STATUS.md](STATUS.md) says what has been seen working on a real Mac, what has
-only been verified on Linux, and what has never been run. The automatic return has been
-seen working on a Mac; the move back to where you left off is new and has not been yet.
+**What it is today:** a developer build, built from source, that one person has run on two
+machines: on **macOS** with Claude Code in a terminal, and on **Windows** with a local
+session in the Claude desktop app's Code tab. On both, the hooks arrived, the box appeared
+and the countdown brought the Claude window back. The move back to where you left off has
+been seen once on the Mac and not yet on Windows. [STATUS.md](STATUS.md) has the full table
+of what a person has seen, what only a CI machine has run, and what nobody has tried.
 
 It runs on your machine only, asks for no OS permission, and sends nothing anywhere by
 default. (On Windows it sends one empty mouse event, no movement and no click, when Windows
-refuses a switch; [PERMISSIONS.md](PERMISSIONS.md) says why and how to turn it off.) Secrets typed into a prompt are redacted before they are stored or shown. It does
+refuses a switch; [PERMISSIONS.md](PERMISSIONS.md) says why and how to turn it off.) Secrets
+typed into a prompt are redacted before they are stored or shown. It does
 record, on your machine, how long each app is in front, to draw the Statistics tab below; one
 switch on the Configuration tab turns that off.
 
@@ -87,12 +91,20 @@ was prompted from, and which app you are in now.
 
 What it costs you over a hook: a background program to run, and a build from source today.
 
+**If you use the Claude desktop app, look at its own notification first.** When a session
+finishes, the app shows a notification with the session's name and a one-line summary, and a
+click on it opens the app (seen on Windows, 2026-11-17). That already covers "tell me, tell
+me what happened, take me back". What Focus Autopilot adds there is the return with no
+click, the move back to the window you left, and the statistics. Whether that is worth a
+background program is a fair question, and a week of use is the way to answer it.
+
 ## Where it runs
 
-Only **Claude Code in a terminal** has been tested. Focus Autopilot listens to Claude Code's
-hooks, and Anthropic's documentation says Claude Code fires the same hooks wherever it runs,
-so other places *should* work with the same install. That is a reading of the docs, not
-something verified here. Each one also needs its app in the home-app list; if it is missing,
+Two places have been run: **Claude Code in a terminal** on a Mac, and **the Claude desktop
+app's Code tab** on Windows. Focus Autopilot listens to Claude Code's hooks, and Anthropic's
+documentation says Claude Code fires the same hooks wherever it runs, so other places
+*should* work with the same install. For the rows marked "no" that is a reading of the docs,
+not something verified here. Each one also needs its app in the home-app list; if it is missing,
 `focusd` says so and prints the line to add.
 
 | Where you run Claude Code | Tested | What is known |
@@ -100,12 +112,12 @@ something verified here. Each one also needs its app in the home-app list; if it
 | Terminal (Terminal, iTerm2, Ghostty, Warp, ...) | yes, on a Mac | works |
 | VS Code, Claude Code extension | no | Anthropic's docs say the extension shares `~/.claude/settings.json` with the CLI, hooks included |
 | Cursor, same extension or `claude` in its terminal | no | the docs offer the extension for Cursor; `claude` in a terminal inside it is the terminal case. Cursor's own built-in agent is a different product with its own hooks and is not supported |
-| Claude Desktop app, Code tab, local session | partly, on Windows | on Windows the prompt and the finish both reached `focusd`, and the app's window was recognised as `claude.exe`; the approval events and the Mac app are untried. A cloud session runs elsewhere and fires no hooks on your machine, and the chat tab is not Claude Code |
+| Claude Desktop app, Code tab, local session | yes, on Windows | the prompt, tool uses, the finish and a sub-agent's end all reached `focusd`, the window was recognised as `claude.exe`, and the return brought it forward. Approval events and the Mac app are untried. A cloud session runs elsewhere and fires no hooks on your machine, and the chat tab is not Claude Code |
 | JetBrains IDEs | no | Anthropic's hooks page does not mention JetBrains, so nothing is known |
 | Claude Code on the web or other cloud sessions | not supported | they fire no local hooks |
 
-Returns go to the app, not a specific window: with several windows of one editor you land in
-whichever one the OS raises.
+On a Mac a return goes to the app, not a specific window: with several windows of one editor
+you land in whichever one macOS raises. On Windows it goes to the exact window.
 
 ## Also included, all optional
 
@@ -118,10 +130,12 @@ None of these is needed for the above.
 - **An away app.** Name one and a long first prompt moves you there, when there is nowhere
   you left off yet. A third hotkey, off by default, says "this one will take a while, switch
   me now".
-- **Start at login**: `focusctl install-agent`. Not yet seen running under `launchd`.
+- **Start at login** (macOS only): `focusctl install-agent`. Not yet seen running under
+  `launchd`.
 - **A statistics and configuration page**, opened with `focusctl ui`. **Statistics** shows
   where your time went while Claude worked; **Configuration** changes every setting without
-  editing a file. It has run in Chromium on Linux, not yet on a Mac.
+  editing a file. It has run in Chromium on Linux against the simulator, and not yet against
+  a real `focusd` on a Mac or on Windows.
 
 These pictures use made-up data (`scripts/ui-check/seed.py`),
 not anyone's real usage; `scripts/ui-check/screenshots.sh` regenerates them.
@@ -146,12 +160,12 @@ Dark mode and a phone-width layout, both automatic:
 
 ## Not built
 
-- **Windows, beyond a first build.** There is a Windows adapter now, tested on a CI machine
-  only. Start at login is not built for Windows, and the LLM recap is untried there.
+- **Windows, beyond a first build.** Start at login is not built for Windows, and the LLM
+  recap and the page are untried there.
 - **An installer, a Homebrew formula, a menu-bar icon, a click on the box.** `focusd` runs in
   a terminal or from the launch agent.
-- **Return to an exact window.** Switches go to the app; with several windows of one app
-  you land in whichever macOS raises.
+- **Return to an exact window on macOS.** There, switches go to the app; with several
+  windows of one app you land in whichever macOS raises.
 
 [STATUS.md](STATUS.md) has the full list.
 

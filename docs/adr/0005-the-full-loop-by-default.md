@@ -1,6 +1,7 @@
 # ADR 0005: The full loop by default
 
-Date: 2026-11-17. Status: accepted; the return has run on a Mac, the rest has not. Where this record and
+Date: 2026-11-17. Status: accepted; the return has run on a Mac and on Windows, the move
+back once on a Mac. Where this record and
 `docs/design.md` or ADR 0003 item 1 disagree, this record wins.
 
 ADR 0003 item 1 made manual mode the default: nothing moved the user, and a prompt waited for
@@ -81,9 +82,15 @@ These are the choices that implement it.
 7. **It is the app, not the window.** macOS activation without the Accessibility permission
    brings an app forward, not a chosen window; the app's own most recent window comes up.
 
-8. **Partly verified on a Mac.** The return countdown and the switch back were seen working
-   on a Mac from a configured away app (ADR 0003), and on 2026-11-17, after the fix in item
-   3, the owner saw the automatic return work from another app. The switch to a remembered
-   app uses the same activation call but has not been run there, nor has the snooze key.
+8. **Partly verified on a desktop.** The return countdown and the switch back were seen
+   working on a Mac from a configured away app (ADR 0003), and on 2026-11-17, after the fix
+   in item 3, the owner saw the automatic return work from another app, first on a Mac and
+   later that day on Windows. The move to a remembered app was seen at least once on the
+   Mac, while a 3 second idle requirement was still set; it has not been re-run since the
+   idle requirement was dropped and the hold-off after coming back was fixed, and has not
+   been reported on Windows. The focus key snoozed a countdown in a real run on Windows.
+   One more rule came out of that run: a sub-agent's end reported just after Claude's own
+   Stop cancelled the return, because any event within a minute of a Stop reopened the run.
+   Only an event that shows Claude working or asking again reopens it now.
    `focus-core/tests/full_loop.rs` and `focus-runner/tests/shell_loop.rs` pin the behaviour
    against the fake platform.

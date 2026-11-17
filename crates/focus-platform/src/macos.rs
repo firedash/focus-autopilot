@@ -3,8 +3,8 @@
 //! No call here triggers an OS permission prompt: `NSWorkspace` and `NSRunningApplication` need
 //! none, and the idle-time read asks the event source for a timestamp, never for input.
 //!
-//! Status: type-checked from Linux only; it has not run on a Mac. See `docs/adr` once the M2
-//! spike records what the real OS does.
+//! Status: run on a Mac by the owner and built and tested on a macOS CI runner. STATUS.md
+//! lists what was seen working there and what was not.
 
 use std::sync::mpsc::Sender;
 

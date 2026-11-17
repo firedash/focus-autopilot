@@ -1,7 +1,11 @@
 # Running Focus Autopilot on Windows (developer build)
 
-The Windows version is new. It is compiled, linked and tested on a Windows machine in CI, but
-**no person has used it on a Windows desktop yet**. Expect to find problems; the `focusd`
+The Windows version is new. One person has run it on one Windows desktop, with a local
+session in the Claude desktop app's Code tab: the hooks arrived, the windows were
+recognised, both hotkeys worked, the box and the recap card appeared, and the countdown
+brought the Claude window back. Being moved back to where you left off, the LLM recap and
+the Statistics and Configuration page have not been tried there. It is also compiled, linked
+and tested on a Windows machine in CI on every push. Expect to find problems; the `focusd`
 window prints what it sees and why it holds back, which is what to send when something is off.
 
 It needs Claude Code running on Windows itself (the native `claude` command, or the Code tab

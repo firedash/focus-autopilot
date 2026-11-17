@@ -1,9 +1,12 @@
 # Running Focus Autopilot on your Mac (developer build)
 
-This is a developer build. The switching, hooks, on-screen boxes and recap have run on a Mac
-with Claude Code in a terminal. The focus and pause hotkeys have been confirmed with the self-test below, though not yet in a
-full run. The statistics and configuration page on
-a real Mac, and other Claude Code surfaces have not been tried. Expect to find and fix
+This is a developer build. On a Mac, with Claude Code in a terminal, these have been seen
+working: the hooks, the on-screen boxes, the recap, the countdown that brings you back, and
+the move away to a named away app and back. The focus and pause hotkeys have been confirmed
+with the self-test below, though not pressed during a real run. Being moved back to where
+you left off was seen once and has not been re-run since two later fixes. The statistics and
+configuration page against a real `focusd`, start at login, and Claude Code in editors have
+not been tried on a Mac. [STATUS.md](../STATUS.md) keeps the full list. Expect to find and fix
 problems; if something isn't working, start with `focusctl doctor` (below).
 
 ## 1. Build
@@ -66,9 +69,14 @@ how to fix each failure.
 
 Commands typed in the `focusd` window still work: `click` (same as the hotkey), `pause`,
 `resume`, `quit`. When `focusd` runs from a terminal it also prints toasts, prompts and recaps
-there (`--verbose` forces this when output goes to a file). The window you prompted from must be a known home app (Terminal, iTerm2,
-VS Code, JetBrains, Cursor and so on; list in `crates/focus-platform/src/known_apps.rs`). Add
-others under `[home] extra_apps` in `config.toml`.
+there (`--verbose` forces this when output goes to a file). The window you prompted from must
+be a known home app (Terminal, iTerm2, VS Code, JetBrains, Cursor and so on; list in
+`crates/focus-platform/src/known_apps.rs`). Add others under `[home] extra_apps` in
+`config.toml`.
+
+`./target/release/focusd --test-box` shows the box for 10 seconds and the recap card for 6
+with nothing else going on, if you want to see where they appear. It was added for Windows
+and has not been run on a Mac.
 
 **Check the hotkey first.** It has worked on one Mac; yours may have another app holding the
 same keys, and this takes a minute:
@@ -85,13 +93,12 @@ not delivering them, and the typed `click` command is the workaround until it is
 Change the hotkeys in `config.toml` or on the Configuration tab; an empty string turns one
 off. A chord needs at least one of Control, Option, Shift, Command. There are three: the focus
 key, the pause key, and a "this run will take a while, switch me away now" key (off by
-default). A change takes effect the next time `focusd` starts.
+default). A change takes effect the next time `focusd` starts. For example, to move the
+focus key (the defaults are `Control+Option+Command+Space` and `Control+Option+Command+P`):
 
 ```toml
 [hotkeys]
-focus_key = "Control+Option+Space"
-pause = "Control+Option+P"
-declare_long = ""
+focus_key = "Control+Option+Command+B"
 ```
 
 ## Statistics and configuration
@@ -122,12 +129,13 @@ The page needs the token, which `focusctl ui` passes on without putting it on a 
 If you open the address by hand you will see "This page needs its key": use `focusctl ui`.
 `focusctl ui --no-open` writes the launcher file and prints where it is.
 
-## Using it from VS Code, Cursor or the Claude app (untested)
+## Using it from VS Code, Cursor or the Claude app (untested on a Mac)
 
-Only the terminal has been tested. The hooks belong to Claude Code, not to the terminal,
-and Anthropic's docs say they fire wherever Claude Code runs, so the hooks you installed
-should cover other places too. Nobody has checked that here yet, which is what this section
-is for. What each place needs is its app recognised as a "home"
+On a Mac only the terminal has been tested. The hooks belong to Claude Code, not to the
+terminal, and Anthropic's docs say they fire wherever Claude Code runs, so the hooks you
+installed should cover other places too. One other place has been checked, on Windows: a
+local session in the Claude desktop app's Code tab sent its prompt, tool uses and finish to
+`focusd`. Nobody has checked the rest, which is what this section is for. What each place needs is its app recognised as a "home"
 app, so `focusd` knows where to send you back to. Try them one at a time:
 
 1. Start `focusd` and leave it running.
@@ -136,9 +144,9 @@ app, so `focusd` knows where to send you back to. Try them one at a time:
      terminal, so no extra setup).
    - **Cursor:** install the same extension in Cursor, or run `claude` in Cursor's terminal.
      Cursor's own built-in agent is a different product and is not supported.
-   - **Claude desktop app:** use the Code tab. The chat tab isn't Claude Code and sends no
-     hooks. Anthropic's docs say the Code tab fires the same hooks, but some users report
-     certain events missing there, so this one may only partly work.
+   - **Claude desktop app:** use the Code tab with a local folder. The chat tab isn't Claude
+     Code and sends no hooks, and a cloud session runs elsewhere and sends none to your
+     machine. This worked on Windows; on a Mac it is untried.
 3. Send a prompt, then click into another app.
 4. Watch the `focusd` window. It prints `front: <bundle id>` as the front app changes, and
    `hook: UserPromptSubmit ...` when your prompt arrives.
@@ -152,10 +160,11 @@ app, so `focusd` knows where to send you back to. Try them one at a time:
      extra_apps = ["the.id.focusd.printed"]
      ```
 
-Two limits to know about. Returns go to the app, not a specific window, so with several
-editor windows open you land in whichever one macOS raises. And Cursor's, VS Code's and the
-Claude app's ids in the built-in list were written from memory: the `front:` line shows the
-real one, and if it differs from the list, please open an issue so the list can be corrected.
+Two limits to know about. On a Mac returns go to the app, not a specific window, so with
+several editor windows open you land in whichever one macOS raises. And the ids in the
+built-in list were written from memory; only Terminal's and VS Code's have been confirmed by
+a `front:` line on a Mac. That line shows the real id, and if it differs from the list,
+please open an issue so the list can be corrected.
 
 ## Start at login (optional)
 

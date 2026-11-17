@@ -10,8 +10,8 @@
 //! forward, it sends one empty mouse event (no movement, no button) and asks again. See
 //! [`WinPlatform::set_force_foreground`] and ADR 0006.
 //!
-//! Status: type-checked from Linux and built and tested on a Windows CI runner. It has not
-//! been used by a person on a Windows desktop.
+//! Status: run by the owner on one Windows desktop and built and tested on a Windows CI
+//! runner. STATUS.md and ADR 0006 item 11 list what was seen working and what was not.
 
 use std::cell::{Cell, RefCell};
 use std::ffi::c_void;

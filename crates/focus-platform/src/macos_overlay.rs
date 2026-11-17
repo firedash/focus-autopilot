@@ -2,7 +2,7 @@
 //! The macOS toast and recap card: borderless, non-activating floating panels that ignore the
 //! mouse, so they can never take keyboard focus (design section 8).
 //!
-//! Status: type-checked from Linux only; it has not run on a Mac.
+//! Status: seen on a Mac in real runs.
 
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};

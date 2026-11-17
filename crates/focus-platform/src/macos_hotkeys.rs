@@ -6,7 +6,8 @@
 //! This is the only code in the project that declares foreign functions by hand: the
 //! `objc2` crates have no bindings for Carbon's hotkey calls.
 //!
-//! Status: type-checked from Linux only; it has not run on a Mac.
+//! Status: the focus and pause keys registered and fired in `focusd --test-hotkeys` on a
+//! Mac. Not yet pressed during a real run there.
 
 use std::ffi::c_void;
 use std::ptr;

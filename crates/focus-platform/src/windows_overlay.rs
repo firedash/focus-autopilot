@@ -2,8 +2,8 @@
 //! The Windows toast and recap card: two always-on-top popup windows that never take the
 //! keyboard focus and let every click through to whatever is underneath (design section 8).
 //!
-//! Status: type-checked from Linux and built and tested on a Windows CI runner. It has not
-//! been looked at by a person on a Windows desktop.
+//! Status: both boxes seen on a Windows desktop with `focusd --test-box`, and built and
+//! tested on a Windows CI runner.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

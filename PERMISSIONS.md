@@ -55,10 +55,15 @@ switch then becomes a question, and the focus key answers it. The macOS build se
   It can be turned off on the Configuration tab and erased on the Statistics tab.
 - **The LLM recap** (off by default) runs your own `claude` command, which talks to the
   provider your Claude Code already uses.
-- **Start at login** is only set up if you run `focusctl install-agent`.
+- **Start at login** is only set up if you run `focusctl install-agent`, which exists for
+  macOS only.
+- **It moves you between windows by itself.** By default a finished run brings the window
+  you prompted from forward after a countdown, and a long next prompt moves you back to the
+  app you left. Both are announced first and can be turned off
+  (`switching.auto_return`, `away.resume_last_app`).
 
 ## Optional permissions
 
-None today. Returning to the exact window of an app, rather than to the app, would need
-Accessibility or per-app Automation (see ADR 0003, item 16); it is not built, and if it ever
+None today. On macOS, returning to the exact window of an app, rather than to the app, would
+need Accessibility or per-app Automation (see ADR 0003, item 16); it is not built, and if it ever
 is it will be opt-in and listed here.

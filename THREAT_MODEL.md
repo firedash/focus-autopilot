@@ -31,10 +31,10 @@ config file directly, and no local app can prevent that.
 | The page is used to change something it should not | Only the settings in an explicit list can be changed; the token, port and salt are not in it; every change is type- and range-checked and the whole config validated before anything is written | `focus-runner/src/settings.rs` tests |
 | Text from a prompt, app name or error runs as code in the page | Every string is set with `textContent`; the page has no inline script or style and a Content-Security-Policy of `default-src 'none'` with only same-origin script, style and fetch; it cannot be framed | `the_page_has_nothing_inline_for_the_policy_to_block`; the browser check reports any policy violation |
 | Huge, deeply nested or malformed payloads | 8 MB body limit (64 KB for the API); typed parsing of known fields only; unknown field types read as absent; connections that stall are cut off | `payload.rs` tests; `a_body_over_8_mb_is_refused` |
-| A switch makes keystrokes land in the wrong window | By default nothing switches you away; a return happens only when you press the key, or after a countdown you can cancel; the box on screen cannot take keyboard focus; the app never sends keys | `focus-core/tests/manual_mode.rs`, `away_and_back.rs` |
+| A switch makes keystrokes land in the wrong window | Every automatic switch, back or away, is announced by a countdown the focus key stops; when the countdown ends the switch waits for a pause in typing, and after 5 seconds of continuous input it becomes a question; two settings turn the automatic switches off altogether; the box on screen cannot take keyboard focus; the app never sends keys or clicks | `focus-core/tests/full_loop.rs`, `returns_and_sessions.rs`, `away_and_back.rs`, `manual_mode.rs` |
 | The installer damages Claude Code's settings | Dry run; backup; atomic write; symlinks followed; non-JSON refused; only entries with this app's hook URL are touched; uninstall restores the original bytes | `focusctl/src/files.rs`, `hooks.rs` tests |
 | Secrets in prompts or commands are shown or stored | Likely secrets are redacted at the receiver before anything is stored and again on the recap card; logs written to a file hold event names only; history and usage files hold no prompt text, commands or paths | `focus-core/tests/sessions_and_secrets.rs`; `payload.rs` tests |
-| A folder or app name is injected into an OS command | OS calls are made directly; the three programs ever started (`claude`, and `open` for `focusctl ui`) get an argument list, never a shell string | [AUDIT.md](AUDIT.md), Processes |
+| A folder or app name is injected into an OS command | OS calls are made directly; the programs ever started (`claude`, and for `focusctl ui` the desktop's opener: `open`, `explorer` or `xdg-open`) get an argument list, never a shell string | [AUDIT.md](AUDIT.md), Processes |
 | A feature quietly needs Accessibility or screen access | None is used; [PERMISSIONS.md](PERMISSIONS.md) states it and changes to it need a maintainer's review | review |
 | A malicious dependency or CI action | Lockfile committed; toolchain pinned; `cargo deny` gates advisories, licenses and sources; CI actions pinned to full commits with a read-only token; every dependency listed with its reason in DEPENDENCIES.md | `deny.toml`; `scripts/check-repo.py`; `.github/workflows/ci.yml` |
 
@@ -45,4 +45,9 @@ config file directly, and no local app can prevent that.
 - The app keeps app names and time per app on disk when that setting is on. It is local and
   owner-readable only, but it is a record; it can be turned off and erased.
 - No fuzz targets yet, no `strace` network-and-file test, no signed releases.
-- The macOS adapter has run on one Mac. The global hotkeys have not been seen working.
+- The macOS adapter has run on one Mac and the Windows adapter on one Windows desktop, each
+  by the same person. [STATUS.md](STATUS.md) lists what was seen on each and what was not.
+- On Windows the app sends one empty mouse event when Windows refuses a switch
+  ([PERMISSIONS.md](PERMISSIONS.md)). It is the only input the app sends on either system.
+- On Windows the data files rely on the user profile's access rules; they are not given a
+  restricted mode as they are on macOS and Linux.

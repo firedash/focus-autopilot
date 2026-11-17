@@ -1,7 +1,7 @@
 # ADR 0006: The Windows adapter
 
-Date: 2026-11-17. Status: accepted; built and tested on a Windows CI runner, not yet used by
-a person on a Windows desktop. Where this record and `docs/design.md` disagree, this record
+Date: 2026-11-17. Status: accepted; run by the owner on one Windows desktop the same day
+(item 11), and built and tested on a Windows CI runner on every push. Where this record and `docs/design.md` disagree, this record
 wins.
 
 The app ran on macOS only. The owner wanted to try it on Windows, where until now only the
@@ -81,3 +81,15 @@ simulator ran. These are the choices in the adapter (`focus-platform/src/windows
     the front window and received the hook. It cannot show that a person sees the box in
     the right place, that a switch lands where it should, or that the empty mouse event is
     enough on a desktop someone is using.
+
+11. **What the first day on a real desktop showed.** With a local session in the Claude
+    desktop app's Code tab: the hooks arrived (prompt, tool uses, finish, a sub-agent's
+    end); the window in front was named as the owner moved between windows; the pause key
+    and, once changed, the focus key registered and fired; `focusd --test-box` showed the
+    toast and the recap card; and after a countdown `SetForegroundWindow` brought the Claude
+    window forward and the front-window check confirmed it. The log does not say whether
+    the empty mouse event of item 4 was needed for that. Three things were wrong and are
+    fixed: the default focus key was already owned by the Claude desktop app (item 6);
+    `focusctl doctor` took a closed port for another program, because Windows times a
+    refused loopback connection out; and its advice named the macOS-only launch agent. Not
+    tried there: the move away, the LLM recap, the page, and Claude Code in a terminal.
