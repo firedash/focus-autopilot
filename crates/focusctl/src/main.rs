@@ -137,6 +137,13 @@ fn run() -> Result<bool, String> {
         }
         "ui" => open_ui(&config_path, args.no_open)?,
         "doctor" => return Ok(run_doctor(&settings, &config_path, &agents_dir()?)),
+        "install-agent" | "uninstall-agent" if !cfg!(target_os = "macos") => {
+            return Err(
+                "starting at login is only built for macOS so far; on this system start \
+                 `focusd` yourself"
+                    .to_owned(),
+            );
+        }
         "install-agent" => install_agent(&agents_dir()?)?,
         "uninstall-agent" => uninstall_agent(&agents_dir()?)?,
         other => return Err(format!("unknown command {other}\n\n{USAGE}")),

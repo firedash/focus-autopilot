@@ -176,7 +176,12 @@ pub fn daemon(port: u16, token: &str) -> (Check, Option<Value>) {
         Ok(None) => (
             fail(
                 format!("focusd is not running (nothing is listening on port {port})"),
-                "start `focusd`, or run `focusctl install-agent` so it starts at login",
+                if cfg!(target_os = "macos") {
+                    "start `focusd`, or run `focusctl install-agent` so it starts at login"
+                } else {
+                    "start `focusd` and leave it running (`focusd --test-hotkeys` is only the \
+                     hotkey test, not the app)"
+                },
             ),
             None,
         ),
