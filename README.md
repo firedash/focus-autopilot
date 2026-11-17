@@ -3,8 +3,14 @@
 [![ci](https://github.com/firedash/focus-autopilot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/firedash/focus-autopilot/actions/workflows/ci.yml)
 
 **Never lose a finished agent.** When Claude Code finishes, or stops to ask for your
-approval, while you are in another window, Focus Autopilot plays a sound and shows a small box.
-One key takes you back to the window you prompted from and shows you what happened.
+approval, while you are in another window, Focus Autopilot plays a sound, counts down, and
+brings you back to the window you prompted from with a recap of what happened. Once your
+next prompt is running, it sends you back to the app you were working in.
+
+**How it differs from what exists.** Notification hooks and notifier tools tell you Claude
+is done, and session dashboards list what is running; finding the window, working out what
+happened and getting back to your own work are left to you. This does those three: it brings
+you back, shows the recap, and returns you to where you left off.
 
 1. You send a prompt and go wherever you like: another window, another app, a break.
 2. Claude finishes or needs you. A box appears at the top of the screen, with a sound:
@@ -56,6 +62,26 @@ Then start `claude` in another terminal window (restart any session that was alr
 give it a task, and switch to another app. No settings are needed. If no box appears,
 `./target/release/focusctl doctor` checks the setup and says how to fix each failure. The full
 guide is [docs/mac-quickstart.md](docs/mac-quickstart.md).
+
+## Why not just a notification hook?
+
+A `Stop` hook that plays a sound or runs `terminal-notifier` takes ten minutes to write, and
+if a ping is all you want, use that. Focus Autopilot is built on the same hooks
+(`focusctl install-hooks` adds them). The difference is what listens at the other end: not a
+one-line command, but a program that knows which sessions are running, which window each
+was prompted from, and which app you are in now.
+
+| | A notification hook | Focus Autopilot |
+| --- | --- | --- |
+| Tells you Claude is done or needs approval | yes | yes |
+| Gets you to the right window | you find it, or click the notification if the notifier supports that | by itself after a countdown; one key snoozes it |
+| Avoids keystrokes landing in the wrong window | not its job | the switch waits for a pause in your typing |
+| Says what happened | "Claude is done" | a card with what you asked and what Claude did or needs |
+| Gets you back to your own work | no | sends you back to the app you left, once the next prompt is running |
+| Several sessions at once | one ping each | names the project, and settles every session waiting in the same window together |
+| Shows where the waiting time went | no | the Statistics tab |
+
+What it costs you over a hook: a background program to run, and a build from source today.
 
 ## Where it runs
 
