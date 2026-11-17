@@ -51,6 +51,32 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked
       - run: cargo build --workspace --locked
       - run: cargo test --workspace --locked -- --nocapture
+      # The whole program on a real Windows: install the hooks, start focusd, send it one hook
+      # the way Claude Code would, and check that it saw the front window and got the hook.
+      - name: focusd starts, sees the front window and takes a hook
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\target\debug\focusctl.exe install-hooks
+          $config = Join-Path $env:LOCALAPPDATA 'io.github.firedash.focusautopilot\config.toml'
+          $settings = Join-Path $env:USERPROFILE '.claude\settings.json'
+          if (-not (Test-Path $config)) { throw "no config at $config" }
+          $url = (Select-String -Path $settings -Pattern 'http://127\.0\.0\.1:\d+/hook').Matches[0].Value
+          $token = (Select-String -Path $config -Pattern 'token = "([0-9a-f]+)"').Matches[0].Groups[1].Value
+          if (-not $url -or -not $token) { throw 'the hooks or the token were not written' }
+          $focusd = Start-Process -FilePath .\target\debug\focusd.exe -ArgumentList '--verbose' `
+            -RedirectStandardOutput focusd.out -RedirectStandardError focusd.err -PassThru -NoNewWindow
+          Start-Sleep -Seconds 3
+          Set-Content -Path body.json -NoNewline -Value '{"hook_event_name":"UserPromptSubmit","session_id":"ci","cwd":"C:/work/api","prompt":"hello from CI"}'
+          curl.exe -sS -f -H "X-Focus-Token: $token" -H "Content-Type: application/json" --data-binary "@body.json" $url
+          if ($LASTEXITCODE -ne 0) { throw 'focusd did not accept the hook' }
+          Start-Sleep -Seconds 2
+          .\target\debug\focusctl.exe doctor
+          Stop-Process -Id $focusd.Id -Force
+          Get-Content focusd.out, focusd.err
+          if (-not (Select-String -Path focusd.out -Pattern 'hook: UserPromptSubmit' -Quiet)) { throw 'the hook did not reach focusd' }
+          if (-not (Select-String -Path focusd.out -Pattern '^front: ' -Quiet)) { throw 'focusd did not report the front window' }
+          exit 0
 
   dependencies:
     name: Advisories, licenses, sources

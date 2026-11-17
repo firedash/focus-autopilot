@@ -330,3 +330,33 @@ fn a_blip_with_nothing_in_front_does_not_delay_the_away_switch() {
     sim.at(120_000);
     assert_eq!(sim.toasts()[1], (110_000, ToastKind::AwayCountdown));
 }
+
+/// Where the OS tells windows apart (Windows), the move back goes to the very window the
+/// user left, not just any window of that program.
+#[test]
+fn with_window_handles_the_user_is_sent_back_to_the_exact_window() {
+    let editor = |window| focus_core::AppRef {
+        window: Some(window),
+        ..app("Code.exe")
+    };
+    let mut sim = Sim::new(Config::default());
+    // Two windows of the same editor; the user works in the second.
+    sim.running.push(editor(1));
+    sim.running.push(editor(2));
+    sim.hook(prompt("Refactor the parser"));
+    sim.at(5_000);
+    sim.front = Some(editor(2));
+    sim.feed(Input::Observed(Observation::Frontmost(sim.front.clone())));
+    sim.at(60_000);
+    sim.hook(stop("Done."));
+    sim.at(70_000);
+    assert_eq!(sim.core.left_off().and_then(|app| app.window), Some(2));
+    sim.at(80_000);
+    sim.hook_for("s1", "p2", prompt("Now add tests"));
+    sim.at(200_000);
+    let target = sim.log.iter().find_map(|(_, fx)| match fx {
+        focus_core::Effect::Activate { target, .. } if target.id == "Code.exe" => Some(target),
+        _ => None,
+    });
+    assert_eq!(target.and_then(|app| app.window), Some(2));
+}
