@@ -4,7 +4,7 @@
 
 mod support;
 
-use focus_core::{Config, Input, Observation, ToastKind};
+use focus_core::{Config, EventKind, Input, Observation, SessionState, ToastKind};
 use support::{BROWSER, Sim, TERMINAL, TERRARIA, VSCODE, app, config, prompt, stop};
 
 const MAIL: &str = "com.example.Mail";
@@ -359,4 +359,28 @@ fn with_window_handles_the_user_is_sent_back_to_the_exact_window() {
         _ => None,
     });
     assert_eq!(target.and_then(|app| app.window), Some(2));
+}
+
+/// Seen on Windows: Claude Code reported the end of a sub-agent just after Claude's own
+/// Stop. That is not Claude starting again, and must not cancel the return under way.
+#[test]
+fn a_sub_agent_ending_just_after_the_stop_does_not_cancel_the_return() {
+    let mut sim = fresh(Config::default());
+    sim.at(5_000);
+    sim.focus(BROWSER);
+    sim.at(60_000);
+    sim.hook(stop("Parser refactored."));
+    sim.at(60_200);
+    sim.hook(EventKind::SubagentStop);
+    sim.hook(EventKind::PermissionDenied);
+    sim.hook(EventKind::Notification {
+        notification_type: "idle_prompt".into(),
+    });
+    assert_eq!(sim.core.session_state("s1"), Some(SessionState::Done));
+    assert_eq!(sim.logged("run_continued"), 0);
+    assert_eq!(sim.hides(), 0, "the countdown box stays up");
+    sim.at(70_000);
+    assert_eq!(sim.toasts(), vec![(60_000, ToastKind::ReturnCountdown)]);
+    assert_eq!(sim.activations(), vec![(65_000, TERMINAL)]);
+    assert_eq!(sim.recaps().len(), 1);
 }

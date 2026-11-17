@@ -91,6 +91,13 @@ impl Session {
         if self.is_from_another_run(ev) {
             return Change::Ignored;
         }
+        // A straggler after the run ended, such as the end of a sub-agent reported after
+        // Claude's own Stop: it says nothing about Claude working again, so the finished run
+        // and the return in progress for it are left alone.
+        let ended = matches!(self.state, SessionState::Done | SessionState::Idle);
+        if ended && !shows_claude_working(&ev.kind) {
+            return Change::Ignored;
+        }
         let entry = self.reopen(ev, now);
         self.run.last_event = now;
         let change = match self.state {
@@ -353,6 +360,25 @@ impl Session {
         [stale, debounce, threshold, self.record_due_at()]
             .into_iter()
             .flatten()
+    }
+}
+
+/// True for an event that can only happen while Claude is working or asking: the ones that
+/// may reopen a finished run. The end of a sub-agent, a denial and an ordinary notification
+/// can all arrive late, after the Stop of the run they belong to.
+fn shows_claude_working(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::UserPromptSubmit { .. }
+        | EventKind::PreToolUse { .. }
+        | EventKind::PermissionRequest { .. }
+        | EventKind::Elicitation { .. }
+        | EventKind::SubagentStart
+        | EventKind::Stop { .. }
+        | EventKind::StopFailure { .. } => true,
+        EventKind::Notification { notification_type } => {
+            NEEDS_INPUT_NOTIFICATIONS.contains(&notification_type.as_str())
+        }
+        EventKind::SubagentStop | EventKind::PermissionDenied | EventKind::SessionEnd => false,
     }
 }
 
