@@ -4,7 +4,8 @@ Last updated 2026-11-17.
 
 **Windows:** there is a Windows build as of today. It has passed its tests on a Windows CI
 machine. Seen on a person's Windows desktop so far: `focusd` starts and `focusctl doctor`
-finds it, the config and the hooks; in the hotkey self-test the pause key and the focus key
+finds it, the config and the hooks; it names the window in front as the user moves between
+windows; in the hotkey self-test the pause key and the focus key
 (`Ctrl+Alt+Shift+Space`; the first default, `Ctrl+Alt+Space`, belongs to the Claude desktop
 app) register and their presses are delivered. Not yet reported: the boxes, the switch back
 and the move away. See [docs/windows-quickstart.md](docs/windows-quickstart.md).
