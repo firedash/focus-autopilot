@@ -20,12 +20,12 @@ table is the first kind only. "Not tried" means nobody has looked, not that it f
 | --- | --- | --- |
 | Hooks reach `focusd` | From Claude Code in a terminal | From a local session in the Claude desktop app's Code tab: the prompt, tool uses, the finish and a late sub-agent report all arrived (2026-11-17) |
 | The app in front is recognised | Yes | Yes, by executable name, as the user moved between windows |
-| The toast and the recap card can be seen | Yes, in real runs | Yes, in `focusd --test-box`, and the owner reported a real run working as expected |
+| The toast and the recap card can be seen | Yes, in real runs | Yes, in `focusd --test-box` and in a recorded real run (`docs/images/demo.gif`, 2026-11-18) |
 | The automatic return: a countdown, the switch back, the recap | Yes, from an app that is not an away app (2026-11-17) | Yes: `ACTIVATE claude.exe`, then `front: claude.exe` (2026-11-17). Whether the empty mouse event was needed is not known |
 | The hotkeys in the self-test (`focusd --test-hotkeys`) | Focus and pause (2026-11-16) | Focus and pause. The first default focus key, `Ctrl+Alt+Space`, belonged to the Claude desktop app |
 | The focus key during a real run | Not seen | It snoozed a return countdown |
 | The move away to a configured away app, and back | Yes (2026-11-14) | Not tried |
-| The move back to where you left off | Seen at least once on 2026-11-17, under a 3 second idle requirement that has since been removed. Not re-run after the two fixes that followed | Not reported |
+| The move back to where you left off | Seen at least once on 2026-11-17, under a 3 second idle requirement that has since been removed. Not re-run after the two fixes that followed | Yes: the recording shows "Switching to brave in 3 s", the browser coming forward, and then the return (2026-11-18) |
 | The "Go back?" box (`auto_return` off, or a refused switch) | The box was seen; the key on it was not confirmed | Not tried |
 | The three-line LLM recap | Yes | Not tried |
 | `focusctl install-hooks` | Yes | Yes, and `focusctl doctor` found the config, the hooks and the running `focusd` |
@@ -130,6 +130,7 @@ Configuration tab has a picker for it.
 | VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
 | Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
 | Claude Desktop, Code tab, local session | yes, on Windows | the prompt, tool uses, the finish and a sub-agent's end all arrived, the window was recognised as `claude.exe`, and the return brought it forward (2026-11-17). Approval events and the Mac app are untried |
+| Munder Difflin, a third-party app that runs Claude Code | yes, on Windows | hooks arrive and the whole loop works once `Munder Difflin.exe` is added under `[home] extra_apps` (2026-11-18). The project on the box is the folder that app runs Claude in, not the repo |
 | Claude Desktop, Cowork | yes, on Windows: no hooks | nothing reached `focusd` (2026-11-17); not supported |
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |
@@ -164,8 +165,9 @@ left off, and the statistics.
 1. Use it for a week of ordinary work, on either machine, next to Claude's own
    notifications, and see whether the automatic switching is missed when it is off. That
    answers whether the rest of this list is worth doing.
-2. Re-run the move back to where you left off, on a Mac and on Windows: send a second
-   prompt, stay in the Claude window, and check that you are moved to the app you were in.
+2. Re-run the move back to where you left off on a Mac: send a second prompt, stay in the
+   Claude window, and check that you are moved to the app you were in. On Windows it has
+   been recorded working.
 3. On a Mac, press the focus key during a return countdown, and on the "Go back?" box with
    `switching.auto_return = false`.
 4. Run `focusctl ui` against a real `focusd` and check the numbers against a day of use.
@@ -173,7 +175,7 @@ left off, and the statistics.
    `crates/focus-platform/src/known_apps.rs`, which were written from memory. Real runs
    have confirmed four: `com.apple.Terminal`, `com.microsoft.VSCode`, `claude.exe` and
    `WindowsTerminal.exe`.
-6. An install that needs no Rust toolchain, and a recorded demo.
+6. An install that needs no Rust toolchain. The recorded demo is done.
 
 ## Before continuing
 

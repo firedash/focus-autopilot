@@ -87,8 +87,9 @@ These are the choices that implement it.
    in item 3, the owner saw the automatic return work from another app, first on a Mac and
    later that day on Windows. The move to a remembered app was seen at least once on the
    Mac, while a 3 second idle requirement was still set; it has not been re-run since the
-   idle requirement was dropped and the hold-off after coming back was fixed, and has not
-   been reported on Windows. The focus key snoozed a countdown in a real run on Windows.
+   idle requirement was dropped and the hold-off after coming back was fixed. On Windows it
+   was recorded working on 2026-11-18 (`docs/images/demo.gif`): the away countdown, the
+   switch to the browser the user had been in, and the return. The focus key snoozed a countdown in a real run on Windows.
    One more rule came out of that run: a sub-agent's end reported just after Claude's own
    Stop cancelled the return, because any event within a minute of a Stop reopened the run.
    Only an event that shows Claude working or asking again reopens it now.

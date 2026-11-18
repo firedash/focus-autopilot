@@ -31,6 +31,8 @@ a run ends.
    what Claude did.
 4. When my next prompt has been running a while, it moves me back to the window I left.
 
+![The loop, recorded on Windows: sent away to the browser, then brought back with a recap](https://raw.githubusercontent.com/firedash/focus-autopilot/main/docs/images/demo.gif)
+
 Every switch is announced first and one key stops it. It runs only on my machine, asks for
 no operating-system permission, and has a local page with statistics and settings.
 
@@ -116,7 +118,7 @@ is off.
 3. **Make it installable before making it complete.** It still needs a compiler to install,
    which is why nobody I shared it with tried it.
 4. **Record a 20-second demo before sharing anything.** A link asks people to do work. A GIF
-   does not.
+   does not. The one above was made after the first round of sharing, not before.
 
 ## What was worth it anyway
 

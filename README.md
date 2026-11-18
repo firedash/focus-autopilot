@@ -7,6 +7,12 @@ approval, while you are in another window, Focus Autopilot plays a sound, counts
 brings you back to the window you prompted from with a recap of what happened. Once your
 next prompt is running, it sends you back to the app you were working in.
 
+<img src="docs/images/demo.gif" alt="An 18 second recording on Windows. A prompt is sent from an app running Claude Code. A box at the top of the screen says Claude will take a while, switching to brave in 3 seconds, and the browser comes forward. While the user reads there, a second box says Claude is done, back to Munder Difflin in 5 seconds. The first window comes forward again with a recap card showing what was asked and what Claude answered." width="760">
+
+*The whole loop, recorded on Windows with [Munder Difflin](docs/hooks.md#which-places-this-covers),
+an app that runs Claude Code sessions. The waits are cut, captions are added, and two lines
+on the recap card are blurred.*
+
 **How it differs from what exists.** Notification hooks and notifier tools tell you Claude
 is done, and session dashboards list what is running; finding the window, working out what
 happened and getting back to your own work are left to you. This does those three: it brings
@@ -42,7 +48,7 @@ key. Turn off "send me back to the app I was called back from" and nothing moves
 machines: on **macOS** with Claude Code in a terminal, and on **Windows** with a local
 session in the Claude desktop app's Code tab. On both, the hooks arrived, the box appeared
 and the countdown brought the Claude window back. The move back to where you left off has
-been seen once on the Mac and not yet on Windows. [STATUS.md](STATUS.md) has the full table
+been seen once on the Mac and is in the recording above on Windows. [STATUS.md](STATUS.md) has the full table
 of what a person has seen, what only a CI machine has run, and what nobody has tried.
 
 It runs on your machine only, asks for no OS permission, and sends nothing anywhere by
