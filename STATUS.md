@@ -130,7 +130,7 @@ Configuration tab has a picker for it.
 | VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
 | Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
 | Claude Desktop, Code tab, local session | yes, on Windows | the prompt, tool uses, the finish and a sub-agent's end all arrived, the window was recognised as `claude.exe`, and the return brought it forward (2026-11-17). Approval events and the Mac app are untried |
-| Munder Difflin, a third-party app that runs Claude Code | yes, on Windows | hooks arrive and the whole loop works once `Munder Difflin.exe` is added under `[home] extra_apps` (2026-11-18). The project on the box is the folder that app runs Claude in, not the repo |
+| Munder Difflin, a third-party app that runs Claude Code | yes, on Windows | hooks arrive and the whole loop works (2026-11-18). That run had `Munder Difflin.exe` added under `[home] extra_apps`; it is on the built-in list since, which has not been re-run. The project on the box is the folder that app runs Claude in, not the repo |
 | Claude Desktop, Cowork | yes, on Windows: no hooks | nothing reached `focusd` (2026-11-17); not supported |
 | JetBrains | no | not mentioned in the hooks docs; unknown |
 | Cloud sessions | n/a | not supported: no local hooks |

@@ -125,8 +125,7 @@ is off.
 The most interesting find was the hooks themselves. A few lines of settings make Claude Code
 send a message to any address when something happens. I confirmed which parts of the Claude
 desktop app send them (the Code tab with a local folder does; Cowork and cloud sessions do
-not), and I now have ideas that are smaller and more useful than the app I set out to build,
-starting with a lamp on my desk that turns orange when Claude is waiting for me.
+not). That is worth knowing whatever I build next.
 
 I also learned that a product manager can direct an AI agent through a real piece of
 software, across two operating systems, in four days. The judgement about what to build is

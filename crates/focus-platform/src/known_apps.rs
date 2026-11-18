@@ -35,6 +35,9 @@ pub const WINDOWS: &[&str] = &[
     "pwsh.exe",
     "wezterm-gui.exe",
     "alacritty.exe",
+    // A third-party app that runs Claude Code. The name, space included, is the one a real
+    // run reported.
+    "Munder Difflin.exe",
     "Code.exe",
     "Cursor.exe",
     "Windsurf.exe",

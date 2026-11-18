@@ -119,7 +119,7 @@ your machine reads the same settings file. So one install covers:
 | --- | --- |
 | A terminal | Seen working on a Mac |
 | The Claude desktop app's Code tab, with a local folder | Seen working on Windows |
-| Munder Difflin, a third-party app that runs Claude Code | Seen working on Windows, after adding `Munder Difflin.exe` under `[home] extra_apps` |
+| Munder Difflin, a third-party app that runs Claude Code | Seen working on Windows. On the built-in list for Windows |
 | The Claude Code extension in VS Code or in Cursor | Should work, by Anthropic's documentation; not tried here |
 | JetBrains IDEs | Unknown |
 

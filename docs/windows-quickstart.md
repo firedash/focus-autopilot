@@ -89,7 +89,7 @@ box and no switch, which looks exactly like the app not working.
 `focusd` tells you when this happens, on the line after the prompt:
 
 ```text
-note: this prompt came from Munder Difflin (Munder Difflin.exe), which is not a home app, so no return is set up for it. To use it, add "Munder Difflin.exe" under [home] extra_apps in config.toml.
+note: this prompt came from Some Editor (SomeEditor.exe), which is not a home app, so no return is set up for it. To use it, add "SomeEditor.exe" under [home] extra_apps in config.toml.
 ```
 
 Do what it says. Open the config:
@@ -102,7 +102,7 @@ and add the name it printed, exactly, with the `.exe`:
 
 ```toml
 [home]
-extra_apps = ["Munder Difflin.exe"]
+extra_apps = ["SomeEditor.exe"]
 ```
 
 Save. `focusd` prints `config.toml changed: applied` within a couple of seconds; there is no
@@ -110,8 +110,9 @@ need to restart it. The Configuration tab (`focusctl ui`) has the same setting u
 apps", with a picker of running programs. The change applies from your next prompt: a run
 that had already started has no window to return to.
 
-That example is real: Munder Difflin, a third-party app that runs Claude Code, worked this
-way on Windows, and the recording at the top of the README was made with it.
+This has been done for real. Munder Difflin, a third-party app that runs Claude Code, was
+added this way on Windows, and the recording at the top of the README was made with it. It
+is on the built-in list now, so it needs no setting.
 
 ## What is different from the Mac
 

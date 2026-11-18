@@ -653,7 +653,7 @@ as surfaces are tested:
 - macOS: Terminal, iTerm2, Ghostty, WezTerm, kitty, Alacritty, Warp, VS Code, VS Code
   Insiders, Cursor, Windsurf, Zed, JetBrains IDEs, Claude.
 - Windows: Windows Terminal, the console host and the shells that can own a console window,
-  WezTerm, Alacritty, VS Code, Cursor, Windsurf, JetBrains IDEs, Claude.
+  WezTerm, Alacritty, Munder Difflin, VS Code, Cursor, Windsurf, JetBrains IDEs, Claude.
 
 **Toasts.** One box at the top of the screen; on Windows, of the monitor that holds the
 foreground window. It cannot take keyboard focus and it ignores the mouse, so every click
