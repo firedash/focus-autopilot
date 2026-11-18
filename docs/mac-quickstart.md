@@ -253,9 +253,19 @@ in place of 30 or 45), which is handy while trying it out.
   `focusd` is running and takes the token, whether any prompt has arrived in the last 7 days,
   the `claude` command, and the launch agent. Each failure comes with the fix.
 
-- **No box appears when Claude finishes.** Check that `focusd` printed `front: <id>` for your
-  terminal and that id is a home app. If you were still in that window when Claude finished,
-  nothing is shown, by design.
+- **No box appears when Claude finishes.** The usual cause is that you prompted Claude from
+  an app that is not on the built-in list. `focusd` says so on the line after the prompt:
+  `note: this prompt came from <app> (<id>), which is not a home app`. Add the id it prints:
+
+  ```toml
+  [home]
+  extra_apps = ["the.id.it.printed"]
+  ```
+
+  `focusd` applies the change within a couple of seconds, and it counts from your next
+  prompt. The Configuration tab has the same setting under "Home apps". The other cause is
+  not a fault: if you were still in that window when Claude finished, nothing is shown, by
+  design.
 - **`focusd` won't start: `unknown keys: ...`.** `config.toml` has a setting the app doesn't
   know, usually a typo; correct or delete that line. A setting an older build had (such as
   `[return]`) does not stop it: `focusd` skips it and prints a `note:` saying you can delete it.

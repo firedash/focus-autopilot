@@ -67,8 +67,8 @@ Leave it running. Every time you change window it prints `front: <program>.exe`,
 how you can see it recognises your windows.
 
 1. Send Claude a prompt. `focusd` prints `hook: UserPromptSubmit`. If it also prints
-   `note: this prompt came from ... which is not a home app`, copy the line it suggests into
-   `config.toml`: the built-in list of terminals and editors was written from memory.
+   `note: this prompt came from ... which is not a home app`, see the next section before
+   going on: nothing will bring you back until that is fixed.
 2. Switch to another window. When Claude finishes, a box appears at the top of the screen
    with a sound, counts down 5 seconds, and brings the window you prompted from forward,
    with a recap for a few seconds. `Ctrl+Alt+Shift+Space` during the countdown snoozes it.
@@ -77,6 +77,41 @@ how you can see it recognises your windows.
 
 `.\target\release\focusctl.exe ui` opens the Statistics and Configuration page, and
 `.\target\release\focusctl.exe doctor` checks the setup.
+
+## If you prompt Claude from an app that is not on the list
+
+Focus Autopilot only brings you back to windows it knows you prompt Claude from. It has a
+built-in list of terminals, editors and the Claude app
+(`crates/focus-platform/src/known_apps.rs`). Any other program that runs Claude Code has to
+be added, once. Until it is, the hooks still arrive, but when Claude finishes there is no
+box and no switch, which looks exactly like the app not working.
+
+`focusd` tells you when this happens, on the line after the prompt:
+
+```text
+note: this prompt came from Munder Difflin (Munder Difflin.exe), which is not a home app, so no return is set up for it. To use it, add "Munder Difflin.exe" under [home] extra_apps in config.toml.
+```
+
+Do what it says. Open the config:
+
+```powershell
+notepad "$env:LOCALAPPDATA\io.github.firedash.focusautopilot\config.toml"
+```
+
+and add the name it printed, exactly, with the `.exe`:
+
+```toml
+[home]
+extra_apps = ["Munder Difflin.exe"]
+```
+
+Save. `focusd` prints `config.toml changed: applied` within a couple of seconds; there is no
+need to restart it. The Configuration tab (`focusctl ui`) has the same setting under "Home
+apps", with a picker of running programs. The change applies from your next prompt: a run
+that had already started has no window to return to.
+
+That example is real: Munder Difflin, a third-party app that runs Claude Code, worked this
+way on Windows, and the recording at the top of the README was made with it.
 
 ## What is different from the Mac
 
