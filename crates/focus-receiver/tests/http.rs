@@ -173,11 +173,26 @@ fn forged_and_malformed_requests_are_rejected_and_nothing_is_queued() {
 #[test]
 fn a_body_over_8_mb_is_refused() {
     let (running, rx) = start();
-    let big = Req {
-        body: "x".repeat(8 * 1024 * 1024 + 1),
-        ..good(running.addr)
-    };
-    assert_eq!(send(running.addr, &big), 413);
+    // The server refuses on the declared Content-Length, before it reads any body.
+    // Send only the head: pushing 8 MB at a server that has already answered and
+    // closed makes Windows reset the connection and drop the 413 before the client
+    // reads it, which is a property of the transport, not of the limit.
+    let mut s = TcpStream::connect(running.addr).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    let head = format!(
+        "POST /hook HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nX-Focus-Token: {TOKEN}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        running.addr.port(),
+        8 * 1024 * 1024 + 1
+    );
+    s.write_all(head.as_bytes()).unwrap();
+    let mut out = String::new();
+    let _ = s.read_to_string(&mut out);
+    let status: u16 = out
+        .split_whitespace()
+        .nth(1)
+        .and_then(|c| c.parse().ok())
+        .unwrap_or(0);
+    assert_eq!(status, 413);
     assert!(rx.recv_timeout(Duration::from_millis(200)).is_err());
 }
 
