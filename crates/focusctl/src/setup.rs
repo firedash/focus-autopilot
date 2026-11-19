@@ -7,9 +7,7 @@
 //! The one thing it starts is `focusd`, from the same folder as `focusctl` or from the PATH,
 //! with its output in `focusd.log` beside `config.toml`. It does not set up start at login.
 
-use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use crate::doctor::{self, Check, Level};
@@ -34,44 +32,18 @@ pub fn find_focusd(exe_dir: Option<&Path>, path_env: &str) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-/// Starts `program` so that it outlives this command and the terminal's Ctrl+C: no stdin, its
-/// output appended to `log`, and its own process group (on Windows, detached with no console).
+/// Starts `program` so that it outlives this command and the terminal's Ctrl+C, with no stdin,
+/// its output appended to `log`, and none of this process's other handles (so a pipe this
+/// command's output goes through is not kept open by it). See `focus_platform::spawn`.
 ///
 /// # Errors
 /// When the log can't be opened or the program can't be started.
-pub fn spawn_detached(program: &Path, args: &[&str], log: &Path) -> Result<Child, String> {
-    if let Some(dir) = log.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    }
-    let out = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log)
-        .map_err(|e| format!("{}: {e}", log.display()))?;
-    let err = out
-        .try_clone()
-        .map_err(|e| format!("{}: {e}", log.display()))?;
-    // Without this, a Windows child also gets this process's pipes, and `setup | cat` never ends.
-    focus_platform::inherit::keep_std_handles_private();
-    let mut command = Command::new(program);
-    command
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(out)
-        .stderr(err);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt as _;
-        // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        command.creation_flags(0x0000_0208);
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt as _;
-        command.process_group(0);
-    }
-    command
-        .spawn()
+pub fn spawn_detached(
+    program: &Path,
+    args: &[&str],
+    log: &Path,
+) -> Result<focus_platform::spawn::Background, String> {
+    focus_platform::spawn::spawn_background(program, args, log)
         .map_err(|e| format!("could not start {}: {e}", program.display()))
 }
 
@@ -303,6 +275,7 @@ mod tests {
     use super::*;
     use std::io::{Read, Write as _};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+    use std::process::{Command, Stdio};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -590,7 +563,7 @@ mod tests {
         // The test program itself, asked to list its tests: it prints and exits.
         let me = std::env::current_exe().unwrap();
         let mut child = spawn_detached(&me, &["--list"], &log).unwrap();
-        assert!(child.wait().unwrap().success());
+        assert!(child.wait().unwrap());
         assert!(!std::fs::read_to_string(&log).unwrap().is_empty());
         assert!(spawn_detached(&dir.path().join("missing"), &[], &log).is_err());
     }
@@ -684,8 +657,6 @@ mod tests {
     /// starts a long-lived child the way `setup` starts focusd, prints, and exits.
     #[test]
     #[ignore = "helper process for another test"]
-    // The child must outlive this process: that is what is being tested.
-    #[allow(clippy::zombie_processes)]
     fn helper_starts_a_background_child_and_exits() {
         let Some(dir) = std::env::var_os(HELPER_DIR).map(PathBuf::from) else {
             return;
@@ -713,21 +684,32 @@ mod tests {
         }
     }
 
-    /// F4: with stdout and stderr piped (`setup | cat`, `2>&1 | Tee-Object`), the output must
-    /// reach its end even though a background child is still running. On Windows the child used
-    /// to inherit the pipe's write end, so the reader waited for it forever.
+    /// Helper: stands in for a shell layer such as `powershell -c "focusctl setup"`. Runs the
+    /// helper above with its own stdout and stderr piped, reads them to the end, then prints.
+    /// The pipe this helper's own caller reads is an inheritable handle here that is none of the
+    /// next process's standard handles.
     #[test]
-    fn starting_a_background_program_does_not_hold_the_callers_pipes() {
-        let dir = tempfile::tempdir().unwrap();
+    #[ignore = "helper process for another test"]
+    fn helper_runs_the_starter_through_its_own_pipes() {
+        let Some(dir) = std::env::var_os(HELPER_DIR).map(PathBuf::from) else {
+            return;
+        };
+        let out = run_helper_with_pipes(
+            "setup::tests::helper_starts_a_background_child_and_exits",
+            &dir,
+        );
+        println!("helper: the shell layer read {} line(s)", out.len());
+        println!("helper: started the background child");
+    }
+
+    /// Runs one of the helper tests as a child with stdout and stderr piped, reads both pipes to
+    /// their end as `cat` would, and returns what was read, or nothing from a pipe that was
+    /// still open after 20 s.
+    fn run_helper_with_pipes(helper: &str, dir: &Path) -> Vec<String> {
         let me = std::env::current_exe().unwrap();
         let mut caller = Command::new(&me)
-            .args([
-                "--exact",
-                "setup::tests::helper_starts_a_background_child_and_exits",
-                "--ignored",
-                "--nocapture",
-            ])
-            .env(HELPER_DIR, dir.path())
+            .args(["--exact", helper, "--ignored", "--nocapture"])
+            .env(HELPER_DIR, dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -752,9 +734,15 @@ mod tests {
                 finished.push(text);
             }
         }
+        let _ = caller.wait();
+        finished
+    }
+
+    fn check_pipes_close(entry: &str) {
+        let dir = tempfile::tempdir().unwrap();
+        let finished = run_helper_with_pipes(entry, dir.path());
         // Let the background child go before judging, so a failure does not leave it running.
         std::fs::write(dir.path().join("stop"), "").unwrap();
-        let _ = caller.wait();
         assert_eq!(
             finished.len(),
             2,
@@ -766,8 +754,21 @@ mod tests {
                 .any(|t| t.contains("helper: started the background child")),
             "{finished:?}"
         );
-        for reader in readers {
-            let _ = reader.join();
-        }
+    }
+
+    /// F4: with stdout and stderr piped (`setup | cat`, `2>&1 | Tee-Object`), the output must
+    /// reach its end even though a background child is still running. On Windows the child used
+    /// to inherit the pipe's write end, so the reader waited for it forever.
+    #[test]
+    fn starting_a_background_program_does_not_hold_the_callers_pipes() {
+        check_pipes_close("setup::tests::helper_starts_a_background_child_and_exits");
+    }
+
+    /// F7: the same through a shell layer. The outer pipe is then an inheritable handle that
+    /// the starter inherited without it being one of its own standard handles, which clearing
+    /// the starter's own three handles (the F4 fix) did not cover.
+    #[test]
+    fn starting_a_background_program_does_not_hold_pipes_of_an_outer_shell() {
+        check_pipes_close("setup::tests::helper_runs_the_starter_through_its_own_pipes");
     }
 }

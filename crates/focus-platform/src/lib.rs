@@ -9,7 +9,6 @@
 
 pub mod fake;
 pub mod hotkey;
-pub mod inherit;
 pub mod known_apps;
 #[cfg(target_os = "macos")]
 pub mod macos;
@@ -17,6 +16,7 @@ pub mod macos;
 mod macos_hotkeys;
 #[cfg(target_os = "macos")]
 mod macos_overlay;
+pub mod spawn;
 #[cfg(windows)]
 pub mod windows;
 #[cfg(windows)]

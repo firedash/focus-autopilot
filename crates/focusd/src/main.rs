@@ -6,14 +6,30 @@
 //! Commands on stdin: `click` (act on the toast), `pause`, `resume`, `quit`.
 #![forbid(unsafe_code)]
 
+/// `focusd --version`: the program and its Cargo package version, the same one the release
+/// archives are named for. Checked before anything else, so it works with no config or HOME.
+fn version_requested() -> bool {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("focusd {}", env!("CARGO_PKG_VERSION"));
+        return true;
+    }
+    false
+}
+
 #[cfg(not(any(target_os = "macos", windows)))]
 fn main() {
+    if version_requested() {
+        return;
+    }
     eprintln!("focusd needs macOS or Windows. On other systems use focus-headless; see STATUS.md.");
     std::process::exit(2);
 }
 
 #[cfg(any(target_os = "macos", windows))]
 fn main() {
+    if version_requested() {
+        return;
+    }
     if let Err(message) = native::run() {
         eprintln!("focusd: {message}");
         std::process::exit(1);
@@ -287,7 +303,7 @@ mod native {
                 "--test-box" => parsed.only = Some(Only::TestBox),
                 "--help" | "-h" => {
                     println!(
-                        "usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose] [--test-hotkeys] [--test-box]"
+                        "usage: focusd [--config FILE] [--port N] [--list-apps] [--verbose] [--test-hotkeys] [--test-box] [--version]"
                     );
                     return Ok(None);
                 }
