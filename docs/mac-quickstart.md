@@ -47,8 +47,10 @@ written and how to do it by hand.
 ## 3. Run
 
 If you used `setup`, `focusd` is already running in the background; skip the command below.
-To stop it: `pkill focusd`. To upgrade, stop it, replace the files and run `setup` again:
-`setup` leaves a `focusd` that is already running alone, even an older one.
+To stop it: `pkill -x focusd`. To upgrade, stop it, replace the files and run `setup` again:
+`setup` leaves a `focusd` that is already running alone, even an older one. If you also set up
+start at login (below), launchd restarts a `focusd` that was killed, within about 30 seconds;
+stop that one with `focusctl uninstall-agent` and the `launchctl bootout` command it prints.
 
 ```bash
 ./target/release/focusd
@@ -97,7 +99,9 @@ with nothing else going on, if you want to see where they appear. It was added f
 and has not been run on a Mac.
 
 **Check the hotkey first.** It has worked on one Mac; yours may have another app holding the
-same keys, and this takes a minute:
+same keys, and this takes a minute. If `setup` already started `focusd`, stop it first
+(`pkill -x focusd`): it holds the keys, so the test would report them as taken. From the
+download the command is `./focusd --test-hotkeys`, run in the unzipped folder.
 
 ```bash
 ./target/release/focusd --test-hotkeys

@@ -117,7 +117,7 @@ is off.
    and they came late.
 3. **Make it installable before making it complete.** For the first days it needed a compiler
    to install, which is why nobody I shared it with tried it. I have since added unsigned
-   downloads for Windows and Mac. The Windows one has been tested; nobody has run the Mac ones
+   downloads for Windows and Mac. An earlier Windows one was tested; nobody has run the Mac ones
    yet.
 4. **Record a 20-second demo before sharing anything.** A link asks people to do work. A GIF
    does not. The one above was made after the first round of sharing, not before.

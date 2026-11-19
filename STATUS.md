@@ -178,7 +178,7 @@ left off, and the statistics.
 - **Stopping or upgrading a running `focusd`.** There is no `focusctl stop`, and `setup` does
   not compare versions: with a `focusd` already answering it says "already running" and leaves
   it, even if it is an older build. To stop one: on Windows `taskkill /F /IM focusd.exe`, on a Mac
-  `pkill focusd`; then run `setup` again. `setup` moves `focusd.log` aside to `focusd.log.old`
+  `pkill -x focusd`; then run `setup` again. `setup` moves `focusd.log` aside to `focusd.log.old`
   at its next start once it passes 1 MB.
 - **Front-app change notifications.** The front app is polled twice a second.
 - Known redaction gaps: a secret in plain prose, and attached short flags (`mysql -pSecret`).
@@ -203,7 +203,7 @@ left off, and the statistics.
    biggest gap in "Prebuilt downloads" above. Until then, consider marking the release a
    pre-release.
 7. A `focusctl stop`, and a version check in `setup`, so an upgrade does not leave the old
-   `focusd` running. The recorded demo is done.
+   `focusd` running.
 
 ## Before continuing
 

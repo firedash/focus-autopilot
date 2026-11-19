@@ -27,7 +27,9 @@ Setup does not make focusd start at login. After a restart of your computer, run
 again (macOS can also start it at login: focusctl install-agent, which points at this
 folder; if you move the folder, run it again).
 
-To stop focusd:  macOS: pkill focusd    Windows: taskkill /F /IM focusd.exe
+To stop focusd:  macOS: pkill -x focusd    Windows: taskkill /F /IM focusd.exe
+(If you set up start at login on a Mac, launchd restarts a killed focusd; stop that one with
+focusctl uninstall-agent and the launchctl command it prints.)
 To upgrade, stop it, unzip the new version and run setup again. Setup leaves a focusd that
 is already running alone, even an old one, so stop it first.
 

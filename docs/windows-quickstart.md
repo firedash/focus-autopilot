@@ -16,9 +16,14 @@ of the Claude desktop app). Claude Code inside WSL cannot reach it by default: W
 ## 0. Or use the download
 
 The [releases page](https://github.com/firedash/focus-autopilot/releases) has a Windows zip (unsigned). Unzip it, open PowerShell in the
-folder and run `.\focusctl.exe setup`; then skip to step 3. Windows may say "Windows protected
-your PC": choose More info, then Run anyway. `READ-ME-FIRST.txt` in the zip has the same
-steps. The zip has been run through `setup` in a test, but not yet with a real Claude prompt.
+folder and run `.\focusctl.exe setup`. That does steps 1 and 2 for you and starts `focusd`, so
+skip those and step 5. Steps 3 and 4 are self-tests, and `focusd` holds the hotkeys while it
+runs, so stop it first (`taskkill /F /IM focusd.exe`), run them as `.\focusd.exe --test-hotkeys`
+and `.\focusd.exe --test-box` from the unzipped folder, then run `setup` again. Or skip them:
+`focusd.log` (see "Stopping and upgrading" below) shows what it sees. Windows may say "Windows
+protected your PC": choose More info, then Run anyway. `READ-ME-FIRST.txt` in the zip has the
+same steps. An earlier zip (v0.1.0) was run through `setup` in a test; v0.1.1's has been
+checked but not run through `setup`, and neither has been used with a real Claude prompt.
 
 ## 1. Build (only if you are not using the download)
 
@@ -84,6 +89,9 @@ then the recap card for 6. If you see neither, say so: nothing else needs to be 
 this test.
 
 ## 5. Run
+
+If you used `setup` or the download, `focusd` is already running in the background: do not
+start a second one. Otherwise:
 
 ```powershell
 .\target\release\focusd.exe

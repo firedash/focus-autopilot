@@ -65,8 +65,8 @@ On Windows, follow [docs/windows-quickstart.md](docs/windows-quickstart.md) inst
 **Or skip the build:** the [releases page](https://github.com/firedash/focus-autopilot/releases) has unsigned downloads for macOS (Apple silicon
 and Intel) and Windows. Unzip, open a terminal in the folder and run `focusctl setup`;
 `READ-ME-FIRST.txt` in the archive has the steps and what to do about the "unsigned" warning.
-They are new: the Windows download has been run through setup in a test, and the Mac ones
-have not been run by anyone yet ([STATUS.md](STATUS.md)).
+They are new: an earlier Windows download (v0.1.0) was run through setup in a test, and the Mac
+ones have not been run by anyone yet ([STATUS.md](STATUS.md)).
 
 To build it yourself you need a Mac, Rust ([rustup.rs](https://rustup.rs)) and the Xcode command
 line tools (`xcode-select --install`). It takes a few minutes, most of it the first build.

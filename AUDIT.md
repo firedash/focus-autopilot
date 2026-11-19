@@ -32,6 +32,7 @@ Linux; on Windows they rely on the user profile's own access rules.
 | `open-ui.html` (data folder) | `focusctl/src/ui.rs` | a redirect to the page, with the token after the `#`; mode 0600 |
 | `recap-workdir/` (data folder) | created by `focus-runner/src/recap_cli.rs` | an empty folder the `claude` command is run in |
 | `focusd.log` (data folder) | the stdout of a `focusd` started by the launch agent (`focusctl/src/agent.rs`) or by `focusctl setup` (`focusctl/src/setup.rs`, `spawn_detached`, which calls `focus-platform/src/spawn.rs`); `focusctl setup` reads back only what that start wrote, for the lines starting `hotkey problem:` (`hotkey_problems`) | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
+| `focusd.log.old` (data folder) | `focusctl/src/setup.rs`, `rotate_log` | the previous `focusd.log`, moved aside by `focusctl setup` at its next start once the log passes 1 MB (replacing any earlier `.old`); same contents as `focusd.log`, so the same limits |
 | `~/.claude/settings.json`, or the project's with `--scope` | `focusctl/src/files.rs`, `hooks.rs` | only entries whose URL is this app's hook URL are added or removed; a `.focus-autopilot.bak` copy is kept beside it |
 | `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent`, which is macOS only |
 
