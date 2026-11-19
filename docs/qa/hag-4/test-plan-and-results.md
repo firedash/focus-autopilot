@@ -51,3 +51,61 @@ Happened: "focusd on port 47821 refuses the token in config.toml. restart focusd
 - Multiple monitors, display scaling other than 100%, a restart of the Claude desktop app.
 - `focusctl ui` and the Statistics tab.
 - `--test-box` was run while a full-screen game was in front. The box showed over it.
+
+---
+
+# Part 2: `focusctl setup` (feat/focusctl-setup, 071a6f9) and the release workflow (feat/release-binaries, 99f0e5d)
+
+Run 2026-11-19, same machine and same rules as part 1. Same sandbox method: `HOME`/`USERPROFILE` and `FOCUS_AUTOPILOT_HOME` redirected to scratch folders, ports 47997/47998/47999, hotkeys `Ctrl+Alt+Shift+7`/`+8` except in scenario 8. The owner's `settings.json`, `config.toml` and `focusd` (pid 30604) were not touched; pid 30604 was still running at the end. Built from detached worktrees of the two commits; nothing in them was edited. Every sandbox `focusd` I started was stopped afterwards.
+
+## `focusctl setup`: scenarios
+
+| # | Scenario | Expected | Result |
+| --- | --- | --- | --- |
+| 1 | First run: fresh settings (`{"theme":"dark"}`), config with only a port and hotkeys | hooks added, `focusd` started in the background, checks run, "Ready" | PASS. `1/3 hooks: added`, `2/3 focusd: started (path, log path)`, four `ok` checks, `Ready: ...`, exit 0. `focusd` kept running after `focusctl` exited. `theme` kept, `.bak` made |
+| 2 | Second run, `focusd` already running | no change, no second `focusd` | PASS. `hooks: already in ..., nothing changed`, `focusd: already running on port 47999`, exit 0, one listener on the port |
+| 3 | Hooks installed, `focusd` stopped, run again | starts `focusd`, leaves hooks alone | PASS (output to a file). See F4 for the same run with output piped |
+| 4 | Port taken by another program (a plain TCP listener on 47998) | not ready, says what to do, starts nothing | PASS on verdict, exit 1, `FAIL something other than focusd is answering on port 47998`. No `focusd` started. Wording problem in step 2, see F5 |
+| 5 | `focusd` missing (lone `focusctl.exe` in an empty folder, none on PATH) | not ready, says how to get it | PASS: `not started: focusd was not found next to focusctl or on the PATH; build it with cargo build...`, exit 1. Also PASS with `--focusd C:/nope/focusd.exe`: clear `could not start` error, exit 1 |
+| 6 | `setup --dry-run` | refuse or preview | PASS: refuses and points to `install-hooks --dry-run`, exit 1 |
+| 7 | `uninstall-hooks` after setup | settings back to `{"theme":"dark"}` | PASS (single port, so F1 does not apply) |
+| 8 | Default hotkeys already held by another program | start, but say so | `Ready`, exit 0. See F6 |
+
+### Failures and findings
+
+**F4. `focusctl setup` never returns when its output is piped (confirmed, medium).**
+Steps: `focusctl setup | cat` (or `| grep`, or any caller that reads its output through a pipe, such as `Tee-Object`, an editor task runner, or a script capturing output) while `focusd` is not running.
+Expected: setup prints its result and exits, as it does when the output goes to a console or a file.
+Happened: the command prints `focusd: started`, then never ends. It stayed hung until my tool's 90 s limit, twice. Redirecting to a file (`> out.txt`) returns at once. `focusd` itself is fine and keeps running.
+Likely cause (not proven): `spawn_detached` (`crates/focusctl/src/setup.rs:42`) sets the child's stdin, stdout and stderr, but on Windows `CreateProcess` is called with handle inheritance on, so the child also inherits the parent's pipe handle and holds the pipe open, so the reader never sees the end. Check by listing the child's handles, or by running with output to a pipe and the child's handle inheritance turned off.
+Who is hit: anyone running `.\target\release\focusctl.exe setup 2>&1 | Tee-Object setup.log`, which is the pattern `windows-quickstart.md` itself uses for `focusd`. Not hit in a plain terminal. I did not test the pipe case on macOS.
+
+**F5. Wrong wording when the port is held by something else (minor).**
+Steps: scenario 4. Expected: step 2 does not claim `focusd` is there. Happened: `2/3 focusd: already running on port 47998`, then `3/3` correctly says something else is answering. The final line and the fix are right. The suggested fix, "run `focusctl install-hooks`", is the sequence that triggers F1 (old-port hooks left behind).
+
+**F6. `Ready` is reported when no hotkey could be registered (minor).**
+Steps: scenario 8 (default keys already used by another program). Expected: at least a note, because without a focus key the user can only act on a box by typing `click` into the `focusd` window, which a background `focusd` does not have. Happened: `Ready: focusd is running in the background`, exit 0. The problem is only in `focusd.log` (`hotkey problem: ... another program already uses this key combination`, `no focus hotkey: type click here to act on a toast`). `doctor` and `setup` both say hotkeys are not checked.
+
+## Release workflow
+
+Read `.github/workflows/release.yml` and `docs/releasing.md`, then ran the parts that run on Windows:
+
+| Step | Result |
+| --- | --- |
+| Tag-versus-Cargo.toml check (the `sed` and the `%%-*` comparison) | PASS in Git Bash: Cargo version `0.1.0`; `v0.1.0` and `v0.1.0-rc1` accepted, `v9.9.9` rejected |
+| `cargo build --release --locked -p focusd -p focusctl --target x86_64-pc-windows-msvc` | PASS, 46 s |
+| Archive step (the workflow's PowerShell, minus the `gh upload` line) | PASS under Windows PowerShell 5.1: zip made (1.37 MB), five files inside: `focusctl.exe`, `focusd.exe`, `LICENSE`, `PERMISSIONS.md`, `README.md` |
+| Checksum file and `sha256sum -c` | PASS: `<hash>  <file>`, `OK`. The layout matches `docs/releasing.md` |
+| Unzip and run | PASS: `focusctl.exe doctor` and `focusd.exe --help` run from the extracted folder; the extracted `.exe` files have the same SHA-256 as the built ones |
+
+Observations (nothing failed):
+- **R1, not verified:** GitHub runs this step with `pwsh` 7; this machine has only Windows PowerShell 5.1 (`pwsh` is not installed). Under 5.1 the zip entry names use backslashes (`folder\focusd.exe`). Windows tools read that; I did not check how `pwsh` 7 names them, nor `unzip` on Linux.
+- **R2, doc gap:** the archive has `README.md` only, and its relative links (`docs/windows-quickstart.md`, `STATUS.md`) do not exist in the zip. `docs/releasing.md` explains how to check a download but not what to do with it next. With the setup branch, `focusctl setup` finds a `focusd` beside it, so "unzip, run `focusctl setup`" would fit, but neither page says so. I did not test whether a user in a downloaded folder (no repo) hits other path assumptions beyond the ones in scenario 5.
+- **Cannot run here:** the `draft` job, `gh release create/upload`, the macOS builds (Apple silicon and the Intel cross-compile), the tag trigger itself, and the `--prerelease` branch.
+
+## Not verified (part 2)
+
+- Real Claude sessions and hooks, and the countdown or switch on live windows (still not allowed).
+- `setup` on macOS, in a pipe on macOS, and with `focusd` started from a path with spaces.
+- `setup` against the owner's real `settings.json` and port 47821 (sandbox only).
+- Screenshots: nothing here is graphical. The evidence is the command output quoted above; the outputs are in the scratchpad, not committed.
