@@ -134,7 +134,15 @@ pub fn run(
     let mut started = false;
     let mut start_problem = None;
     if doctor::is_listening(port, token) {
-        say(&format!("2/3 focusd: already running on port {port}"));
+        // Something answers, but that is not the same as focusd answering.
+        if doctor::daemon(port, token).0.level == Level::Ok {
+            say(&format!("2/3 focusd: already running on port {port}"));
+        } else {
+            say(&format!(
+                "2/3 focusd: not started, because something else is already using port {port} \
+                 (details below)"
+            ));
+        }
     } else {
         match start() {
             Ok(line) => {
@@ -435,7 +443,7 @@ mod tests {
         let _other = Fake::start(listener, None);
         let (_dir, config, settings) = temp_setup(port);
         let mut started = false;
-        let (result, _) = setup_once(
+        let (result, lines) = setup_once(
             &settings,
             &config,
             &mut || {
@@ -446,6 +454,12 @@ mod tests {
         );
         assert!(!started);
         assert!(!result.ready);
+        // F5: step 2 must not claim a focusd is there.
+        assert!(
+            !lines.iter().any(|l| l.contains("already running")),
+            "{lines:?}"
+        );
+        assert!(lines[1].starts_with("2/3 focusd: not started"), "{lines:?}");
         assert!(
             result
                 .summary
