@@ -93,3 +93,44 @@ simulator ran. These are the choices in the adapter (`focus-platform/src/windows
     `focusctl doctor` took a closed port for another program, because Windows times a
     refused loopback connection out; and its advice named the macOS-only launch agent. Not
     tried there: the move away, the LLM recap, the page, and Claude Code in a terminal.
+
+## Left for later: exact-window return on macOS
+
+Decided 2026-11-19: not built. On a Mac a return goes to the app, not the window, which is
+fine while there is one window per app. Written down so the idea is not lost.
+
+**What it would be.** The Accessibility API, `AXUIElement`, is the Mac counterpart of the
+Windows window handle.
+
+1. On leaving, ask the frontmost app for its focused window (`AXUIElementCreateApplication`
+   with the process id, then `kAXFocusedWindowAttribute`) and keep it in `AppRef.window`.
+2. On returning, activate the app as now, then set the window as main and focused and
+   perform `kAXRaiseAction`.
+3. If the window has closed, the call fails and the return falls back to activating the app.
+
+**Scope.**
+
+- `focus-platform/src/macos.rs`: about 150 to 250 lines. It links ApplicationServices, adds
+  `AXIsProcessTrusted`, the focused-window lookup and the raise, fills `window` in
+  `frontmost()` and uses it in `activate()`. The `unsafe` rules apply as elsewhere.
+- `focus-core`: probably nothing. Windows already uses handle matching in `guards.rs` and
+  `returns.rs`. Check that nothing there assumes handles exist only on Windows.
+- A config switch, off by default, and a line in `focusctl doctor` showing whether
+  Accessibility is granted. Without the grant, behaviour stays as today.
+- Docs: the claim "asks for no operating-system permission" would become "none by default;
+  Accessibility is optional, for exact windows". That touches `README.md`, `PERMISSIONS.md`,
+  `THREAT_MODEL.md`, `STATUS.md`, `docs/mac-quickstart.md` and `docs/writeup.md`.
+
+**Cautions.**
+
+- Accessibility lets a program read and control other programs' windows. Keep it opt-in.
+- Window titles can hold private text. Use them only in memory as a fallback match, and
+  never write them to the log or history.
+- Not testable on Linux, and macOS CI has no grant. Only the fallback logic can be unit
+  tested; the real path would stay under "not seen working" until run on a Mac, and the Mac
+  adapter has needed several rounds on real hardware before.
+- This is different from the withdrawn editor-URL route (ADR 0003, items 16 and 21), which
+  matched by folder. This matches by window handle.
+
+**Revisit if** a Mac user regularly has two windows of one app (two editor windows, say) and
+lands in the wrong one.

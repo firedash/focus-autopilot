@@ -152,7 +152,9 @@ left off, and the statistics.
 - **Menu-bar icon, click on a toast, first-run wizard, installer.** `focusd` runs in a
   terminal or from a launch agent, and the page is opened with `focusctl ui`.
 - **Exact-window return on macOS.** The editor-URL route was tried and withdrawn; see ADR 0003 items
-  16 and 21 for what would be needed.
+  16 and 21 for what would be needed. Decided on 2026-11-19 to leave it: one window per app
+  is fine for now. The Accessibility route, what it would take and why it was postponed, is
+  in ADR 0006, "Left for later".
 - **Changing hotkeys without a restart.**
 - **Statistics per project.** History keeps only a salted hash of the folder.
 - **`focusctl record`, `focusctl audit`, fuzz targets, the `strace` test, release
