@@ -12,7 +12,7 @@ use crate::hooks;
 
 pub enum Op {
     Install { port: u16, token: String },
-    Uninstall { port: u16 },
+    Uninstall,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -51,7 +51,7 @@ fn compute(old: &str, op: &Op) -> Result<String, String> {
     };
     match op {
         Op::Install { port, token } => hooks::install(&mut value, *port, token),
-        Op::Uninstall { port } => hooks::uninstall(&mut value, *port).map(|_| ()),
+        Op::Uninstall => hooks::uninstall(&mut value).map(|_| ()),
     }
     .map_err(|e| format!("{e:?}"))?;
     if existed {
@@ -77,7 +77,7 @@ pub fn apply(settings: &Path, op: &Op, dry_run: bool) -> Result<Outcome, String>
             Err(e) => return Err(format!("{}: {e}", target.display())),
         };
         let mut new = compute(&old, op)?;
-        if matches!(op, Op::Uninstall { .. }) {
+        if matches!(op, Op::Uninstall) {
             new = restore_original_bytes(&target, &old, new);
         }
         let outcome = Outcome {
@@ -209,7 +209,7 @@ mod tests {
         let once = fs::read_to_string(&path).unwrap();
         assert!(!apply(&path, &install(47821, "t"), false).unwrap().changed());
         assert_eq!(fs::read_to_string(&path).unwrap(), once);
-        apply(&path, &Op::Uninstall { port: 47821 }, false).unwrap();
+        apply(&path, &Op::Uninstall, false).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), original);
         let backup = dir.path().join("settings.json.focus-autopilot.bak");
         assert_eq!(fs::read_to_string(backup).unwrap(), original);
