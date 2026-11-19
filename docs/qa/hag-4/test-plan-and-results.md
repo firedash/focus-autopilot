@@ -164,3 +164,84 @@ Read as someone who has only the zip: the steps are in the right order, say what
 - The download case: `READ-ME-FIRST.txt` and the executables with the "mark of the web" and a real SmartScreen prompt; the draft release job; `pwsh` 7; macOS and its Gatekeeper `xattr` line.
 - `setup` on macOS, and with a pipe on macOS.
 - Real Claude sessions and hooks.
+
+---
+
+# Part 5: the real v0.1.0 Windows download (draft release, tag at f5cb063)
+
+Run 2026-11-19 on the same Windows 11 machine. Assets were fetched with the signed-in GitHub tool, read-only (`gh release view` and `gh release download`); the draft was not edited, published or deleted. The sandbox is the usual one (redirected `HOME`/`USERPROFILE` and `FOCUS_AUTOPILOT_HOME`, port 47999, hotkeys `Ctrl+Alt+Shift+7`/`+8`, pre-written `config.toml`). The owner's `settings.json`, `config.toml` and `focusd` (pid 30604) were not touched and the owner's `focusd` was still running at the end; every `focusd` I started was stopped.
+
+The release: `v0.1.0`, draft, not a pre-release, six assets (the three archives and their `.sha256` files). The tag commit f5cb063 contains the F4 fix (0aaf44d).
+
+| # | Step | Result |
+| --- | --- | --- |
+| 1 | `gh release download ... --pattern "*windows*"` into an empty folder | PASS: zip (1,422,003 bytes) and `.sha256` |
+| 2 | SHA-256 | PASS: `sha256sum -c` says OK (`3557b6b5...a72c3`) |
+| 3 | Unzip; the four files | PASS: `focusctl.exe` (922,112), `focusd.exe` (2,341,888), `LICENSE`, `READ-ME-FIRST.txt` (2,454), all inside one folder. Zip entries use `/`, so the backslash worry from R1 (made with Windows PowerShell 5.1 here) does not apply to the real archive |
+| 4 | Read `READ-ME-FIRST.txt` | The text has the changes asked for after part 4: step 3 says to quit and reopen the desktop app, it names the focus key, and it warns about a second SmartScreen prompt, marked untested |
+| 5 | Follow it: `.\focusctl.exe setup` in PowerShell from the unzipped folder | PASS: `hooks: added`, `focusd: started`, four `ok` checks, `Ready`, exit 0 |
+| 6 | `focusctl doctor` | PASS: "Everything checked is in order" |
+| 7 | A synthetic hook sent to the sandbox `focusd` (nothing sent to Claude) | PASS: wrong token 401, right token 200, log shows `hook: UserPromptSubmit` and the "not a home app" note |
+| 8 | `focusctl uninstall-hooks` | PASS: settings back to `{"theme":"dark"}` |
+| 9 | Warnings | None appeared. See "SmartScreen and the mark of the web" |
+| 10 | Version of the two programs | See F8 |
+| 11 | macOS archives: sha256 and file list only, not run | PASS: both `sha256sum -c` OK; each holds a folder with `LICENSE`, `READ-ME-FIRST.txt`, `focusctl`, `focusd` (`tar -tzf`) |
+
+## SmartScreen and the mark of the web
+
+- The file from `gh release download` has **no** `Zone.Identifier` stream (`Get-Item -Stream *` lists only `:$DATA`; neither do the extracted files). The download tool does not add one, so this is not what a person downloading in a browser would have.
+- **Simulation, not the real thing:** I copied the unzipped folder and added `Zone.Identifier` (`ZoneId=3`, `HostUrl=https://github.com/`) to all four files, as a browser would. `focusctl.exe setup` from a PowerShell console then ran the same way: `Ready`, exit 0, no window, no prompt. A program started from a console by `CreateProcess` is not normally checked by SmartScreen; the check happens when a file is opened from Explorer or `ShellExecute`.
+- So: no warning in either run. What I could **not** test is the first double-click or "Run" of a browser-downloaded file, which is what the text warns about. I did not launch anything through `ShellExecute`, to avoid putting a prompt on the owner's screen. A screenshot was taken after the simulated run and checked for a SmartScreen window by title (none); it was not kept, because it shows the owner's desktop.
+
+## Findings
+
+**F7. `setup` still hangs when run through an extra shell layer with output captured (confirmed twice, scope limited).**
+Steps: from Git Bash, `powershell -NoProfile -c "Set-Location <folder>; .\focusctl.exe setup" 2>&1 | cat > out.txt`, `focusd` not running.
+Expected: returns once `Ready` is printed.
+Happened: the output (with `Ready`) is complete and `focusd` is up, but the pipeline never ends (stopped after 20 s; and the same chain with `| cut` ran past 120 s). The direct form, `focusctl.exe setup 2>&1 | cat` from Git Bash, returns in 3 s on this release, so the F4 fix works for that case.
+Likely cause (not proven): the fix clears the inherit flag on `focusctl`'s own stdin, stdout and stderr, but the outer pipe is a handle `focusctl` inherited from `powershell.exe` as an ordinary handle, and `focusd` inherits it from `focusctl`.
+Who is hit: someone whose tool starts PowerShell and reads its output until the end, such as a script runner or an editor task that wraps `setup`. A person typing in a console or piping inside one PowerShell session is not. Medium to low.
+
+**F8. Neither program can say what version it is (confirmed, minor).**
+Steps: `focusctl.exe --version`, `focusd.exe --version`.
+Expected: a version, since the file is `v0.1.0`.
+Happened: `focusctl: unknown command --version` and `focusd: unknown argument --version`. The Windows file properties (`FileVersion`, `ProductVersion`) are empty too. A user who reports a bug cannot say which build they run, other than by file hash.
+
+## Not verified (part 5)
+
+- The first run of a browser-downloaded file under a real SmartScreen check (see above), and `setup` started by double-clicking.
+- Real Claude sessions and hooks; the countdown and switches on live windows.
+- The macOS programs (not run, as instructed) and the macOS `xattr` step.
+- Whether the "second SmartScreen prompt" on `focusd.exe` exists.
+
+---
+
+# Part 6: recheck of F7 and F8 on fix/setup-handles-and-version (6f84970)
+
+Run 2026-11-19. Built from a detached worktree of 6f84970 (F7 c4776d1, F8 6f84970); release build, 28 s. Same sandbox method and boundaries as before: redirected `HOME`/`USERPROFILE`/`FOCUS_AUTOPILOT_HOME`, port 47999 (47997 and 47996 where noted), hotkeys `Ctrl+Alt+Shift+7`/`+8` except the F6 case. The owner's files and `focusd` (pid 30604) were untouched and still running at the end; every `focusd` I started was stopped. Each run that could hang was guarded at 25 s.
+
+| Item | Result | What I ran and saw |
+| --- | --- | --- |
+| **F7**, my exact step: Git Bash, then `powershell -c "& focusctl.exe setup"`, piped to `cat` | **PASS** | Returned in about 3 s with `Ready`. This hung on the v0.1.0 build |
+| F7, `cmd /c "focusctl.exe setup"` piped to `cat` | **PASS** | 3 s, `Ready` |
+| F7, a third nesting: Git Bash, PowerShell, `cmd /c`, `setup`, piped to `cat` | **PASS** | 3 s, `Ready` |
+| F7, a fourth: Git Bash, `cmd` running a `.cmd` file, which runs `powershell -File` running `setup`, piped to `cut` | **PASS** | 3 s, `Ready`. (My first two attempts at this shape failed on my own quoting, not on `setup`; I rewrote it with script files and it passed.) |
+| F7, a fifth: PowerShell inside PowerShell, `\| Tee-Object` | **PASS** | 3 s, `Ready` |
+| **F8** `--version` and `-V`, both programs, with `HOME`, `USERPROFILE` and `FOCUS_AUTOPILOT_HOME` unset | **PASS** | `focusctl 0.1.0`, `focusd 0.1.0`, exit 0, for both flags on both programs, from Git Bash and from PowerShell |
+| Regression: the six pipe readers from F4 | **PASS** | `\| cat`, `2>&1 \| Tee-Object`, `\| Select-String`, `2>&1 \| findstr` (cmd), `\| more` (cmd), `$(...)` capture: each about 3 s, `Ready`; after the `$(...)` run `doctor` confirmed `focusd is running ... accepts the token` |
+| Regression: plain run, nothing redirected | **PASS** | Hooks added, `focusd` started, four `ok` checks, `Ready`, exit 0 |
+| Regression: output to a file | **PASS** | exit 0, `Ready` in the file |
+| Regression: `focusd.log` is written | **PASS** | Beside `config.toml`: `focusd listening on http://127.0.0.1:47999/hook`, the hints, `front: ...` |
+| Regression: the F6 warning still shows (default hotkeys, held by the owner's `focusd`) | **PASS** | exit 0; a `note` naming both keys; last line `Ready, with a warning: ...`; the log has both `hotkey problem:` lines and `no focus hotkey:` |
+| Regression: spaces and a non-ASCII letter in the programs' folder (`unzipped folder é`) and in the data folder (`my data é`) | **PASS** | `Ready`; `focusd.log` written in the data folder; `doctor --config "<path with spaces>"` accepted the token. This is the case the new `CreateProcessW` command line could have broken |
+| Regression: second run changes nothing | **PASS** | `hooks: already ... nothing changed`, `focusd: already running`, `Ready: focusd was already running`; SHA-256 of `settings.json` and `config.toml` identical before and after; the `focusd` process id was the same before and after; no second listener |
+
+## Notes
+
+- **Windows file properties are still empty.** `(Get-Item focusctl.exe).VersionInfo.ProductVersion` prints nothing. F8 asked for `--version`, which works, so this is not a failure; Explorer's Details tab will still show no version.
+- I did not retest the macOS side, the real download, or a real Claude session.
+
+## Not verified (part 6)
+
+- A nesting shape that puts a graphical or service host between the reader and `setup` (for example a Windows service, Task Scheduler or an editor's task runner). The shapes above are all console shells.
+- `setup` on macOS.
