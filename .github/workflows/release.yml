@@ -1,0 +1,109 @@
+# SPDX-License-Identifier: Apache-2.0
+# Prebuilt downloads. Pushing a version tag such as v0.1.0 builds focusd and focusctl in release
+# mode for macOS (Apple silicon and Intel) and Windows (x64) and attaches one archive per
+# platform, each with a SHA-256 checksum file, to a DRAFT release. The owner reads the draft and
+# publishes it. Nothing is signed; docs/releasing.md says what signing would need.
+#
+# Same rules as ci.yml: the token is read-only except in the two jobs that write to the release,
+# the only third-party action is pinned to a full commit, and every build uses --locked.
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  draft:
+    name: Create the draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: The tag must match the version in Cargo.toml
+        run: |
+          set -eu
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/{s/^version = "\(.*\)"/\1/p}' Cargo.toml)
+          if [ "v$version" != "${GITHUB_REF_NAME%%-*}" ]; then
+            echo "tag $GITHUB_REF_NAME does not match Cargo.toml version $version" >&2
+            exit 1
+          fi
+      - name: Create a draft release for the tag (a re-run keeps the existing one)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            prerelease=""
+            case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag $prerelease \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Unsigned prebuilt binaries. Check the .sha256 file next to each archive; docs/releasing.md explains what that does and does not prove."
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          # macos-latest is Apple silicon; the Intel build is a cross-compile with the same SDK.
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # rust-toolchain.toml pins the compiler; the target is added to that toolchain.
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build --release --locked -p focusd -p focusctl --target ${{ matrix.target }}
+
+      - name: Archive and checksum (macOS)
+        if: runner.os == 'macOS'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          name="focus-autopilot-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir "$name"
+          cp "target/${{ matrix.target }}/release/focusd" "target/${{ matrix.target }}/release/focusctl" \
+            LICENSE "$name/"
+          cp docs/release-readme.txt "$name/READ-ME-FIRST.txt"
+          tar -czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          cat "$name.tar.gz.sha256"
+          gh release upload "$GITHUB_REF_NAME" "$name.tar.gz" "$name.tar.gz.sha256" --clobber
+
+      - name: Archive and checksum (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "focus-autopilot-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $name | Out-Null
+          Copy-Item "target\${{ matrix.target }}\release\focusd.exe", "target\${{ matrix.target }}\release\focusctl.exe", `
+            LICENSE -Destination $name
+          Copy-Item docs/release-readme.txt -Destination "$name/READ-ME-FIRST.txt"
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 "$name.zip").Hash.ToLower()
+          # Same "<hash>  <file>" layout as shasum, so `sha256sum -c` reads it too.
+          [System.IO.File]::WriteAllText("$PWD\$name.zip.sha256", "$hash  $name.zip`n")
+          Get-Content "$name.zip.sha256"
+          gh release upload $env:GITHUB_REF_NAME "$name.zip" "$name.zip.sha256" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'upload failed' }
