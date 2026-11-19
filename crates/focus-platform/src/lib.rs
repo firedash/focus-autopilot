@@ -9,6 +9,7 @@
 
 pub mod fake;
 pub mod hotkey;
+pub mod inherit;
 pub mod known_apps;
 #[cfg(target_os = "macos")]
 pub mod macos;

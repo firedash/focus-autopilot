@@ -51,6 +51,8 @@ pub fn spawn_detached(program: &Path, args: &[&str], log: &Path) -> Result<Child
     let err = out
         .try_clone()
         .map_err(|e| format!("{}: {e}", log.display()))?;
+    // Without this, a Windows child also gets this process's pipes, and `setup | cat` never ends.
+    focus_platform::inherit::keep_std_handles_private();
     let mut command = Command::new(program);
     command
         .args(args)
@@ -214,7 +216,7 @@ fn format_check(check: &Check) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read as _, Write as _};
+    use std::io::{Read, Write as _};
     use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -490,5 +492,98 @@ mod tests {
         assert!(child.wait().unwrap().success());
         assert!(!std::fs::read_to_string(&log).unwrap().is_empty());
         assert!(spawn_detached(&dir.path().join("missing"), &[], &log).is_err());
+    }
+    /// The folder the two helper tests below work in; they do nothing unless it is set.
+    const HELPER_DIR: &str = "FOCUS_SETUP_PIPE_TEST_DIR";
+
+    /// Helper, run only by `starting_a_background_program_does_not_hold_the_callers_pipes`:
+    /// starts a long-lived child the way `setup` starts focusd, prints, and exits.
+    #[test]
+    #[ignore = "helper process for another test"]
+    // The child must outlive this process: that is what is being tested.
+    #[allow(clippy::zombie_processes)]
+    fn helper_starts_a_background_child_and_exits() {
+        let Some(dir) = std::env::var_os(HELPER_DIR).map(PathBuf::from) else {
+            return;
+        };
+        let me = std::env::current_exe().unwrap();
+        let args = [
+            "--exact",
+            "setup::tests::helper_stays_alive_until_told_to_stop",
+            "--ignored",
+        ];
+        let _background = spawn_detached(&me, &args, &dir.join("child.log")).unwrap();
+        println!("helper: started the background child");
+    }
+
+    /// Helper: the long-lived child. Exits when `stop` appears, or after a minute.
+    #[test]
+    #[ignore = "helper process for another test"]
+    fn helper_stays_alive_until_told_to_stop() {
+        let Some(dir) = std::env::var_os(HELPER_DIR).map(PathBuf::from) else {
+            return;
+        };
+        let end = Instant::now() + Duration::from_secs(60);
+        while !dir.join("stop").exists() && Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+
+    /// F4: with stdout and stderr piped (`setup | cat`, `2>&1 | Tee-Object`), the output must
+    /// reach its end even though a background child is still running. On Windows the child used
+    /// to inherit the pipe's write end, so the reader waited for it forever.
+    #[test]
+    fn starting_a_background_program_does_not_hold_the_callers_pipes() {
+        let dir = tempfile::tempdir().unwrap();
+        let me = std::env::current_exe().unwrap();
+        let mut caller = Command::new(&me)
+            .args([
+                "--exact",
+                "setup::tests::helper_starts_a_background_child_and_exits",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env(HELPER_DIR, dir.path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        // Read both pipes to their end, as `cat` would, and report when each one finishes.
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let mut readers = Vec::new();
+        let out = caller.stdout.take().unwrap();
+        let err = caller.stderr.take().unwrap();
+        for mut pipe in [Box::new(out) as Box<dyn Read + Send>, Box::new(err)] {
+            let done = done_tx.clone();
+            readers.push(std::thread::spawn(move || {
+                let mut text = String::new();
+                let _ = pipe.read_to_string(&mut text);
+                let _ = done.send(text);
+            }));
+        }
+        let mut finished = Vec::new();
+        for _ in 0..2 {
+            if let Ok(text) = done_rx.recv_timeout(Duration::from_secs(20)) {
+                finished.push(text);
+            }
+        }
+        // Let the background child go before judging, so a failure does not leave it running.
+        std::fs::write(dir.path().join("stop"), "").unwrap();
+        let _ = caller.wait();
+        assert_eq!(
+            finished.len(),
+            2,
+            "the pipes were still open 20 s after the caller exited"
+        );
+        assert!(
+            finished
+                .iter()
+                .any(|t| t.contains("helper: started the background child")),
+            "{finished:?}"
+        );
+        for reader in readers {
+            let _ = reader.join();
+        }
     }
 }
