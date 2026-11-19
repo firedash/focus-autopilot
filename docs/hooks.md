@@ -22,7 +22,10 @@ Then restart every running Claude Code session, and fully quit and reopen the Cl
 app if you use its Code tab: hooks are read at startup. `focusctl doctor` confirms that the
 hooks are in place and carry the current token, and `/hooks` inside Claude Code lists them.
 
-`focusctl uninstall-hooks` removes exactly these entries and nothing else.
+`focusctl uninstall-hooks` removes exactly these entries and nothing else. An entry counts as
+ours when its URL is `http://127.0.0.1:<any port>/hook` and it carries an `X-Focus-Token`
+header, so entries left from an earlier port are replaced by `install-hooks` and removed by
+`uninstall-hooks` too.
 
 This has been run by a person on a Mac and on Windows.
 

@@ -102,6 +102,14 @@ focus key (the defaults are `Control+Option+Command+Space` and `Control+Option+C
 focus_key = "Control+Option+Command+B"
 ```
 
+**Which keys.** A chord is modifiers plus one key, joined with `+`, for example
+`Ctrl+Alt+Shift+B`. Modifiers: `Control` (or `Ctrl`), `Option` (or `Alt`), `Shift`, and `Command`
+(or `Cmd`, `Super`, `Meta`; the Windows key on Windows). At least one modifier is required. The
+key is one of `A` to `Z`, `0` to `9`, `Space`, `Return` (or `Enter`), `Escape` (or `Esc`) or
+`Tab`. Function keys such as `F9`, arrows and punctuation are not accepted yet; `focusd`
+says `is not a key I know`. The settings are `focus_key`, `pause` and `declare_long`; an empty
+string turns one off.
+
 ## Statistics and configuration
 
 ```bash

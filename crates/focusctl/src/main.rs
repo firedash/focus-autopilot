@@ -129,9 +129,8 @@ fn run() -> Result<bool, String> {
             install_hooks(&args, &settings, &config_path)?;
         }
         "uninstall-hooks" => {
-            let port = config::ensure_port(&config_path);
             show(
-                &files::apply(&settings, &Op::Uninstall { port }, args.dry_run)?,
+                &files::apply(&settings, &Op::Uninstall, args.dry_run)?,
                 args.dry_run,
             );
         }

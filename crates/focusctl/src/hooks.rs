@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Merging focusd's hook entries into Claude Code's `settings.json` and removing them again
 //! (design section 6, "Installer rules"). Security-relevant: this edits another tool's
-//! settings. focusd's entries are the ones whose URL starts with `http://127.0.0.1:<port>/hook`.
+//! settings. focusd's entries are the ones whose URL is `http://127.0.0.1:<any port>/hook` and that
+//! carry an `X-Focus-Token` header. The port is not part of the test: after the port in
+//! `config.toml` changes, the entries written for the old one are still ours, so a new install
+//! replaces them and `uninstall-hooks` removes them.
 
 use serde_json::{Map, Value, json};
 
@@ -33,10 +36,25 @@ pub enum MergeError {
     Shape(&'static str),
 }
 
-fn is_ours(hook: &Value, url: &str) -> bool {
+/// Is the URL `http://127.0.0.1:<digits>/hook`, for any port?
+fn is_hook_url(url: &str) -> bool {
+    url.strip_prefix("http://127.0.0.1:")
+        .and_then(|rest| rest.strip_suffix("/hook"))
+        .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// One of ours, whatever port it was written for. The token header is part of the test so that
+/// some other tool's `http://127.0.0.1:<port>/hook` entry is left alone.
+fn is_ours(hook: &Value) -> bool {
     hook.get("url")
         .and_then(Value::as_str)
-        .is_some_and(|u| u.starts_with(url))
+        .is_some_and(is_hook_url)
+        && hook.pointer("/headers/X-Focus-Token").is_some()
+}
+
+/// One of ours, written for exactly this URL (this port).
+fn is_ours_at(hook: &Value, url: &str) -> bool {
+    is_ours(hook) && hook.get("url").and_then(Value::as_str) == Some(url)
 }
 
 fn entry(matcher: Option<&str>, url: &str, token: &str) -> Value {
@@ -55,11 +73,11 @@ fn entry(matcher: Option<&str>, url: &str, token: &str) -> Value {
 }
 
 /// True when this matcher group holds one of our hooks.
-fn group_is_ours(group: &Value, url: &str) -> bool {
+fn group_is_ours(group: &Value) -> bool {
     group
         .get("hooks")
         .and_then(Value::as_array)
-        .is_some_and(|hooks| hooks.iter().any(|h| is_ours(h, url)))
+        .is_some_and(|hooks| hooks.iter().any(is_ours))
 }
 
 /// Adds or refreshes our entry for every event, beside whatever is already there. Running it
@@ -84,13 +102,13 @@ pub fn install(settings: &mut Value, port: u16, token: &str) -> Result<(), Merge
             .as_array_mut()
             .ok_or(MergeError::Shape("a hook event is not an array"))?;
         let new = entry(*matcher, &url, token);
-        match groups.iter().position(|g| group_is_ours(g, &url)) {
+        match groups.iter().position(group_is_ours) {
             Some(first) => {
                 groups[first] = new;
                 let mut i = groups.len();
                 while i > first + 1 {
                     i -= 1;
-                    if group_is_ours(&groups[i], &url) {
+                    if group_is_ours(&groups[i]) {
                         groups.remove(i);
                     }
                 }
@@ -106,8 +124,7 @@ pub fn install(settings: &mut Value, port: u16, token: &str) -> Result<(), Merge
 ///
 /// # Errors
 /// When `settings` or its `hooks` value has an unexpected shape.
-pub fn uninstall(settings: &mut Value, port: u16) -> Result<bool, MergeError> {
-    let url = hook_url(port);
+pub fn uninstall(settings: &mut Value) -> Result<bool, MergeError> {
     let root = settings
         .as_object_mut()
         .ok_or(MergeError::Shape("settings.json is not a JSON object"))?;
@@ -125,7 +142,7 @@ pub fn uninstall(settings: &mut Value, port: u16) -> Result<bool, MergeError> {
         for group in groups.iter_mut() {
             if let Some(list) = group.get_mut("hooks").and_then(Value::as_array_mut) {
                 let before = list.len();
-                list.retain(|h| !is_ours(h, &url));
+                list.retain(|h| !is_ours(h));
                 removed |= list.len() != before;
             }
         }
@@ -173,7 +190,7 @@ pub fn installed(settings: &Value, port: u16, token: &str) -> Installed {
             .flatten()
             .filter_map(|group| group.get("hooks").and_then(Value::as_array))
             .flatten()
-            .filter(|hook| is_ours(hook, &url))
+            .filter(|hook| is_ours_at(hook, &url))
             .collect();
         if ours.is_empty() {
             found.missing.push(event);
@@ -267,7 +284,7 @@ mod tests {
     fn uninstall_restores_the_original_bytes() {
         let mut v = parse(THEIRS);
         install(&mut v, 47821, "tok").unwrap();
-        assert!(uninstall(&mut v, 47821).unwrap());
+        assert!(uninstall(&mut v).unwrap());
         assert_eq!(render(&v, &indent_of(THEIRS), true), THEIRS);
     }
 
@@ -275,17 +292,56 @@ mod tests {
     fn uninstall_from_an_empty_settings_leaves_an_empty_object() {
         let mut v = parse("{}");
         install(&mut v, 47821, "tok").unwrap();
-        uninstall(&mut v, 47821).unwrap();
+        uninstall(&mut v).unwrap();
         assert_eq!(v, parse("{}"));
-        assert!(!uninstall(&mut v, 47821).unwrap());
+        assert!(!uninstall(&mut v).unwrap());
     }
 
     #[test]
-    fn a_hook_on_another_port_is_not_ours() {
-        let mut v = parse("{}");
-        install(&mut v, 9999, "tok").unwrap();
-        assert!(!uninstall(&mut v, 47821).unwrap());
-        assert!(v["hooks"]["Stop"].as_array().is_some());
+    fn uninstall_removes_hooks_written_for_any_port() {
+        let mut v = parse(THEIRS);
+        install(&mut v, 47821, "old").unwrap();
+        // Two installs with different ports, as when `port` changes in config.toml.
+        let mut both = v.clone();
+        for groups in both["hooks"].as_object_mut().unwrap().values_mut() {
+            let extra = entry(None, &hook_url(47999), "new");
+            groups.as_array_mut().unwrap().push(extra);
+        }
+        assert!(uninstall(&mut both).unwrap());
+        assert_eq!(render(&both, &indent_of(THEIRS), true), THEIRS);
+    }
+
+    #[test]
+    fn installing_with_a_new_port_replaces_the_old_entries() {
+        let mut v = parse(THEIRS);
+        install(&mut v, 47821, "old").unwrap();
+        install(&mut v, 47999, "new").unwrap();
+        let text = v.to_string();
+        assert!(!text.contains("47821") && !text.contains("old"), "{text}");
+        assert_eq!(text.matches("X-Focus-Token").count(), 11);
+        assert_eq!(v["hooks"]["Stop"].as_array().unwrap().len(), 2);
+        assert!(uninstall(&mut v).unwrap());
+        assert_eq!(render(&v, &indent_of(THEIRS), true), THEIRS);
+    }
+
+    #[test]
+    fn another_tools_loopback_hook_is_not_ours() {
+        // Same host and path, but no token header: not written by us.
+        let mut v = parse(
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"http","url":"http://127.0.0.1:9000/hook"}]}]}}"#,
+        );
+        let before = v.clone();
+        assert!(!uninstall(&mut v).unwrap());
+        assert_eq!(v, before);
+        // A different path or host is not ours either, token or not.
+        for url in [
+            "http://127.0.0.1:9000/other",
+            "http://localhost:9000/hook",
+            "http://127.0.0.1:/hook",
+        ] {
+            let hook = json!({"type": "http", "url": url, "headers": {"X-Focus-Token": "t"}});
+            assert!(!is_ours(&hook), "{url}");
+        }
     }
 
     #[test]
