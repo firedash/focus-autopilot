@@ -125,3 +125,42 @@ Run 2026-11-19. Built from a detached worktree of c22afbe (F1 61a519c, F2 b05d5d
 Note on F3: the doc says `Command` (or `Cmd`, `Super`, `Meta`) is "the Windows key on Windows". I confirmed `Cmd+Ctrl+Alt+Q` and `Super+Ctrl+Alt+W` register. I did not press them, so I did not verify that they are the Windows key.
 
 Not verified: F1 on macOS, and over-removal for hooks whose URL is on `127.0.0.1:47821/hook` but were added by hand by the user (those are indistinguishable from ours by design).
+
+---
+
+# Part 4: recheck of F4 to F6 (feat/focusctl-setup 0833111) and the release archive (feat/release-binaries 73afbdd)
+
+Run 2026-11-19. Built from detached worktrees of the two commits (F4 0aaf44d, F5 4aee042, F6 0833111). Same sandbox method and boundaries as before; the owner's files and `focusd` (pid 30604) were untouched and still running at the end; every sandbox `focusd` I started was stopped. Each pipe test ran under a 25 s guard so a hang would be reported, not waited on.
+
+| Finding | Result | What I ran and saw |
+| --- | --- | --- |
+| **F4** `setup` hangs when output is piped | **PASS** | `focusd` not running, hooks absent, each run returned in about 3 s, printed `focusd: started` and `Ready`, and left `focusd` listening (`doctor`: `focusd is running ... accepts the token`). Readers tried: `\| cat` (Git Bash); `2>&1 \| Tee-Object file` and `\| Select-String Ready` (Windows PowerShell 5.1); `2>&1 \| findstr Ready` and `\| more` (cmd, from a `.cmd` file); `$(focusctl setup)` captured by a script. The same steps hung twice on 071a6f9 |
+| **F5** wrong wording when another program holds the port | **PASS** | A plain TCP listener on 47998. Step 2 now reads `focusd: not started, because something else is already using port 47998 (details below)`; no `focusd` started; step 3 `FAIL something other than focusd is answering on port 47998`; exit 1. The fix hint now reads `set a different port under [receiver] in config.toml, then run focusctl setup, which writes the hooks for the new port and starts focusd`. It no longer sends the user to `install-hooks`; with the F1 fix that sequence is safe either way. I did not run the "change the port, run setup again" step this time |
+| **F6** `Ready` while no hotkey registered | **PASS** | Default keys, held by the owner's `focusd`. Exit 0, a `note` under the checks naming both keys and the reason, the advice "stop focusd, pick other keys under [hotkeys] (the quickstart lists the valid ones), and run setup again. Until then the box cannot be acted on from the keyboard", and the last line `Ready, with a warning: focusd could not register its hotkeys ...`. Control with free keys: no note, plain `Ready` |
+
+## Release archive (73afbdd)
+
+| Check | Result |
+| --- | --- |
+| `cargo build --release --locked --target x86_64-pc-windows-msvc` | PASS, 28 s |
+| Windows packaging steps from `release.yml` (minus `gh upload`), Windows PowerShell 5.1 | PASS. The zip holds exactly `focusctl.exe`, `focusd.exe`, `LICENSE`, `READ-ME-FIRST.txt`; `sha256sum -c` OK; `READ-ME-FIRST.txt` is byte-identical to `docs/release-readme.txt` apart from line endings |
+| Following the text with this branch's own `focusctl.exe` | **FAIL as expected**: step 2 `focusctl.exe setup` gives `focusctl: unknown command setup`, exit 1. The commit message says `setup` is on the other branch; this proves a release cut from this branch alone would ship a README that does not work |
+| Following the text with the `setup` branch's executables (a simulated merge), in a folder whose name has a space | PASS: `setup` found the `focusd` beside it, `Ready`, `doctor` all ok, `uninstall-hooks` left `{"theme":"dark"}` |
+
+### Findings
+
+**R3. A stray file was committed: `t-pack.zip` at the repository root in 73afbdd (confirmed, minor).**
+`git ls-files` on that commit lists `t-pack.zip` (5 KB, holding `t-pack\LICENSE` and `t-pack\READ-ME-FIRST.txt`). It looks like a leftover from trying the packaging commands, and the commit message does not mention it. It should come out before merge.
+
+**R4. The archive text is right for a new user, with four gaps (suggestions).**
+Read as someone who has only the zip: the steps are in the right order, say what `setup` does, and `Windows protected your PC` is covered. Gaps:
+1. It says "Restart any Claude Code session"; `windows-quickstart.md` also says to fully quit and reopen the Claude desktop app if the Code tab is used, because hooks are read at startup. A desktop-app user following only the zip would see nothing happen.
+2. It does not name the focus key (`Ctrl+Alt+Shift+Space`) that snoozes a countdown, so a new user does not learn how to stop a switch.
+3. The SmartScreen advice covers running `focusctl.exe`. `setup` then starts `focusd.exe` in the background, which may raise its own warning that the user cannot see. I could not test this: nothing here carries the web "mark of the web" flag that a downloaded zip would.
+4. It depends on the `setup` command (see the FAIL above), so the order of merging matters.
+
+## Not verified (part 4)
+
+- The download case: `READ-ME-FIRST.txt` and the executables with the "mark of the web" and a real SmartScreen prompt; the draft release job; `pwsh` 7; macOS and its Gatekeeper `xattr` line.
+- `setup` on macOS, and with a pipe on macOS.
+- Real Claude sessions and hooks.
