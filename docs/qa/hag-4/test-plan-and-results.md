@@ -109,3 +109,19 @@ Observations (nothing failed):
 - `setup` on macOS, in a pipe on macOS, and with `focusd` started from a path with spaces.
 - `setup` against the owner's real `settings.json` and port 47821 (sandbox only).
 - Screenshots: nothing here is graphical. The evidence is the command output quoted above; the outputs are in the scratchpad, not committed.
+
+---
+
+# Part 3: recheck of F1 to F3 on fix/first-run-bugs (c22afbe)
+
+Run 2026-11-19. Built from a detached worktree of c22afbe (F1 61a519c, F2 b05d5db, F3 c22afbe); same sandbox method and boundaries as parts 1 and 2. Owner's files and `focusd` (pid 30604) untouched; every sandbox `focusd` stopped. `uninstall-hooks` no longer takes a port, so it was run without one.
+
+| Finding | Result | What I ran and saw |
+| --- | --- | --- |
+| **F1** hooks left after a port change | **PASS** | Fresh `{"theme":"dark"}`. `install-hooks` (default port): 11 lines for 47821. Set `port = 47999`, `install-hooks` again: 11 lines for 47999, 0 for 47821, one `Stop` entry, so the old entries are replaced, not duplicated. `uninstall-hooks`: settings are exactly `{"theme":"dark"}`. Extra check for over-removal: a settings file with a foreign `Stop` group (`http://127.0.0.1:5000/hook`, `http://127.0.0.1:9000/other`, and a command hook) came back unchanged after `install-hooks` then `uninstall-hooks` |
+| **F2** `doctor` blames the wrong cause | **PASS** | Two sandboxes on port 47999: one `focusd` running with token A, a second data folder with token B. Doctor for B: `a focusd on port 47999 refuses the token in config.toml` with the fix "either your focusd, started before the token last changed (restart it), or another Focus Autopilot, from another install or data folder, that owns the port (stop it, or set a different port ..., run `focusctl install-hooks`, and start focusd)". Matching token: `ok ... accepts the token`. Nothing listening: the old "not running" message is unchanged |
+| **F3** which hotkeys are valid | **PASS** with a note | Tried the quickstart's list through `focusd --test-hotkeys`. Registered: letters (`B`, `Z`), digits, `Return`, `Enter`, `Escape`, `Esc`, modifiers `Control`, `Option`, `Cmd`, `Super`, `Meta`. `Space` and `Tab` parse; each was reported as already used by another program on this machine (Space is the owner's `focusd`; I did not identify the Tab owner). Not accepted, with the documented message: `F9`, `Up`, `-`; `B` alone gives `needs at least one modifier`; `Win` is not a key name (the doc does not list it). Setting the same chord twice, or `Return` with `Enter`, reports the second as already used, which is correct since they are the same chord |
+
+Note on F3: the doc says `Command` (or `Cmd`, `Super`, `Meta`) is "the Windows key on Windows". I confirmed `Cmd+Ctrl+Alt+Q` and `Super+Ctrl+Alt+W` register. I did not press them, so I did not verify that they are the Windows key.
+
+Not verified: F1 on macOS, and over-removal for hooks whose URL is on `127.0.0.1:47821/hook` but were added by hand by the user (those are indistinguishable from ours by design).
