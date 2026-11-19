@@ -196,8 +196,11 @@ pub fn daemon(port: u16, token: &str) -> (Check, Option<Value>) {
         },
         Ok(Some((401, _))) => (
             fail(
-                format!("focusd on port {port} refuses the token in config.toml"),
-                "restart focusd: it was started before the token last changed",
+                format!("a focusd on port {port} refuses the token in config.toml"),
+                "this is either your focusd, started before the token last changed (restart it), \
+                 or another Focus Autopilot, from another install or data folder, that owns the \
+                 port (stop it, or set a different `port` under [receiver] in config.toml, run \
+                 `focusctl install-hooks`, and start focusd)",
             ),
             None,
         ),
@@ -400,7 +403,11 @@ mod tests {
         );
         let (refused, none) = daemon(port, "old");
         assert!(refused.what.contains("refuses the token") && none.is_none());
-        assert!(refused.fix.unwrap().contains("restart focusd"));
+        // Both causes are named: restart your own, or deal with someone else's.
+        let fix = refused.fix.unwrap();
+        assert!(fix.contains("restart it"), "{fix}");
+        assert!(fix.contains("another Focus Autopilot"), "{fix}");
+        assert!(fix.contains("different `port`"), "{fix}");
     }
 
     #[test]
