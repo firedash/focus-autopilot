@@ -81,7 +81,8 @@ jobs:
           name="focus-autopilot-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir "$name"
           cp "target/${{ matrix.target }}/release/focusd" "target/${{ matrix.target }}/release/focusctl" \
-            LICENSE README.md PERMISSIONS.md "$name/"
+            LICENSE "$name/"
+          cp docs/release-readme.txt "$name/READ-ME-FIRST.txt"
           tar -czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
           cat "$name.tar.gz.sha256"
@@ -97,7 +98,8 @@ jobs:
           $name = "focus-autopilot-$env:GITHUB_REF_NAME-${{ matrix.target }}"
           New-Item -ItemType Directory -Path $name | Out-Null
           Copy-Item "target\${{ matrix.target }}\release\focusd.exe", "target\${{ matrix.target }}\release\focusctl.exe", `
-            LICENSE, README.md, PERMISSIONS.md -Destination $name
+            LICENSE -Destination $name
+          Copy-Item docs/release-readme.txt -Destination "$name/READ-ME-FIRST.txt"
           Compress-Archive -Path $name -DestinationPath "$name.zip"
           $hash = (Get-FileHash -Algorithm SHA256 "$name.zip").Hash.ToLower()
           # Same "<hash>  <file>" layout as shasum, so `sha256sum -c` reads it too.

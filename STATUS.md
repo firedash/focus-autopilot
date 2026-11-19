@@ -157,8 +157,12 @@ left off, and the statistics.
   in ADR 0006, "Left for later".
 - **Changing hotkeys without a restart.**
 - **Statistics per project.** History keeps only a salted hash of the folder.
-- **`focusctl record`, `focusctl audit`, fuzz targets, the `strace` test, release
-  engineering, REPRODUCIBLE.md.**
+- **`focusctl record`, `focusctl audit`, fuzz targets, the `strace` test, REPRODUCIBLE.md,
+  signing, an SBOM and attestations.**
+- **Prebuilt downloads: written, never run.** `.github/workflows/release.yml` builds unsigned
+  archives with SHA-256 files for macOS arm64, macOS x64 and Windows x64 on a version tag. It has
+  not run on GitHub; only its packaging commands and version check were tried locally.
+  See [docs/releasing.md](docs/releasing.md).
 - **Front-app change notifications.** The front app is polled twice a second.
 - Known redaction gaps: a secret in plain prose, and attached short flags (`mysql -pSecret`).
 

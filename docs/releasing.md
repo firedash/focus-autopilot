@@ -19,8 +19,10 @@ pushed, and nothing else starts it.
    | macOS, Intel | `focus-autopilot-vX.Y.Z-x86_64-apple-darwin.tar.gz` |
    | Windows, x64 | `focus-autopilot-vX.Y.Z-x86_64-pc-windows-msvc.zip` |
 
-   Each holds `focusd`, `focusctl` (`.exe` on Windows), `LICENSE`, `README.md` and
-   `PERMISSIONS.md`.
+   Each holds `focusd`, `focusctl` (`.exe` on Windows), `LICENSE` and `READ-ME-FIRST.txt`
+   (from `docs/release-readme.txt`): unzip, run `focusctl setup`, what to do about the
+   unsigned-binary warning, and a link to the repository. The repository's `README.md` and
+   `docs/` are not in the archive because their relative links would not resolve there.
 4. Download one, check it, then publish the draft in the GitHub page.
 
 ## Checking a download
