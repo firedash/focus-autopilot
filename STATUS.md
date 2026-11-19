@@ -86,7 +86,11 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 243 tests, all passing.
+- `cargo test --workspace`: 243 tests, all passing, before `focusctl setup` (7 tests added).
+- `focusctl setup`: its tests use temporary files and a stand-in for focusd, never the real
+  `~/.claude/settings.json`. Run end to end once on Windows (hooks written, focusd started in the
+  background, second run changed nothing). Not run on macOS: the macOS start path (own process
+  group, no terminal) is type-checked only, and a closed terminal's hang-up signal is untested.
 - `cargo clippy --workspace --all-targets` again with `--target aarch64-apple-darwin` and
   with `--target x86_64-pc-windows-msvc`: the macOS and Windows code type-checks and is
   lint-clean.

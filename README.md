@@ -68,9 +68,11 @@ You need a Mac, Rust ([rustup.rs](https://rustup.rs)) and the Xcode command line
 ```bash
 git clone https://github.com/firedash/focus-autopilot && cd focus-autopilot
 cargo build --release -p focusd -p focusctl
-./target/release/focusctl install-hooks     # adds the hooks to Claude Code, creates the token
-./target/release/focusd                     # leave it running
+./target/release/focusctl setup             # hooks, token, focusd in the background, and a check
 ```
+
+`setup` is safe to run again. To do its parts yourself: `focusctl install-hooks` adds the hooks
+and creates the token, and `focusd` is the program to leave running.
 
 `install-hooks` is what connects Claude Code to the app. [docs/hooks.md](docs/hooks.md) shows
 exactly what it writes, how to do it by hand, and which places it covers.

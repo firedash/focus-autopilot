@@ -164,13 +164,18 @@ fn get(port: u16, path: &str, token: &str) -> std::io::Result<Option<(u16, Strin
     Ok(Some((status, body.to_owned())))
 }
 
+/// Does anything answer on the loopback port? True for any program, not only focusd.
+pub fn is_listening(port: u16, token: &str) -> bool {
+    !matches!(get(port, "/api/stats", token), Ok(None))
+}
+
 /// Is focusd running on the port and does it accept the token? On success also returns the
 /// statistics it reported, for [`events`].
 pub fn daemon(port: u16, token: &str) -> (Check, Option<Value>) {
     let other_program = fail(
         format!("something other than focusd is answering on port {port}"),
-        "set a different `port` under [receiver] in config.toml, run `focusctl install-hooks`, \
-         and restart focusd",
+        "set a different `port` under [receiver] in config.toml, then run `focusctl setup`, \
+         which writes the hooks for the new port and starts focusd",
     );
     match get(port, "/api/stats", token) {
         Ok(None) => (
