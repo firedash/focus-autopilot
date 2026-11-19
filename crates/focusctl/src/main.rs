@@ -37,9 +37,20 @@ options:
   --config FILE     Focus Autopilot's config.toml, instead of the one in its data folder
   --agents-dir DIR  where launch agents live, instead of ~/Library/LaunchAgents
   --focusd FILE     setup: the focusd to start, instead of the one beside focusctl or on the PATH
+  --version         print the version and exit
   --no-open         ui: write the page's launcher file and print where it is, open nothing";
 
+/// `focusctl --version`: the program and its Cargo package version, the same one the release
+/// archives are named for.
+fn version_line() -> String {
+    format!("focusctl {}", env!("CARGO_PKG_VERSION"))
+}
+
 fn main() {
+    if matches!(std::env::args().nth(1).as_deref(), Some("--version" | "-V")) {
+        println!("{}", version_line());
+        return;
+    }
     match run() {
         Ok(true) => {}
         Ok(false) => std::process::exit(1),
@@ -352,6 +363,14 @@ fn show(outcome: &files::Outcome, dry_run: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_version_line_names_the_program_and_the_package_version() {
+        assert_eq!(
+            version_line(),
+            concat!("focusctl ", env!("CARGO_PKG_VERSION"))
+        );
+    }
 
     #[test]
     fn each_scope_names_the_file_claude_code_reads() {
