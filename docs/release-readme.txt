@@ -13,8 +13,14 @@ Windows), and the licence. It has no installer.
      macOS:     ./focusctl setup
      Windows:   .\focusctl.exe setup
 
-3. Restart any Claude Code session that was already open, give Claude a task, and switch to
+3. Restart any Claude Code session that was already open. If you use the Claude desktop app's
+   Code tab, fully quit the app and open it again. Then give Claude a task and switch to
    another window. When Claude is done, a box counts down and brings you back.
+
+   The focus key is Ctrl+Alt+Shift+Space on Windows (Control+Option+Command+Space on a Mac).
+   While a countdown runs it cancels the switch ("snooze" on the way back, "not now" on the
+   way out). If you turned off "Bring me back by itself", the box waits and the key takes you.
+   If another program already holds the key, setup says so when it starts focusd.
 
 To check again later: focusctl doctor. To remove the hooks: focusctl uninstall-hooks.
 Setup does not make focusd start at login. After a restart of your computer, run setup
@@ -25,6 +31,8 @@ These programs are not signed, so the system may warn you the first time:
             xattr -d com.apple.quarantine focusd focusctl
             in this folder, then try again.
   Windows:  "Windows protected your PC". Choose "More info", then "Run anyway".
+            Setup also starts focusd.exe in the background, and that start may raise its own
+            SmartScreen prompt. This has not been tested; the same choice applies.
 
 Check the download: the .sha256 file next to the archive on the releases page holds its
 SHA-256 checksum. It shows the file is the one that was published, not who made it.
