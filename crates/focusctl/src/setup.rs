@@ -96,8 +96,33 @@ pub struct SetupResult {
     pub summary: String,
 }
 
+/// Hotkeys `focusd` could not register, as it reported while starting: its output goes to the
+/// log, and only the part written after `from` bytes belongs to this start. Waits briefly for
+/// the line that ends its startup messages, since the port answers a moment before that.
+fn hotkey_problems(log: &Path, from: u64) -> Vec<String> {
+    let end = Instant::now() + Duration::from_secs(2);
+    loop {
+        let bytes = std::fs::read(log).unwrap_or_default();
+        let tail = String::from_utf8_lossy(
+            bytes
+                .get(usize::try_from(from).unwrap_or(0)..)
+                .unwrap_or(&[]),
+        )
+        .into_owned();
+        if tail.contains("statistics and settings:") || Instant::now() >= end {
+            return tail
+                .lines()
+                .filter_map(|line| line.strip_prefix("hotkey problem: "))
+                .map(str::to_owned)
+                .collect();
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 /// Runs the steps, reporting each through `say`. `start` is how `focusd` gets started: it
-/// is called only when nothing is listening on the port, and returns a line to show.
+/// is called only when nothing is listening on the port, and returns a line to show. With
+/// `log`, the hotkey problems `focusd` writes there when it starts are part of the result.
 ///
 /// # Errors
 /// Only when the hooks or `config.toml` can't be written; every other problem is a failed
@@ -106,6 +131,7 @@ pub fn run(
     settings: &Path,
     config_path: &Path,
     start: &mut dyn FnMut() -> Result<String, String>,
+    log: Option<&Path>,
     wait: Duration,
     say: &mut dyn FnMut(&str),
 ) -> Result<SetupResult, String> {
@@ -133,6 +159,7 @@ pub fn run(
     let (port, token) = (receiver.port, receiver.token.as_str());
     let mut started = false;
     let mut start_problem = None;
+    let mut hotkeys = Vec::new();
     if doctor::is_listening(port, token) {
         // Something answers, but that is not the same as focusd answering.
         if doctor::daemon(port, token).0.level == Level::Ok {
@@ -144,10 +171,16 @@ pub fn run(
             ));
         }
     } else {
+        let log_from = log
+            .and_then(|path| std::fs::metadata(path).ok())
+            .map_or(0, |meta| meta.len());
         match start() {
             Ok(line) => {
                 if wait_until_listening(port, token, wait) {
                     started = true;
+                    hotkeys = log
+                        .map(|path| hotkey_problems(path, log_from))
+                        .unwrap_or_default();
                     say(&format!("2/3 focusd: started ({line})"));
                 } else {
                     say(&format!(
@@ -174,16 +207,52 @@ pub fn run(
     checks.push(doctor::daemon(port, token).0);
     let claude = doctor::find_claude(&std::env::var("PATH").unwrap_or_default());
     checks.push(doctor::claude_cli(claude.as_deref(), None, parsed.as_ref()));
+    if !hotkeys.is_empty() {
+        checks.push(Check {
+            level: Level::Note,
+            what: format!("focusd could not register its hotkeys: {}", hotkeys.join("; ")),
+            fix: Some(
+                "another program holds those keys. Stop focusd, pick other keys under [hotkeys] in config.toml (the quickstart lists the valid ones), and run `focusctl setup` again. Until then the box cannot be acted on from the keyboard".to_owned(),
+            ),
+        });
+    }
     for check in &checks {
         say(&format_check(check));
     }
 
+    Ok(summarise(
+        &checks,
+        &Outcome {
+            started,
+            hooks_changed,
+            start_problem: start_problem.as_deref(),
+            hotkeys: &hotkeys,
+        },
+    ))
+}
+
+/// What happened before the checks, as far as the final line needs it.
+struct Outcome<'a> {
+    started: bool,
+    hooks_changed: bool,
+    start_problem: Option<&'a str>,
+    hotkeys: &'a [String],
+}
+
+/// The one line that ends the command, and whether setup is ready.
+fn summarise(checks: &[Check], what: &Outcome) -> SetupResult {
+    let Outcome {
+        started,
+        hooks_changed,
+        start_problem,
+        hotkeys,
+    } = *what;
     let first_failure = checks.iter().find(|c| c.level == Level::Fail);
     let summary = if let Some(check) = first_failure {
         let fix = check.fix.as_deref().unwrap_or("run `focusctl doctor`");
         // A start that failed has a better explanation than "not running".
-        let fix = match &start_problem {
-            Some(problem) if check.what.contains("not running") => problem.as_str(),
+        let fix = match start_problem {
+            Some(problem) if check.what.contains("not running") => problem,
             _ => fix,
         };
         format!("Not ready: {}. Next: {fix}.", check.what)
@@ -198,15 +267,23 @@ pub fn run(
         } else {
             ""
         };
+        // Ready, not "Not ready", with a warning: hooks and focusd work and the automatic return
+        // does not need a key. What is lost is snoozing a countdown and acting on a box.
+        let ready = if hotkeys.is_empty() {
+            "Ready".to_owned()
+        } else {
+            "Ready, with a warning: focusd could not register its hotkeys (see the note above)"
+                .to_owned()
+        };
         format!(
-            "Ready: {how}. Next: {restart}send a prompt in Claude Code and switch to another \
+            "{ready}: {how}. Next: {restart}send a prompt in Claude Code and switch to another \
              window. `focusctl doctor` checks again at any time."
         )
     };
-    Ok(SetupResult {
+    SetupResult {
         ready: first_failure.is_none(),
         summary,
-    })
+    }
 }
 
 fn format_check(check: &Check) -> String {
@@ -314,8 +391,18 @@ mod tests {
         start: &mut dyn FnMut() -> Result<String, String>,
         wait: Duration,
     ) -> (SetupResult, Vec<String>) {
+        setup_with_log(settings, config, start, None, wait)
+    }
+
+    fn setup_with_log(
+        settings: &Path,
+        config: &Path,
+        start: &mut dyn FnMut() -> Result<String, String>,
+        log: Option<&Path>,
+        wait: Duration,
+    ) -> (SetupResult, Vec<String>) {
         let mut lines = Vec::new();
-        let result = run(settings, config, start, wait, &mut |l| {
+        let result = run(settings, config, start, log, wait, &mut |l| {
             lines.push(l.to_owned());
         })
         .unwrap();
@@ -507,6 +594,89 @@ mod tests {
         assert!(!std::fs::read_to_string(&log).unwrap().is_empty());
         assert!(spawn_detached(&dir.path().join("missing"), &[], &log).is_err());
     }
+    /// Runs setup with a start that writes `startup_lines` to a log, as focusd would, and
+    /// brings the stand-in up. Only what is written after the start belongs to it.
+    fn setup_with_startup_log(startup_lines: &str) -> (SetupResult, Vec<String>) {
+        let port = free_port();
+        let (dir, config, settings) = temp_setup(port);
+        let token = config::ensure_token(&config, false).unwrap().token;
+        let log = dir.path().join("data").join("focusd.log");
+        // Lines from an earlier run, which must not count.
+        std::fs::write(
+            &log,
+            "hotkey problem: focus hotkey `old`: from an earlier run\n",
+        )
+        .unwrap();
+        let mut fake = None;
+        let out = setup_with_log(
+            &settings,
+            &config,
+            &mut || {
+                let mut text = std::fs::read_to_string(&log).unwrap();
+                text.push_str(startup_lines);
+                std::fs::write(&log, text).unwrap();
+                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
+                fake = Some(Fake::start(listener, Some(token.clone())));
+                Ok("test double".to_owned())
+            },
+            Some(&log),
+            Duration::from_secs(3),
+        );
+        drop(fake);
+        out
+    }
+
+    #[test]
+    fn hotkeys_that_could_not_be_registered_are_a_warning_in_the_result() {
+        // F6: Ready is still true, but the result says what is missing.
+        let (result, lines) = setup_with_startup_log(
+            "focusd listening on http://127.0.0.1:1/hook\n\
+             hotkey problem: focus hotkey `Ctrl+Alt+Shift+Space`: another program already uses this key combination\n\
+             no focus hotkey: type `click` here to act on a toast.\n\
+             statistics and settings: run `focusctl ui`.\n",
+        );
+        assert!(result.ready, "{} {lines:?}", result.summary);
+        assert!(
+            result
+                .summary
+                .starts_with("Ready, with a warning: focusd could not register its hotkeys"),
+            "{}",
+            result.summary
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("another program already uses this key combination")),
+            "{lines:?}"
+        );
+        assert!(
+            !result.summary.contains("from an earlier run"),
+            "{}",
+            result.summary
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("note") && l.contains("hotkeys")),
+            "{lines:?}"
+        );
+    }
+
+    #[test]
+    fn a_clean_start_has_no_warning() {
+        let (result, lines) = setup_with_startup_log(
+            "focusd listening on http://127.0.0.1:1/hook\n\
+             statistics and settings: run `focusctl ui`.\n",
+        );
+        assert!(result.ready, "{} {lines:?}", result.summary);
+        assert!(
+            result.summary.starts_with("Ready: focusd is running"),
+            "{}",
+            result.summary
+        );
+        assert!(!lines.iter().any(|l| l.contains("hotkeys")), "{lines:?}");
+    }
+
     /// The folder the two helper tests below work in; they do nothing unless it is set.
     const HELPER_DIR: &str = "FOCUS_SETUP_PIPE_TEST_DIR";
 

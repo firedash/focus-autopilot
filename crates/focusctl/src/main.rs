@@ -222,6 +222,7 @@ fn run_setup(args: &Args, settings: &Path, config_path: &Path) -> Result<bool, S
         settings,
         config_path,
         &mut start,
+        Some(&log),
         setup::START_WAIT,
         &mut |line| println!("{line}"),
     )?;
