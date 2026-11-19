@@ -107,11 +107,11 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
 name = "focus-core"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "focus-headless"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "focus-platform",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "focus-platform"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "objc2",
@@ -133,7 +133,7 @@ dependencies = [
 
 [[package]]
 name = "focus-receiver"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "getrandom",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "focus-runner"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "focus-platform",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "focusctl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "focus-platform",
@@ -176,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "focusd"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "focus-core",
  "focus-platform",
