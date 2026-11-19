@@ -50,6 +50,10 @@ switch then becomes a question, and the focus key answers it. The macOS build se
 - **Claude Code's settings.** `focusctl install-hooks` adds hook entries to
   `~/.claude/settings.json`. It shows the change first with `--dry-run`, backs the file up,
   and `uninstall-hooks` removes exactly those entries.
+- **Starting `focusd`.** `focusctl setup` starts `focusd` in the background (no window, output
+  in `focusd.log` beside `config.toml`) if nothing is answering on its port, and never starts a
+  second one. It installs the hooks the same way `install-hooks` does. It sets nothing up to run
+  at login.
 - **Time per app.** With `stats.track_app_time = true` (the default), `focusd` records how
   long each app is in front, as app names and durations in `usage.json` in its data folder.
   It can be turned off on the Configuration tab and erased on the Statistics tab.

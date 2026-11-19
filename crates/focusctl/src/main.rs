@@ -8,6 +8,7 @@ mod config;
 mod doctor;
 mod files;
 mod hooks;
+mod setup;
 mod ui;
 
 use std::path::{Path, PathBuf};
@@ -18,6 +19,8 @@ use files::Op;
 const USAGE: &str = "usage: focusctl <command> [options]
 
 commands:
+  setup             first run in one step: install the hooks, start focusd in the background,
+                    check everything, and say what to do next (safe to run again)
   install-hooks     add Focus Autopilot's hooks to Claude Code's settings (and create the token)
   uninstall-hooks   remove them again, leaving everything else as it was
   rotate-token      replace the token in config.toml and in the hooks
@@ -33,6 +36,7 @@ options:
   --settings FILE   a specific Claude Code settings file, instead of --scope
   --config FILE     Focus Autopilot's config.toml, instead of the one in its data folder
   --agents-dir DIR  where launch agents live, instead of ~/Library/LaunchAgents
+  --focusd FILE     setup: the focusd to start, instead of the one beside focusctl or on the PATH
   --no-open         ui: write the page's launcher file and print where it is, open nothing";
 
 fn main() {
@@ -54,6 +58,7 @@ struct Args {
     settings: Option<PathBuf>,
     config: Option<PathBuf>,
     agents_dir: Option<PathBuf>,
+    focusd: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -66,6 +71,7 @@ fn parse_args() -> Result<Args, String> {
         settings: None,
         config: None,
         agents_dir: None,
+        focusd: None,
     };
     while let Some(arg) = args.next() {
         let mut value = || {
@@ -79,6 +85,7 @@ fn parse_args() -> Result<Args, String> {
             "--settings" => parsed.settings = Some(PathBuf::from(value()?)),
             "--config" => parsed.config = Some(PathBuf::from(value()?)),
             "--agents-dir" => parsed.agents_dir = Some(PathBuf::from(value()?)),
+            "--focusd" => parsed.focusd = Some(PathBuf::from(value()?)),
             other => return Err(format!("unknown option {other}\n\n{USAGE}")),
         }
     }
@@ -135,6 +142,7 @@ fn run() -> Result<bool, String> {
                 args.dry_run,
             );
         }
+        "setup" => return run_setup(&args, &settings, &config_path),
         "ui" => open_ui(&config_path, args.no_open)?,
         "doctor" => return Ok(run_doctor(&settings, &config_path, &agents_dir()?)),
         "install-agent" | "uninstall-agent" if !cfg!(target_os = "macos") => {
@@ -180,6 +188,45 @@ fn install_hooks(args: &Args, settings: &Path, config_path: &Path) -> Result<(),
         println!("Restart focusd too: it keeps the token it started with.");
     }
     Ok(())
+}
+
+/// `focusctl setup`: hooks, focusd, checks, one result. `Ok(false)` when it is not ready.
+fn run_setup(args: &Args, settings: &Path, config_path: &Path) -> Result<bool, String> {
+    if args.dry_run {
+        return Err(
+            "setup has no --dry-run; `focusctl install-hooks --dry-run` previews the hooks change"
+                .to_owned(),
+        );
+    }
+    // focusd must read the same config.toml as this command, and its log goes beside it.
+    let log = config_path.with_file_name("focusd.log");
+    let config_arg = config_path.to_string_lossy().into_owned();
+    let mut start = || {
+        let focusd = if let Some(path) = &args.focusd {
+            path.clone()
+        } else {
+            let exe_dir = std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(Path::to_path_buf));
+            let path_env = std::env::var("PATH").unwrap_or_default();
+            setup::find_focusd(exe_dir.as_deref(), &path_env).ok_or(
+                "focusd was not found next to focusctl or on the PATH; build it with `cargo \
+                 build --release -p focusd`",
+            )?
+        };
+        setup::spawn_detached(&focusd, &["--config", &config_arg], &log)?;
+        Ok(format!("{}, log {}", focusd.display(), log.display()))
+    };
+    println!("Focus Autopilot setup");
+    let result = setup::run(
+        settings,
+        config_path,
+        &mut start,
+        setup::START_WAIT,
+        &mut |line| println!("{line}"),
+    )?;
+    println!("\n{}", result.summary);
+    Ok(result.ready)
 }
 
 fn open_ui(config_path: &Path, no_open: bool) -> Result<(), String> {

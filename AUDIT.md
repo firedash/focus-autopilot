@@ -31,7 +31,7 @@ Linux; on Windows they rely on the user profile's own access rules.
 | `usage.json` (data folder) | `focus-runner/src/usage.rs` | time per app in half-hour slots: app ids, names, milliseconds, counts. No window titles; mode 0600 |
 | `open-ui.html` (data folder) | `focusctl/src/ui.rs` | a redirect to the page, with the token after the `#`; mode 0600 |
 | `recap-workdir/` (data folder) | created by `focus-runner/src/recap_cli.rs` | an empty folder the `claude` command is run in |
-| `focusd.log` (data folder) | the launch agent's stdout, set in `focusctl/src/agent.rs` | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
+| `focusd.log` (data folder) | the stdout of a `focusd` started by the launch agent (`focusctl/src/agent.rs`) or by `focusctl setup` (`focusctl/src/setup.rs`, `spawn_detached`) | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
 | `~/.claude/settings.json`, or the project's with `--scope` | `focusctl/src/files.rs`, `hooks.rs` | only entries whose URL is this app's hook URL are added or removed; a `.focus-autopilot.bak` copy is kept beside it |
 | `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent`, which is macOS only |
 
@@ -42,6 +42,7 @@ Linux; on Windows they rely on the user profile's own access rules.
 | Program | When | Where |
 | --- | --- | --- |
 | `claude -p ...` with no tools, no MCP servers and hooks disabled | only when `recap.mode = "llm"`, once per recap | `crates/focus-runner/src/recap_cli.rs` |
+| `focusd --config <config.toml>`, beside `focusctl` or on the PATH, in the background with no window and its output in `focusd.log` | `focusctl setup`, only when nothing answers on the port yet | `crates/focusctl/src/setup.rs`, `spawn_detached` |
 | `claude --version` | `focusctl doctor` | `crates/focusctl/src/main.rs`, `claude_version` |
 | `open <file>` (macOS; `explorer` on Windows; `xdg-open` on Linux) | `focusctl ui` | `crates/focusctl/src/ui.rs`, `open_in_browser` |
 

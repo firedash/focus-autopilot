@@ -22,6 +22,10 @@ Needs Xcode command line tools (`xcode-select --install`). Rust 1.97.0 is picked
 ## 2. Install the hooks
 
 ```bash
+# One command: installs the hooks, starts focusd in the background, checks, says what is next.
+# Safe to run again. Or do the parts yourself:
+./target/release/focusctl setup
+
 ./target/release/focusctl install-hooks --dry-run   # shows the diff to ~/.claude/settings.json
 ./target/release/focusctl install-hooks             # backs it up, merges, writes the token
 ```

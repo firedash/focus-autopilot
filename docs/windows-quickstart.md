@@ -24,7 +24,18 @@ cd focus-autopilot
 cargo build --release -p focusd -p focusctl
 ```
 
-## 2. Install the hooks
+## 2. Install the hooks and start focusd
+
+One command does this step and checks the result; it is safe to run again:
+
+```powershell
+.\target\release\focusctl.exe setup
+```
+
+It installs the hooks (as below), starts `focusd` in the background with its log in
+`%LOCALAPPDATA%\io.github.firedash.focusautopilot\focusd.log`, runs the checks and ends with one
+line saying `Ready` or what to fix. To see the change before it is made, or to do each part
+yourself, use the commands below instead.
 
 ```powershell
 .\target\release\focusctl.exe install-hooks --dry-run   # shows the change to settings.json
