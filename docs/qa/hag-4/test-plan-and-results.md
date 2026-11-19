@@ -213,3 +213,35 @@ Happened: `focusctl: unknown command --version` and `focusd: unknown argument --
 - Real Claude sessions and hooks; the countdown and switches on live windows.
 - The macOS programs (not run, as instructed) and the macOS `xattr` step.
 - Whether the "second SmartScreen prompt" on `focusd.exe` exists.
+
+---
+
+# Part 6: recheck of F7 and F8 on fix/setup-handles-and-version (6f84970)
+
+Run 2026-11-19. Built from a detached worktree of 6f84970 (F7 c4776d1, F8 6f84970); release build, 28 s. Same sandbox method and boundaries as before: redirected `HOME`/`USERPROFILE`/`FOCUS_AUTOPILOT_HOME`, port 47999 (47997 and 47996 where noted), hotkeys `Ctrl+Alt+Shift+7`/`+8` except the F6 case. The owner's files and `focusd` (pid 30604) were untouched and still running at the end; every `focusd` I started was stopped. Each run that could hang was guarded at 25 s.
+
+| Item | Result | What I ran and saw |
+| --- | --- | --- |
+| **F7**, my exact step: Git Bash, then `powershell -c "& focusctl.exe setup"`, piped to `cat` | **PASS** | Returned in about 3 s with `Ready`. This hung on the v0.1.0 build |
+| F7, `cmd /c "focusctl.exe setup"` piped to `cat` | **PASS** | 3 s, `Ready` |
+| F7, a third nesting: Git Bash, PowerShell, `cmd /c`, `setup`, piped to `cat` | **PASS** | 3 s, `Ready` |
+| F7, a fourth: Git Bash, `cmd` running a `.cmd` file, which runs `powershell -File` running `setup`, piped to `cut` | **PASS** | 3 s, `Ready`. (My first two attempts at this shape failed on my own quoting, not on `setup`; I rewrote it with script files and it passed.) |
+| F7, a fifth: PowerShell inside PowerShell, `\| Tee-Object` | **PASS** | 3 s, `Ready` |
+| **F8** `--version` and `-V`, both programs, with `HOME`, `USERPROFILE` and `FOCUS_AUTOPILOT_HOME` unset | **PASS** | `focusctl 0.1.0`, `focusd 0.1.0`, exit 0, for both flags on both programs, from Git Bash and from PowerShell |
+| Regression: the six pipe readers from F4 | **PASS** | `\| cat`, `2>&1 \| Tee-Object`, `\| Select-String`, `2>&1 \| findstr` (cmd), `\| more` (cmd), `$(...)` capture: each about 3 s, `Ready`; after the `$(...)` run `doctor` confirmed `focusd is running ... accepts the token` |
+| Regression: plain run, nothing redirected | **PASS** | Hooks added, `focusd` started, four `ok` checks, `Ready`, exit 0 |
+| Regression: output to a file | **PASS** | exit 0, `Ready` in the file |
+| Regression: `focusd.log` is written | **PASS** | Beside `config.toml`: `focusd listening on http://127.0.0.1:47999/hook`, the hints, `front: ...` |
+| Regression: the F6 warning still shows (default hotkeys, held by the owner's `focusd`) | **PASS** | exit 0; a `note` naming both keys; last line `Ready, with a warning: ...`; the log has both `hotkey problem:` lines and `no focus hotkey:` |
+| Regression: spaces and a non-ASCII letter in the programs' folder (`unzipped folder é`) and in the data folder (`my data é`) | **PASS** | `Ready`; `focusd.log` written in the data folder; `doctor --config "<path with spaces>"` accepted the token. This is the case the new `CreateProcessW` command line could have broken |
+| Regression: second run changes nothing | **PASS** | `hooks: already ... nothing changed`, `focusd: already running`, `Ready: focusd was already running`; SHA-256 of `settings.json` and `config.toml` identical before and after; the `focusd` process id was the same before and after; no second listener |
+
+## Notes
+
+- **Windows file properties are still empty.** `(Get-Item focusctl.exe).VersionInfo.ProductVersion` prints nothing. F8 asked for `--version`, which works, so this is not a failure; Explorer's Details tab will still show no version.
+- I did not retest the macOS side, the real download, or a real Claude session.
+
+## Not verified (part 6)
+
+- A nesting shape that puts a graphical or service host between the reader and `setup` (for example a Windows service, Task Scheduler or an editor's task runner). The shapes above are all console shells.
+- `setup` on macOS.
