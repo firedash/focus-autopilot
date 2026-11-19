@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-17.
+Last updated 2026-11-19.
 
 **Where it stands:** a developer build that a person has run on a Mac and on Windows.
 `focusd` takes real Claude Code hooks, decides with `focus-core`, plays a sound, shows a box,
@@ -8,7 +8,9 @@ and after a countdown brings you back to the window you prompted from, with a re
 your next prompt it moves you back to the app you left. It also serves a page with two tabs,
 **Statistics** and **Configuration**, opened with `focusctl ui`. To run it, see
 [docs/mac-quickstart.md](docs/mac-quickstart.md) or
-[docs/windows-quickstart.md](docs/windows-quickstart.md).
+[docs/windows-quickstart.md](docs/windows-quickstart.md). There is also an **unsigned prebuilt
+download** (v0.1.1: macOS arm64, macOS x64, Windows x64) on the
+[releases page](https://github.com/firedash/focus-autopilot/releases); see "Prebuilt downloads" below for what has and has not been run.
 
 ## What has been seen working, and by whom
 
@@ -29,6 +31,8 @@ table is the first kind only. "Not tried" means nobody has looked, not that it f
 | The "Go back?" box (`auto_return` off, or a refused switch) | The box was seen; the key on it was not confirmed | Not tried |
 | The three-line LLM recap | Yes | Not tried |
 | `focusctl install-hooks` | Yes | Yes, and `focusctl doctor` found the config, the hooks and the running `focusd` |
+| `focusctl setup` (hooks, `focusd` in the background, checks) | Not run | Run end to end in a sandbox by the QA pass (`docs/qa/hag-4/`, 2026-11-19); a real Claude prompt after it has not been recorded |
+| The downloaded v0.1.0 zip, unzipped and followed as `READ-ME-FIRST.txt` says | Not run (neither Mac archive has been executed by anyone; the Intel one is a cross-compile that CI never runs) | `setup`, `doctor` and `uninstall-hooks` run from it against a sandbox with a synthetic hook; no real Claude session, no browser-downloaded "mark of the web" (`docs/qa/hag-4/`, part 5) |
 | The Statistics and Configuration page against a real `focusd` | Not tried | Not tried |
 | Time per app as read from the real OS | Not checked | Not checked |
 | Start at login | Not tried | Not built |
@@ -72,7 +76,8 @@ gives the manual mode that was the default until 2026-11-17.
 | The shell loop shared by both runners | `focus-runner` | done; integration-tested against the fake platform |
 | LLM recap through the user's `claude` command | `focus-runner`, `focus-core` | run on a Mac |
 | Run history in `runs.jsonl`, loaded into the estimator | `focus-runner` | done |
-| `focusctl`: `install-hooks`, `uninstall-hooks`, `rotate-token`, `--scope user/project/local`, `ui`, `doctor`, `install-agent`, `uninstall-agent` (macOS only) | `focusctl` | done and tested on Linux; `install-hooks` used on a Mac and on Windows, `doctor` on Windows |
+| `focusctl`: `setup`, `install-hooks`, `uninstall-hooks`, `rotate-token`, `--scope user/project/local`, `ui`, `doctor`, `install-agent`, `uninstall-agent` (macOS only), `--version` | `focusctl` | done and tested on Linux and in CI on all three systems; `install-hooks` used on a Mac and on Windows, `doctor` and `setup` on Windows |
+| **Prebuilt downloads**: on a version tag, unsigned archives with SHA-256 files for macOS arm64, macOS x64 and Windows x64, each with a `READ-ME-FIRST.txt` | `.github/workflows/release.yml`, [docs/releasing.md](docs/releasing.md) | ran for v0.1.0 (a draft, tested on Windows) and v0.1.1 (published). The v0.1.1 checksums, contents and file types were checked against the release; see "Prebuilt downloads" below |
 | macOS adapter: front app, running apps, activation, idle time, sound, toast and recap panels | `focus-platform` | run on a Mac |
 | Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys`, `--test-box` | `focus-platform` | focus and pause registered and delivered in the self-test on a Mac and on Windows; the focus key snoozed a countdown in a real run on Windows; declare-long untried |
 | **Windows adapter**: front window and its executable, app windows, idle time, switching to an exact window, hotkeys, the two boxes, a sound; `focusd` on Windows | `focus-platform` (`windows.rs`, `windows_overlay.rs`), `focusd` | run on Windows by the owner (table above), and on a Windows CI machine on every push |
@@ -86,7 +91,7 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 243 tests, all passing, before `focusctl setup` (7 tests added).
+- `cargo test --workspace`: 260 tests, all passing.
 - `focusctl setup`: its tests use temporary files and a stand-in for focusd, never the real
   `~/.claude/settings.json`. Run end to end once on Windows (hooks written, focusd started in the
   background, second run changed nothing). Not run on macOS: the macOS start path (own process
@@ -163,10 +168,18 @@ left off, and the statistics.
 - **Statistics per project.** History keeps only a salted hash of the folder.
 - **`focusctl record`, `focusctl audit`, fuzz targets, the `strace` test, REPRODUCIBLE.md,
   signing, an SBOM and attestations.**
-- **Prebuilt downloads: written, never run.** `.github/workflows/release.yml` builds unsigned
-  archives with SHA-256 files for macOS arm64, macOS x64 and Windows x64 on a version tag. It has
-  not run on GitHub; only its packaging commands and version check were tried locally.
-  See [docs/releasing.md](docs/releasing.md).
+- **Prebuilt downloads: published, unsigned, and only partly run.** v0.1.1 is on the
+  releases page. Its SHA-256 files match the archives, each archive holds the right files, and
+  the arm64 binaries carry the code-signature entry Apple silicon requires. The Windows v0.1.0 zip was
+  followed end to end in a sandbox (`docs/qa/hag-4/`). Not done by anyone: running either Mac
+  archive, a first run of a browser-downloaded file under SmartScreen or Gatekeeper, and a real
+  Claude prompt after `setup` from a zip. Not built: signing, an SBOM, attestations. See
+  [docs/releasing.md](docs/releasing.md).
+- **Stopping or upgrading a running `focusd`.** There is no `focusctl stop`, and `setup` does
+  not compare versions: with a `focusd` already answering it says "already running" and leaves
+  it, even if it is an older build. To stop one: on Windows `taskkill /F /IM focusd.exe`, on a Mac
+  `pkill focusd`; then run `setup` again. `setup` moves `focusd.log` aside to `focusd.log.old`
+  at its next start once it passes 1 MB.
 - **Front-app change notifications.** The front app is polled twice a second.
 - Known redaction gaps: a secret in plain prose, and attached short flags (`mysql -pSecret`).
 
@@ -185,7 +198,12 @@ left off, and the statistics.
    `crates/focus-platform/src/known_apps.rs`, which were written from memory. Real runs
    have confirmed four: `com.apple.Terminal`, `com.microsoft.VSCode`, `claude.exe` and
    `WindowsTerminal.exe`.
-6. An install that needs no Rust toolchain. The recorded demo is done.
+6. From a downloaded archive (not a build), on each of Windows and a Mac: run `focusctl setup`,
+   send one real prompt, switch away, and check the box and the return. That closes the
+   biggest gap in "Prebuilt downloads" above. Until then, consider marking the release a
+   pre-release.
+7. A `focusctl stop`, and a version check in `setup`, so an upgrade does not leave the old
+   `focusd` running. The recorded demo is done.
 
 ## Before continuing
 

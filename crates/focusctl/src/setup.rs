@@ -16,6 +16,21 @@ use crate::{config, files};
 /// How long to wait for a freshly started `focusd` to answer.
 pub const START_WAIT: Duration = Duration::from_secs(8);
 
+/// `focusd.log` is appended to on every start. Past this size, the next start moves it aside
+/// to `focusd.log.old` (replacing the one already there), so the log cannot grow without limit.
+pub const LOG_LIMIT_BYTES: u64 = 1_000_000;
+
+/// Moves `log` to `<log>.old` when it is larger than `limit` bytes. A missing log, or one that
+/// cannot be moved, is left alone: the log is a convenience, never a reason to fail.
+fn rotate_log(log: &Path, limit: u64) {
+    let too_big = std::fs::metadata(log).is_ok_and(|meta| meta.len() > limit);
+    if too_big {
+        let mut old = log.as_os_str().to_owned();
+        old.push(".old");
+        let _ = std::fs::rename(log, PathBuf::from(old));
+    }
+}
+
 /// The `focusd` that goes with this `focusctl`: the one in the same folder, else the first on
 /// the PATH.
 pub fn find_focusd(exe_dir: Option<&Path>, path_env: &str) -> Option<PathBuf> {
@@ -143,6 +158,9 @@ pub fn run(
             ));
         }
     } else {
+        if let Some(path) = log {
+            rotate_log(path, LOG_LIMIT_BYTES);
+        }
         let log_from = log
             .and_then(|path| std::fs::metadata(path).ok())
             .map_or(0, |meta| meta.len());
@@ -554,6 +572,37 @@ mod tests {
             Some(beside.join(name))
         );
         assert_eq!(find_focusd(None, ""), None);
+    }
+
+    #[test]
+    fn a_log_past_the_limit_is_moved_aside_and_a_small_one_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("focusd.log");
+        let old = dir.path().join("focusd.log.old");
+
+        rotate_log(&log, 10); // no log yet: nothing happens
+        assert!(!log.exists() && !old.exists());
+
+        std::fs::write(&log, "short").unwrap();
+        rotate_log(&log, 10);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "short");
+        assert!(!old.exists());
+
+        std::fs::write(&log, "this one is longer than ten bytes").unwrap();
+        rotate_log(&log, 10);
+        assert!(!log.exists());
+        assert_eq!(
+            std::fs::read_to_string(&old).unwrap(),
+            "this one is longer than ten bytes"
+        );
+
+        // A second rotation replaces the old copy instead of failing.
+        std::fs::write(&log, "another log past the limit").unwrap();
+        rotate_log(&log, 10);
+        assert_eq!(
+            std::fs::read_to_string(&old).unwrap(),
+            "another log past the limit"
+        );
     }
 
     #[test]

@@ -80,7 +80,8 @@ pub fn install(
         .map(|dir| dir.join("focusd"))
         .filter(|p| p.is_file())
         .ok_or(
-            "focusd must be in the same folder as focusctl (build both with cargo build --release)",
+            "focusd must be in the same folder as focusctl (the download holds both; from source, \
+             build both with cargo build --release)",
         )?;
     if let Some(dir) = log.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;

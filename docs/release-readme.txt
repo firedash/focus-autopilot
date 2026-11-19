@@ -5,7 +5,7 @@ This folder holds two programs, focusd and focusctl (focusd.exe and focusctl.exe
 Windows), and the licence. It has no installer.
 
 1. Unzip the whole folder somewhere you will keep it, and open a terminal in it.
-   (Moving it later is fine; run setup again from the new place.)
+   (Moving it later is fine; stop focusd and run setup again from the new place.)
 
 2. Run setup. It adds the hooks to Claude Code, starts focusd in the background, checks the
    result and ends with one line: "Ready" or what to fix. It is safe to run again.
@@ -24,7 +24,12 @@ Windows), and the licence. It has no installer.
 
 To check again later: focusctl doctor. To remove the hooks: focusctl uninstall-hooks.
 Setup does not make focusd start at login. After a restart of your computer, run setup
-again (macOS can also start it at login: focusctl install-agent).
+again (macOS can also start it at login: focusctl install-agent, which points at this
+folder; if you move the folder, run it again).
+
+To stop focusd:  macOS: pkill focusd    Windows: taskkill /F /IM focusd.exe
+To upgrade, stop it, unzip the new version and run setup again. Setup leaves a focusd that
+is already running alone, even an old one, so stop it first.
 
 These programs are not signed, so the system may warn you the first time:
   macOS:    "cannot be opened because the developer cannot be verified". Run

@@ -220,7 +220,8 @@ fn run_setup(args: &Args, settings: &Path, config_path: &Path) -> Result<bool, S
                 .and_then(|exe| exe.parent().map(Path::to_path_buf));
             let path_env = std::env::var("PATH").unwrap_or_default();
             setup::find_focusd(exe_dir.as_deref(), &path_env).ok_or(
-                "focusd was not found next to focusctl or on the PATH; build it with `cargo \
+                "focusd was not found next to focusctl or on the PATH. From a download, keep \
+                 focusd in the same folder as focusctl; from source, build it with `cargo \
                  build --release -p focusd`",
             )?
         };

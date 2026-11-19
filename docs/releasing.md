@@ -23,7 +23,11 @@ pushed, and nothing else starts it.
    (from `docs/release-readme.txt`): unzip, run `focusctl setup`, what to do about the
    unsigned-binary warning, and a link to the repository. The repository's `README.md` and
    `docs/` are not in the archive because their relative links would not resolve there.
-4. Download one, check it, then publish the draft in the GitHub page.
+4. Download one, check it, then publish the draft in the GitHub page. Give the release a title
+   that matches the tag. Until the Mac archives have been run, consider ticking "pre-release".
+
+The build job's token can write to the release, so the checkout does not leave it in the
+repository's git config (`persist-credentials: false`); `gh` gets it from `GH_TOKEN`.
 
 ## Checking a download
 
@@ -52,4 +56,6 @@ Run anyway). Signing needs things only the owner can obtain:
   `signtool` step.
 
 Not built either: an SBOM, build-provenance attestations, and a combined `SHA256SUMS` file.
-This workflow has never run; see STATUS.md.
+The workflow has run for `v0.1.0` (a draft, tested on Windows by the QA pass in
+`docs/qa/hag-4/`) and `v0.1.1` (published). STATUS.md says which parts of the downloads have
+been run and which have not: no one has executed either Mac archive.

@@ -62,8 +62,14 @@ switch on the Configuration tab turns that off.
 
 On Windows, follow [docs/windows-quickstart.md](docs/windows-quickstart.md) instead.
 
-You need a Mac, Rust ([rustup.rs](https://rustup.rs)) and the Xcode command line tools
-(`xcode-select --install`). It takes a few minutes, most of it the first build.
+**Or skip the build:** the [releases page](https://github.com/firedash/focus-autopilot/releases) has unsigned downloads for macOS (Apple silicon
+and Intel) and Windows. Unzip, open a terminal in the folder and run `focusctl setup`;
+`READ-ME-FIRST.txt` in the archive has the steps and what to do about the "unsigned" warning.
+They are new: the Windows download has been run through setup in a test, and the Mac ones
+have not been run by anyone yet ([STATUS.md](STATUS.md)).
+
+To build it yourself you need a Mac, Rust ([rustup.rs](https://rustup.rs)) and the Xcode command
+line tools (`xcode-select --install`). It takes a few minutes, most of it the first build.
 
 ```bash
 git clone https://github.com/firedash/focus-autopilot && cd focus-autopilot
@@ -71,8 +77,9 @@ cargo build --release -p focusd -p focusctl
 ./target/release/focusctl setup             # hooks, token, focusd in the background, and a check
 ```
 
-`setup` is safe to run again. To do its parts yourself: `focusctl install-hooks` adds the hooks
-and creates the token, and `focusd` is the program to leave running.
+`setup` is safe to run again. It has not been run on a Mac yet (it has on Windows); if it
+misbehaves there, the older path is `focusctl install-hooks`, which adds the hooks and
+creates the token, and then `focusd` in a terminal that you leave open.
 
 `install-hooks` is what connects Claude Code to the app. [docs/hooks.md](docs/hooks.md) shows
 exactly what it writes, how to do it by hand, and which places it covers.

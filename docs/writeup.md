@@ -115,8 +115,10 @@ is off.
    survey of similar tools. It did not look hard enough at Claude's own app.
 2. **Get to one real run on day one.** The most useful hours were the ones spent using it,
    and they came late.
-3. **Make it installable before making it complete.** It still needs a compiler to install,
-   which is why nobody I shared it with tried it.
+3. **Make it installable before making it complete.** For the first days it needed a compiler
+   to install, which is why nobody I shared it with tried it. I have since added unsigned
+   downloads for Windows and Mac. The Windows one has been tested; nobody has run the Mac ones
+   yet.
 4. **Record a 20-second demo before sharing anything.** A link asks people to do work. A GIF
    does not. The one above was made after the first round of sharing, not before.
 
@@ -134,6 +136,6 @@ looked at my own notification tray first.
 
 ---
 
-*Focus Autopilot is a developer build with no installer. The
+*Focus Autopilot is a developer build with unsigned downloads and no installer. The
 [status page](https://github.com/firedash/focus-autopilot/blob/main/STATUS.md) lists what has
 been seen working and what has not.*

@@ -13,7 +13,14 @@ It needs Claude Code running on Windows itself (the native `claude` command, or 
 of the Claude desktop app). Claude Code inside WSL cannot reach it by default: WSL's
 `127.0.0.1` is not Windows's.
 
-## 1. Build
+## 0. Or use the download
+
+The [releases page](https://github.com/firedash/focus-autopilot/releases) has a Windows zip (unsigned). Unzip it, open PowerShell in the
+folder and run `.\focusctl.exe setup`; then skip to step 3. Windows may say "Windows protected
+your PC": choose More info, then Run anyway. `READ-ME-FIRST.txt` in the zip has the same
+steps. The zip has been run through `setup` in a test, but not yet with a real Claude prompt.
+
+## 1. Build (only if you are not using the download)
 
 Install Rust from [rustup.rs](https://rustup.rs); it asks for the Microsoft C++ build tools.
 Then, in PowerShell:
@@ -148,6 +155,15 @@ is on the built-in list now, so it needs no setting.
 
   Then a refused switch shows "Go back?" and `Ctrl+Alt+Shift+Space` does it.
 - **Not there yet:** start at login, and the LLM recap is untried.
+
+## Stopping and upgrading focusd
+
+`setup` starts `focusd` with no window, so there is nothing to close. To stop it, run
+`taskkill /F /IM focusd.exe` in PowerShell, or end `focusd.exe` in Task Manager. To upgrade,
+stop it, unzip or build the new version, and run `focusctl setup` again: `setup` leaves a
+`focusd` that is already running alone, even an older one. Its log is
+`%LOCALAPPDATA%\io.github.firedash.focusautopilot\focusd.log`, and `setup` moves it to
+`focusd.log.old` once it passes 1 MB.
 
 ## If something is off
 

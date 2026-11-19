@@ -9,7 +9,16 @@ configuration page against a real `focusd`, start at login, and Claude Code in e
 not been tried on a Mac. [STATUS.md](../STATUS.md) keeps the full list. Expect to find and fix
 problems; if something isn't working, start with `focusctl doctor` (below).
 
-## 1. Build
+## 0. Or use the download
+
+The [releases page](https://github.com/firedash/focus-autopilot/releases) has unsigned macOS archives, one for Apple silicon and one for
+Intel. Unzip, open Terminal in the folder, run `xattr -d com.apple.quarantine focusd
+focusctl` (the downloads are not signed, so macOS blocks them otherwise) and then
+`./focusctl setup`; skip to step 3. **Neither Mac archive has been run by anyone yet**, and
+`setup` has not been run on a Mac. If it misbehaves, build from source (below) and use the
+older path, `install-hooks` and `focusd` in a terminal.
+
+## 1. Build (only if you are not using the download)
 
 ```bash
 git clone https://github.com/firedash/focus-autopilot && cd focus-autopilot
@@ -36,6 +45,10 @@ with a random token. Restart any running Claude Code sessions. Undo with
 written and how to do it by hand.
 
 ## 3. Run
+
+If you used `setup`, `focusd` is already running in the background; skip the command below.
+To stop it: `pkill focusd`. To upgrade, stop it, replace the files and run `setup` again:
+`setup` leaves a `focusd` that is already running alone, even an older one.
 
 ```bash
 ./target/release/focusd
