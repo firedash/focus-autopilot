@@ -49,6 +49,17 @@ pub struct AgentEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventKind {
+    /// Provider liveness, not evidence of a new user submission or a tool call.
+    AgentActivity,
+    /// App-level attention, independent of prompt/home-window capture.
+    AppFinished {
+        app_name: String,
+        message: String,
+        failed: bool,
+    },
+    AppNeedsInput {
+        app_name: String,
+    },
     UserPromptSubmit {
         prompt: String,
         /// Length of the full prompt, before the receiver truncated it.
