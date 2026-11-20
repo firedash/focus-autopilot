@@ -1,217 +1,79 @@
-// SPDX-License-Identifier: Apache-2.0
-//! Inputs that act on whichever switch is in progress: idle readings during the input-quiet
-//! wait, activation results from the shell, and toast actions from the user.
+# Permissions
 
-use std::time::{Duration, Instant};
+**Focus Autopilot asks for no OS permission.** If macOS or Windows ever shows a permission
+prompt for `focusd` or `focusctl`, that is a bug: please report it.
 
-use crate::engine::{Core, log};
-use crate::io::Effect;
-use crate::mode::{Mode, Phase, ReturnStep};
-use crate::run::{AwayHow, ReturnHow};
-use crate::toast;
+This page lists what the app does that an OS could gate, and why none of it needs a grant.
+Changes to this page need a maintainer's review.
 
-impl Core {
-    /// The input-quiet guard: once a countdown has ended, switch only after a moment with no
-    /// keyboard or mouse input; if input continues, the prompt replaces the switch.
-    pub(crate) fn quiet_check(&mut self, idle: Duration, now: Instant, fx: &mut Vec<Effect>) {
-        let quiet = idle >= self.cfg.switching.input_quiet;
-        let quiet_max = self.cfg.switching.input_quiet_max;
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            Mode::AwayCountdown {
-                session,
-                target,
-                phase: Phase::Quiet { since },
-            } => {
-                if quiet {
-                    let until = self.request_activation(&target, now, fx);
-                    Mode::AwayCountdown {
-                        session,
-                        target,
-                        phase: Phase::Verifying { until },
-                    }
-                } else if now >= since + quiet_max {
-                    self.show_away_prompt(session, target, now, fx)
-                } else {
-                    Mode::AwayCountdown {
-                        session,
-                        target,
-                        phase: Phase::Quiet { since },
-                    }
-                }
-            }
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Countdown(Phase::Quiet { since }),
-            } => {
-                if quiet {
-                    let until = self.request_activation(&home, now, fx);
-                    let step = ReturnStep::Countdown(Phase::Verifying { until });
-                    Mode::Return {
-                        session,
-                        home,
-                        snoozes,
-                        step,
-                    }
-                } else if now >= since + quiet_max {
-                    fx.push(log("asked_because_input_never_paused", &session));
-                    self.show_return_prompt(session, home, snoozes, fx)
-                } else {
-                    let step = ReturnStep::Countdown(Phase::Quiet { since });
-                    Mode::Return {
-                        session,
-                        home,
-                        snoozes,
-                        step,
-                    }
-                }
-            }
-            mode => mode,
-        };
-    }
+## What it does without a permission
 
-    /// The shell's report on the last activation request.
-    pub(crate) fn on_activation(&mut self, verified: bool, now: Instant, fx: &mut Vec<Effect>) {
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            Mode::AwayCountdown {
-                session,
-                target,
-                phase: Phase::Verifying { .. },
-            } => {
-                if verified {
-                    self.away_verified(session, AwayHow::Auto, now, fx);
-                    Mode::Idle
-                } else {
-                    self.show_away_prompt(session, target, now, fx)
-                }
-            }
-            Mode::AwayPrompt {
-                session,
-                target,
-                until,
-                verifying: Some(_),
-            } => {
-                if verified {
-                    self.away_verified(session, AwayHow::Prompt, now, fx);
-                    Mode::Idle
-                } else {
-                    fx.push(Effect::ShowToast(toast::away_prompt(
-                        &target,
-                        self.agent_name(&session),
-                    )));
-                    Mode::AwayPrompt {
-                        session,
-                        target,
-                        until,
-                        verifying: None,
-                    }
-                }
-            }
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step:
-                    step @ (ReturnStep::Countdown(Phase::Verifying { .. })
-                    | ReturnStep::Prompt { verifying: Some(_) }),
-            } => {
-                if verified {
-                    let how = return_how(&step).unwrap_or(ReturnHow::Auto);
-                    self.complete_return(&session, how, now, fx);
-                    Mode::Idle
-                } else {
-                    fx.push(log("asked_because_the_switch_was_refused", &session));
-                    self.show_return_prompt(session, home, snoozes, fx)
-                }
-            }
-            mode => mode,
-        };
-    }
+| It does this | With this OS facility | Why no permission is involved |
+| --- | --- | --- |
+| Reads which app is in front, and which apps are running | `NSWorkspace` | App identity is public to every process. Window titles and contents are never read |
+| Reads how long since the last keyboard or mouse input | `CGEventSourceSecondsSinceLastEventType` | It returns a duration only. No key, click or position is ever seen |
+| Brings an app to the front | `NSRunningApplication.activate` | It is a request the OS may refuse; the app then shows a prompt instead |
+| Reacts to its own hotkeys | Carbon `RegisterEventHotKey` | The OS reports only that a registered chord was pressed. Other keystrokes are never seen, unlike key-event monitoring, which would need Accessibility |
+| Shows a small box on screen | A non-activating panel that ignores the mouse | It cannot take keyboard focus |
+| Plays a sound | `NSSound` | |
+| Listens on `127.0.0.1` | A loopback socket | Loopback only; the macOS firewall prompt is for non-loopback listeners |
 
-    /// A click on the toast or the focus key: the thing that won't happen on its own.
-    pub(crate) fn on_toast_action(&mut self, now: Instant, fx: &mut Vec<Effect>) {
-        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
-        self.mode = match mode {
-            // "Not now": no away switch for the rest of this run.
-            Mode::AwayCountdown {
-                session,
-                phase: Phase::Counting { .. } | Phase::Quiet { .. },
-                ..
-            } => {
-                self.spend_away(&session);
-                fx.push(Effect::HideToast);
-                fx.push(log("away_cancelled", &session));
-                self.set_away_how(&session, AwayHow::Cancelled);
-                Mode::Idle
-            }
-            // "Switch now".
-            Mode::AwayPrompt {
-                session,
-                target,
-                until,
-                verifying: None,
-            } => {
-                let deadline = self.request_activation(&target, now, fx);
-                Mode::AwayPrompt {
-                    session,
-                    target,
-                    until,
-                    verifying: Some(deadline),
-                }
-            }
-            // "Snooze".
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Countdown(Phase::Counting { .. } | Phase::Quiet { .. }),
-            } => {
-                fx.push(Effect::HideToast);
-                fx.push(log("return_snoozed", &session));
-                if let Some(s) = self.sessions.get_mut(&session) {
-                    s.run.snoozes = s.run.snoozes.saturating_add(1);
-                }
-                let step = ReturnStep::Snoozed {
-                    until: now + self.cfg.countdown.snooze,
-                };
-                Mode::Return {
-                    session,
-                    home,
-                    snoozes: snoozes + 1,
-                    step,
-                }
-            }
-            // "Go back now".
-            Mode::Return {
-                session,
-                home,
-                snoozes,
-                step: ReturnStep::Prompt { verifying: None },
-            } => {
-                let deadline = self.request_activation(&home, now, fx);
-                let step = ReturnStep::Prompt {
-                    verifying: Some(deadline),
-                };
-                Mode::Return {
-                    session,
-                    home,
-                    snoozes,
-                    step,
-                }
-            }
-            mode => mode,
-        };
-    }
-}
+On Windows the same things are done with these, none of which needs a grant or elevation:
 
-/// How the return happened, if the step shows focusd had just asked for the switch.
-pub(crate) fn return_how(step: &ReturnStep) -> Option<ReturnHow> {
-    match step {
-        ReturnStep::Countdown(Phase::Verifying { .. }) => Some(ReturnHow::Auto),
-        ReturnStep::Prompt { verifying: Some(_) } => Some(ReturnHow::Prompt),
-        _ => None,
-    }
-}
+| It does this | With this OS facility | Why no permission is involved |
+| --- | --- | --- |
+| Reads which window is in front, which program owns it, and which app windows exist | `GetForegroundWindow`, `EnumWindows`, `QueryFullProcessImageNameW` | Only the executable's file name is kept. A window's title is never read, only its length, to tell a real window from an invisible helper |
+| Reads how long since the last keyboard or mouse input | `GetLastInputInfo` | It returns a time only |
+| Brings a window to the front | `SetForegroundWindow` | A request Windows may refuse |
+| Is allowed that request | `SendInput` with one empty mouse event | See below |
+| Reacts to its own hotkeys | `RegisterHotKey` | Windows reports only that a registered combination was pressed. There is no keyboard hook |
+| Shows a small box on screen | A topmost popup window that is never activated and passes every click through | It cannot take keyboard focus |
+| Plays a sound | `MessageBeep` | |
+
+**The one piece of input the app ever sends.** Windows lets a program bring a window forward
+only if it received the last input, so a switch made on a timer is normally refused. When
+that happens, the Windows build sends one mouse event that moves the pointer nowhere and
+presses no button, which makes it the last program to receive input, and asks again. It never
+sends a keystroke or a click. `switching.force_foreground = false` turns this off; a refused
+switch then becomes a question, and the focus key answers it. The macOS build sends nothing.
+
+## What it never does
+
+- Read keystrokes, mouse positions, the screen, window titles or the clipboard.
+- Send keystrokes or clicks, or script other apps (no Apple Events, no Automation). The only
+  input it ever sends is the empty mouse event on Windows described above.
+- Read Claude Code's transcript files.
+- Change system settings.
+
+## Things that are not OS permissions but are worth knowing
+
+- **Antigravity hooks (experimental).** `install-antigravity-hooks` adds a named command
+  bundle to its user/project hook manifest, with dry-run, backup and matching uninstall.
+  Each command reads the private Focus Autopilot config and sends bounded data only to
+  the authenticated loopback receiver. It does not read transcripts, approve tools, or
+  inject prompts. Task completion and explicit input requests reuse the existing app
+  activation facilities. [The guide](docs/antigravity.md) lists untested cases.
+- **Claude Code's settings.** `focusctl install-hooks` adds hook entries to
+  `~/.claude/settings.json`. It shows the change first with `--dry-run`, backs the file up,
+  and `uninstall-hooks` removes exactly those entries.
+- **Starting `focusd`.** `focusctl setup` starts `focusd` in the background (no window, output
+  in `focusd.log` beside `config.toml`) if nothing is answering on its port, and never starts a
+  second one. It installs the hooks the same way `install-hooks` does. It sets nothing up to run
+  at login.
+- **Time per app.** With `stats.track_app_time = true` (the default), `focusd` records how
+  long each app is in front, as app names and durations in `usage.json` in its data folder.
+  It can be turned off on the Configuration tab and erased on the Statistics tab.
+- **The LLM recap** (off by default) runs your own `claude` command, which talks to the
+  provider your Claude Code already uses.
+- **Start at login** is only set up if you run `focusctl install-agent`, which exists for
+  macOS only.
+- **It moves you between windows by itself.** By default a finished run brings the window
+  you prompted from forward after a countdown, and a long next prompt moves you back to the
+  app you left. Both are announced first and can be turned off
+  (`switching.auto_return`, `away.resume_last_app`).
+
+## Optional permissions
+
+None today. On macOS, returning to the exact window of an app, rather than to the app, would
+need Accessibility or per-app Automation (see ADR 0003, item 16); it is not built, and if it ever
+is it will be opt-in and listed here.
