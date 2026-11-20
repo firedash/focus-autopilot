@@ -103,4 +103,4 @@ fn headline(session: &Session, project: &str) -> String {
     } else {
         format!("{agent} {base} in {project}.")
     }
-            }
+}
