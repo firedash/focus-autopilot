@@ -1,119 +1,217 @@
-# Audit map
+// SPDX-License-Identifier: Apache-2.0
+//! Inputs that act on whichever switch is in progress: idle readings during the input-quiet
+//! wait, activation results from the shell, and toast actions from the user.
 
-Where to look to check what this app does to your machine. Each claim names the file that
-makes it true, so it can be verified by reading that file. If code and this page disagree,
-the page is the bug: please report it.
+use std::time::{Duration, Instant};
 
-## Network
+use crate::engine::{Core, log};
+use crate::io::Effect;
+use crate::mode::{Mode, Phase, ReturnStep};
+use crate::run::{AwayHow, ReturnHow};
+use crate::toast;
 
-| What | Where |
-| --- | --- |
-| The only listener: `127.0.0.1:<port>` (default 47821), never another interface | `crates/focus-receiver/src/server.rs`, `spawn_with_ui` |
-| The checks every request must pass (path, method, Host, Origin, token, content type, size, rate) | `crates/focus-receiver/src/check.rs` |
-| Routes: `POST /hook`, `GET /ui/*` (three static files), `GET`/`POST /api/*` | `crates/focus-receiver/src/server.rs`, `handle` and `api`; `src/ui.rs` |
-| The page's files, embedded in the binary | `crates/focus-receiver/assets/ui/` |
-| `focusctl doctor` connects to that same loopback port to see whether `focusd` answers | `crates/focusctl/src/doctor.rs`, `get` |
+impl Core {
+    /// The input-quiet guard: once a countdown has ended, switch only after a moment with no
+    /// keyboard or mouse input; if input continues, the prompt replaces the switch.
+    pub(crate) fn quiet_check(&mut self, idle: Duration, now: Instant, fx: &mut Vec<Effect>) {
+        let quiet = idle >= self.cfg.switching.input_quiet;
+        let quiet_max = self.cfg.switching.input_quiet_max;
+        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
+        self.mode = match mode {
+            Mode::AwayCountdown {
+                session,
+                target,
+                phase: Phase::Quiet { since },
+            } => {
+                if quiet {
+                    let until = self.request_activation(&target, now, fx);
+                    Mode::AwayCountdown {
+                        session,
+                        target,
+                        phase: Phase::Verifying { until },
+                    }
+                } else if now >= since + quiet_max {
+                    self.show_away_prompt(session, target, now, fx)
+                } else {
+                    Mode::AwayCountdown {
+                        session,
+                        target,
+                        phase: Phase::Quiet { since },
+                    }
+                }
+            }
+            Mode::Return {
+                session,
+                home,
+                snoozes,
+                step: ReturnStep::Countdown(Phase::Quiet { since }),
+            } => {
+                if quiet {
+                    let until = self.request_activation(&home, now, fx);
+                    let step = ReturnStep::Countdown(Phase::Verifying { until });
+                    Mode::Return {
+                        session,
+                        home,
+                        snoozes,
+                        step,
+                    }
+                } else if now >= since + quiet_max {
+                    fx.push(log("asked_because_input_never_paused", &session));
+                    self.show_return_prompt(session, home, snoozes, fx)
+                } else {
+                    let step = ReturnStep::Countdown(Phase::Quiet { since });
+                    Mode::Return {
+                        session,
+                        home,
+                        snoozes,
+                        step,
+                    }
+                }
+            }
+            mode => mode,
+        };
+    }
 
-The Antigravity command bridge (`crates/focusctl/src/antigravity.rs`) also connects only
-to the configured authenticated loopback receiver, using a fixed `/hook` path. It reads
-the token at invocation time, never from hook arguments. No transcript or artifact is read.
+    /// The shell's report on the last activation request.
+    pub(crate) fn on_activation(&mut self, verified: bool, now: Instant, fx: &mut Vec<Effect>) {
+        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
+        self.mode = match mode {
+            Mode::AwayCountdown {
+                session,
+                target,
+                phase: Phase::Verifying { .. },
+            } => {
+                if verified {
+                    self.away_verified(session, AwayHow::Auto, now, fx);
+                    Mode::Idle
+                } else {
+                    self.show_away_prompt(session, target, now, fx)
+                }
+            }
+            Mode::AwayPrompt {
+                session,
+                target,
+                until,
+                verifying: Some(_),
+            } => {
+                if verified {
+                    self.away_verified(session, AwayHow::Prompt, now, fx);
+                    Mode::Idle
+                } else {
+                    fx.push(Effect::ShowToast(toast::away_prompt(
+                        &target,
+                        self.agent_name(&session),
+                    )));
+                    Mode::AwayPrompt {
+                        session,
+                        target,
+                        until,
+                        verifying: None,
+                    }
+                }
+            }
+            Mode::Return {
+                session,
+                home,
+                snoozes,
+                step:
+                    step @ (ReturnStep::Countdown(Phase::Verifying { .. })
+                    | ReturnStep::Prompt { verifying: Some(_) }),
+            } => {
+                if verified {
+                    let how = return_how(&step).unwrap_or(ReturnHow::Auto);
+                    self.complete_return(&session, how, now, fx);
+                    Mode::Idle
+                } else {
+                    fx.push(log("asked_because_the_switch_was_refused", &session));
+                    self.show_return_prompt(session, home, snoozes, fx)
+                }
+            }
+            mode => mode,
+        };
+    }
 
-The app itself makes **no outbound connection outside loopback**. The one thing that reaches the network is the
-`claude` command, and only if you turn on the LLM recap (see Processes).
+    /// A click on the toast or the focus key: the thing that won't happen on its own.
+    pub(crate) fn on_toast_action(&mut self, now: Instant, fx: &mut Vec<Effect>) {
+        let mode = std::mem::replace(&mut self.mode, Mode::Idle);
+        self.mode = match mode {
+            // "Not now": no away switch for the rest of this run.
+            Mode::AwayCountdown {
+                session,
+                phase: Phase::Counting { .. } | Phase::Quiet { .. },
+                ..
+            } => {
+                self.spend_away(&session);
+                fx.push(Effect::HideToast);
+                fx.push(log("away_cancelled", &session));
+                self.set_away_how(&session, AwayHow::Cancelled);
+                Mode::Idle
+            }
+            // "Switch now".
+            Mode::AwayPrompt {
+                session,
+                target,
+                until,
+                verifying: None,
+            } => {
+                let deadline = self.request_activation(&target, now, fx);
+                Mode::AwayPrompt {
+                    session,
+                    target,
+                    until,
+                    verifying: Some(deadline),
+                }
+            }
+            // "Snooze".
+            Mode::Return {
+                session,
+                home,
+                snoozes,
+                step: ReturnStep::Countdown(Phase::Counting { .. } | Phase::Quiet { .. }),
+            } => {
+                fx.push(Effect::HideToast);
+                fx.push(log("return_snoozed", &session));
+                if let Some(s) = self.sessions.get_mut(&session) {
+                    s.run.snoozes = s.run.snoozes.saturating_add(1);
+                }
+                let step = ReturnStep::Snoozed {
+                    until: now + self.cfg.countdown.snooze,
+                };
+                Mode::Return {
+                    session,
+                    home,
+                    snoozes: snoozes + 1,
+                    step,
+                }
+            }
+            // "Go back now".
+            Mode::Return {
+                session,
+                home,
+                snoozes,
+                step: ReturnStep::Prompt { verifying: None },
+            } => {
+                let deadline = self.request_activation(&home, now, fx);
+                let step = ReturnStep::Prompt {
+                    verifying: Some(deadline),
+                };
+                Mode::Return {
+                    session,
+                    home,
+                    snoozes,
+                    step,
+                }
+            }
+            mode => mode,
+        };
+    }
+}
 
-## Antigravity hook manifest
-
-`focusctl install-antigravity-hooks` writes a named command-hook bundle to
-`~/.gemini/config/hooks.json` (or `.agents/hooks.json` with project scope, or the explicit
-`--settings` path). `files.rs` uses the same atomic-write/first-backup helper as Claude
-settings. `antigravity.rs` merges/removes only its recognized bundle. No token is stored
-in the manifest. The config may include an exact OS app display-name override.
-
-## Files
-
-Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` on macOS,
-`%LOCALAPPDATA%\io.github.firedash.focusautopilot\` on Windows, or `FOCUS_AUTOPILOT_HOME`
-(`crates/focus-runner/src/paths.rs`). "Mode 0600" below is what the files get on macOS and
-Linux; on Windows they rely on the user profile's own access rules.
-
-| File | Read or written by | Holds |
-| --- | --- | --- |
-| `config.toml` (data folder) | written by `focusctl/src/config.rs` (token) and `focus-runner/src/settings.rs` (the Configuration tab); parsed by `focus-receiver/src/config_file.rs` | settings and the receiver token; mode 0600 |
-| `runs.jsonl` (data folder) | `focus-runner/src/history.rs` | one metadata line per finished run: times, counts, a salted hash of the project folder. No prompt text, commands or paths; mode 0600 |
-| `usage.json` (data folder) | `focus-runner/src/usage.rs` | time per app in half-hour slots: app ids, names, milliseconds, counts. No window titles; mode 0600 |
-| `open-ui.html` (data folder) | `focusctl/src/ui.rs` | a redirect to the page, with the token after the `#`; mode 0600 |
-| `recap-workdir/` (data folder) | created by `focus-runner/src/recap_cli.rs` | an empty folder the `claude` command is run in |
-| `focusd.log` (data folder) | the stdout of a `focusd` started by the launch agent (`focusctl/src/agent.rs`) or by `focusctl setup` (`focusctl/src/setup.rs`, `spawn_detached`, which calls `focus-platform/src/spawn.rs`); `focusctl setup` reads back only what that start wrote, for the lines starting `hotkey problem:` (`hotkey_problems`) | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
-| `focusd.log.old` (data folder) | `focusctl/src/setup.rs`, `rotate_log` | the previous `focusd.log`, moved aside by `focusctl setup` at its next start once the log passes 1 MB (replacing any earlier `.old`); same contents as `focusd.log`, so the same limits |
-| `~/.claude/settings.json`, or the project's with `--scope` | `focusctl/src/files.rs`, `hooks.rs` | only entries whose URL is this app's hook URL are added or removed; a `.focus-autopilot.bak` copy is kept beside it |
-| `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent`, which is macOS only |
-
-`focusd` never reads Claude Code's transcripts or any file in your projects.
-
-## Processes started
-
-| Program | When | Where |
-| --- | --- | --- |
-| `claude -p ...` with no tools, no MCP servers and hooks disabled | only when `recap.mode = "llm"`, once per recap | `crates/focus-runner/src/recap_cli.rs` |
-| `focusd --config <config.toml>`, beside `focusctl` or on the PATH, in the background with no window, its output in `focusd.log`, and only those two handles inherited (a Windows handle list), so no pipe of the caller's stays open | `focusctl setup`, only when nothing answers on the port yet | `crates/focusctl/src/setup.rs`, `spawn_detached` |
-| `claude --version` | `focusctl doctor` | `crates/focusctl/src/main.rs`, `claude_version` |
-| `open <file>` (macOS; `explorer` on Windows; `xdg-open` on Linux) | `focusctl ui` | `crates/focusctl/src/ui.rs`, `open_in_browser` |
-
-Each is started with an argument list, never through a shell.
-
-## OS calls that observe or move the user (macOS)
-
-| Call | Purpose | Where |
-| --- | --- | --- |
-| `NSWorkspace.frontmostApplication`, `runningApplications` | which app is in front; which are running | `crates/focus-platform/src/macos.rs` |
-| `CGEventSourceSecondsSinceLastEventType` | seconds since any input; no input content | `crates/focus-platform/src/macos.rs` |
-| `NSRunningApplication.activateWithOptions` | bring an app to the front | `crates/focus-platform/src/macos.rs` |
-| `RegisterEventHotKey` (Carbon) | be told when one of up to three chosen chords is pressed | `crates/focus-platform/src/macos_hotkeys.rs` |
-| A non-activating `NSPanel` that ignores the mouse | the toast and the recap card | `crates/focus-platform/src/macos_overlay.rs` |
-| `NSSound` | the sound on return | `crates/focus-platform/src/macos.rs` |
-
-## OS calls that observe or move the user (Windows)
-
-| Call | Purpose | Where |
-| --- | --- | --- |
-| `GetForegroundWindow`, `GetWindowThreadProcessId`, `OpenProcess` (query only), `QueryFullProcessImageNameW` | which window is in front and which executable owns it | `crates/focus-platform/src/windows.rs` |
-| `EnumWindows`, `IsWindowVisible`, `GetWindow`, `GetWindowLongW`, `GetWindowTextLengthW`, `DwmGetWindowAttribute` | which windows are app windows; the title's length is read, never the title | `crates/focus-platform/src/windows.rs` |
-| `GetLastInputInfo`, `GetTickCount` | seconds since any input; no input content | `crates/focus-platform/src/windows.rs` |
-| `ShowWindow` (restore), `SetForegroundWindow` | bring a window to the front | `crates/focus-platform/src/windows.rs` |
-| `SendInput` with one mouse event that moves nothing and presses nothing | be allowed that request when Windows refused it; off with `switching.force_foreground = false` | `crates/focus-platform/src/windows.rs`, `empty_mouse_event` |
-| `RegisterHotKey` | be told when one of up to three chosen combinations is pressed | `crates/focus-platform/src/windows.rs` |
-| Two topmost, non-activating, click-through popup windows drawn with GDI | the toast and the recap card | `crates/focus-platform/src/windows_overlay.rs` |
-| `MessageBeep` | the sound on return | `crates/focus-platform/src/windows.rs` |
-
-Not used anywhere: Accessibility, Input Monitoring, Screen Recording, Apple Events, event taps,
-keyboard or mouse hooks, thread-input attachment, synthesized keystrokes or clicks. The one
-empty mouse event above is the only input the app sends. See [PERMISSIONS.md](PERMISSIONS.md).
-
-## `unsafe`
-
-Only `focus-platform` may contain it; every other crate sets `#![forbid(unsafe_code)]`, which
-`scripts/check-repo.py` checks. Each block has a `// SAFETY:` comment, enforced by the
-`undocumented_unsafe_blocks` lint.
-
-| File | Blocks | What for |
-| --- | --- | --- |
-| `crates/focus-platform/src/macos_hotkeys.rs` | 6 | hand-declared Carbon functions for hotkeys, which the `objc2` crates do not bind: the block that declares them and five that call them |
-| `crates/focus-platform/src/macos_overlay.rs` | 2 | keeping a panel alive after it closes; taking the next AppKit event |
-| `crates/focus-platform/src/macos.rs` | 1 | turning the run loop once so the front-app reading is fresh |
-| `crates/focus-platform/src/windows.rs` | 20 | Win32 calls through `windows-sys`: every one is `unsafe` by declaration |
-| `crates/focus-platform/src/windows_overlay.rs` | 10 | creating, painting, showing and hiding the two overlay windows |
-
-## What the page can do
-
-The statistics and configuration page can read the statistics, read the settings, change the
-settings listed in `crates/focus-runner/src/settings.rs` (`KEYS`), and erase the statistics.
-It cannot read or change the token, the port or the history salt: they are not in that list,
-and a test (`secrets_and_unknown_names_cannot_be_set`) holds that.
-
-## Checking it yourself
-
-- `cargo deny check` for advisories, licenses and crate sources (`deny.toml`).
-- `python3 scripts/check-repo.py` for required files, SPDX headers and dependency entries.
-- `scripts/ui-check/run.sh` drives the page in a real browser.
-- Not built yet: `focusctl audit`, and the test that runs the app under `strace` and fails on
-  any non-loopback connection or stray file write.
+/// How the return happened, if the step shows focusd had just asked for the switch.
+pub(crate) fn return_how(step: &ReturnStep) -> Option<ReturnHow> {
+    match step {
+        ReturnStep::Countdown(Phase::Verifying { .. }) => Some(ReturnHow::Auto),
+        ReturnStep::Prompt { verifying: Some(_) } => Some(ReturnHow::Prompt),
+        _ => None,
+    }
+}
