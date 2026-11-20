@@ -373,4 +373,4 @@ mod tests {
         assert_ne!(project_key("a", "/x"), project_key("a", "/y"));
         assert_eq!(project_key("a", "/x").len(), 16);
     }
-        }
+}
