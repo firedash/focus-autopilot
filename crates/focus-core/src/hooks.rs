@@ -10,7 +10,7 @@ use crate::engine::{Core, MAX_SESSIONS, change_name, log};
 use crate::estimator::PromptLen;
 use crate::events::{AgentEvent, EventKind};
 use crate::glob;
-use crate::io::Effect;
+use crate::io::{Effect, ProbeKind};
 use crate::recap_llm;
 use crate::run::{AwayHow, RunOutcome, RunRecord, Start};
 use crate::session::{Session, SessionState};
@@ -43,6 +43,14 @@ impl Core {
         };
         if let Some(record) = replaced {
             self.emit_record(record, fx);
+        }
+        if matches!(
+            ev.kind,
+            EventKind::AppFinished { .. } | EventKind::AppNeedsInput { .. }
+        ) {
+            // Resolve the target from a fresh OS snapshot, not a guessed bundle ID
+            // or whichever unrelated window happened to be foreground at start.
+            fx.push(Effect::Probe(ProbeKind::RunningApps));
         }
         if let Some(name) = change_name(change) {
             fx.push(log(name, &ev.session_id));
@@ -138,7 +146,7 @@ impl Core {
             })
             .collect();
         let card = crate::recap::build(shown, &self.project_label(session), &others);
-        if self.cfg.recap.mode != RecapMode::Llm {
+        if self.cfg.recap.mode != RecapMode::Llm || shown.run.agent != "Claude" {
             fx.push(Effect::ShowRecap(card));
             return;
         }
@@ -208,4 +216,4 @@ pub(crate) struct PendingRecap {
     pub(crate) card: crate::recap::RecapCard,
     /// The other waiting sessions' lines, added under a summary so their results are not lost.
     pub(crate) also: Vec<String>,
-}
+            }
