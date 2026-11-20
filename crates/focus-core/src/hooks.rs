@@ -216,4 +216,4 @@ pub(crate) struct PendingRecap {
     pub(crate) card: crate::recap::RecapCard,
     /// The other waiting sessions' lines, added under a summary so their results are not lost.
     pub(crate) also: Vec<String>,
-            }
+}
