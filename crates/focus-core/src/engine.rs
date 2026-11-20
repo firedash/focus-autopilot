@@ -352,7 +352,48 @@ impl Core {
                 self.note_back_at_home(previous_front.as_ref(), now);
                 self.note_manual_away();
             }
-            Observation::RunningApps(apps) => self.running_apps = Some((apps, now)),
+            Observation::RunningApps(apps) => {
+                for session in self.sessions.values_mut() {
+                    let run = &mut session.run;
+                    if run.home.is_some()
+                        || !matches!(session.state, SessionState::Done | SessionState::NeedsInput)
+                    {
+                        continue;
+                    }
+                    if now.saturating_duration_since(run.waiting_since) > Duration::from_secs(3) {
+                        continue;
+                    }
+                    let Some(name) = &run.attention_app else {
+                        continue;
+                    };
+                    let candidates: Vec<_> = apps
+                        .iter()
+                        .filter(|app| app.name.eq_ignore_ascii_case(name))
+                        .collect();
+                    let Some(first) = candidates.first() else {
+                        fx.push(log("attention_app_not_running", ""));
+                        continue;
+                    };
+                    // Different app identities with the same display name are not
+                    // interchangeable. Multiple windows of one app are app-level.
+                    if candidates
+                        .iter()
+                        .any(|app| !app.id.eq_ignore_ascii_case(&first.id))
+                    {
+                        fx.push(log("attention_app_ambiguous", ""));
+                        continue;
+                    }
+                    let front = self.frontmost.as_ref();
+                    let target = candidates
+                        .iter()
+                        .find(|app| front.is_some_and(|f| f.matches(app)))
+                        .copied()
+                        .unwrap_or(first);
+                    run.home = Some((*target).clone());
+                    run.away_spent = true;
+                }
+                self.running_apps = Some((apps, now));
+            }
             Observation::Idle(idle) => self.on_idle(idle, now, fx),
             Observation::Activation { verified } => self.on_activation(verified, now, fx),
         }
