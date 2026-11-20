@@ -17,6 +17,10 @@ use crate::toast;
 const IMMERSIVE_COUNTDOWN: Duration = Duration::from_secs(5);
 
 impl Core {
+    pub(crate) fn agent_name(&self, session: &str) -> &'static str {
+        self.sessions.get(session).map_or("Claude", |s| s.run.agent)
+    }
+
     /// Starts the away countdown if every guard holds. Runs on each fresh idle reading.
     pub(crate) fn try_arm_away(&mut self, idle: Duration, now: Instant, fx: &mut Vec<Effect>) {
         if self.mode != Mode::Idle {
@@ -34,7 +38,10 @@ impl Core {
                     self.cfg.countdown.length
                 };
                 fx.push(Effect::ShowToast(toast::away_countdown(
-                    &target, length, immersive,
+                    &target,
+                    length,
+                    immersive,
+                    self.agent_name(&session),
                 )));
                 fx.push(log("away_countdown", &session));
                 self.note = None;
@@ -103,7 +110,10 @@ impl Core {
     ) -> Mode {
         match verifying {
             Some(deadline) if now >= deadline => {
-                fx.push(Effect::ShowToast(toast::away_prompt(&target)));
+                fx.push(Effect::ShowToast(toast::away_prompt(
+                    &target,
+                    self.agent_name(&session),
+                )));
                 Mode::AwayPrompt {
                     session,
                     target,
@@ -143,7 +153,10 @@ impl Core {
         fx: &mut Vec<Effect>,
     ) -> Mode {
         self.spend_away(&session);
-        fx.push(Effect::ShowToast(toast::away_prompt(&target)));
+        fx.push(Effect::ShowToast(toast::away_prompt(
+            &target,
+            self.agent_name(&session),
+        )));
         fx.push(log("away_prompt", &session));
         let until = now + self.cfg.countdown.away_prompt;
         Mode::AwayPrompt {
