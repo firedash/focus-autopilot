@@ -1,223 +1,119 @@
-# Status
+# Audit map
 
-Last updated 2026-11-19.
+Where to look to check what this app does to your machine. Each claim names the file that
+makes it true, so it can be verified by reading that file. If code and this page disagree,
+the page is the bug: please report it.
 
-**Where it stands:** a developer build that a person has run on a Mac and on Windows.
-`focusd` takes real Claude Code hooks, decides with `focus-core`, plays a sound, shows a box,
-and after a countdown brings you back to the window you prompted from, with a recap. After
-your next prompt it moves you back to the app you left. It also serves a page with two tabs,
-**Statistics** and **Configuration**, opened with `focusctl ui`. To run it, see
-[docs/mac-quickstart.md](docs/mac-quickstart.md) or
-[docs/windows-quickstart.md](docs/windows-quickstart.md). There is also an **unsigned prebuilt
-download** (v0.1.1: macOS arm64, macOS x64, Windows x64) on the
-[releases page](https://github.com/firedash/focus-autopilot/releases); see "Prebuilt downloads" below for what has and has not been run.
+## Network
 
-## Experimental Antigravity branch
+| What | Where |
+| --- | --- |
+| The only listener: `127.0.0.1:<port>` (default 47821), never another interface | `crates/focus-receiver/src/server.rs`, `spawn_with_ui` |
+| The checks every request must pass (path, method, Host, Origin, token, content type, size, rate) | `crates/focus-receiver/src/check.rs` |
+| Routes: `POST /hook`, `GET /ui/*` (three static files), `GET`/`POST /api/*` | `crates/focus-receiver/src/server.rs`, `handle` and `api`; `src/ui.rs` |
+| The page's files, embedded in the binary | `crates/focus-receiver/assets/ui/` |
+| `focusctl doctor` connects to that same loopback port to see whether `focusd` answers | `crates/focusctl/src/doctor.rs`, `get` |
 
-See [docs/antigravity.md](docs/antigravity.md) for installation, behavior and the review
-checklist. Adapter/receiver process tests and simulated completion/input-return tests
-run on Linux. No person has yet verified this adapter with a real Antigravity session,
-Mac or Windows hook execution, or its desktop boxes/activation. Existing desktop
-evidence below applies to Claude, not Antigravity.
+The Antigravity command bridge (`crates/focusctl/src/antigravity.rs`) also connects only
+to the configured authenticated loopback receiver, using a fixed `/hook` path. It reads
+the token at invocation time, never from hook arguments. No transcript or artifact is read.
 
-## What has been seen working, and by whom
+The app itself makes **no outbound connection outside loopback**. The one thing that reaches the network is the
+`claude` command, and only if you turn on the LLM recap (see Processes).
 
-There are three kinds of evidence here, strongest first: a person saw it on a desktop; a CI
-machine ran it on that operating system; tests passed against a fake platform on Linux. The
-table is the first kind only. "Not tried" means nobody has looked, not that it fails.
+## Antigravity hook manifest
 
-| | On a Mac | On Windows |
+`focusctl install-antigravity-hooks` writes a named command-hook bundle to
+`~/.gemini/config/hooks.json` (or `.agents/hooks.json` with project scope, or the explicit
+`--settings` path). `files.rs` uses the same atomic-write/first-backup helper as Claude
+settings. `antigravity.rs` merges/removes only its recognized bundle. No token is stored
+in the manifest. The config may include an exact OS app display-name override.
+
+## Files
+
+Data folder: `~/Library/Application Support/io.github.firedash.focusautopilot/` on macOS,
+`%LOCALAPPDATA%\io.github.firedash.focusautopilot\` on Windows, or `FOCUS_AUTOPILOT_HOME`
+(`crates/focus-runner/src/paths.rs`). "Mode 0600" below is what the files get on macOS and
+Linux; on Windows they rely on the user profile's own access rules.
+
+| File | Read or written by | Holds |
 | --- | --- | --- |
-| Hooks reach `focusd` | From Claude Code in a terminal | From a local session in the Claude desktop app's Code tab: the prompt, tool uses, the finish and a late sub-agent report all arrived (2026-11-17) |
-| The app in front is recognised | Yes | Yes, by executable name, as the user moved between windows |
-| The toast and the recap card can be seen | Yes, in real runs | Yes, in `focusd --test-box` and in a recorded real run (`docs/images/demo.gif`, 2026-11-18) |
-| The automatic return: a countdown, the switch back, the recap | Yes, from an app that is not an away app (2026-11-17) | Yes: `ACTIVATE claude.exe`, then `front: claude.exe` (2026-11-17). Whether the empty mouse event was needed is not known |
-| The hotkeys in the self-test (`focusd --test-hotkeys`) | Focus and pause (2026-11-16) | Focus and pause. The first default focus key, `Ctrl+Alt+Space`, belonged to the Claude desktop app |
-| The focus key during a real run | Not seen | It snoozed a return countdown |
-| The move away to a configured away app, and back | Yes (2026-11-14) | Not tried |
-| The move back to where you left off | Seen at least once on 2026-11-17, under a 3 second idle requirement that has since been removed. Not re-run after the two fixes that followed | Yes: the recording shows "Switching to brave in 3 s", the browser coming forward, and then the return (2026-11-18) |
-| The "Go back?" box (`auto_return` off, or a refused switch) | The box was seen; the key on it was not confirmed | Not tried |
-| The three-line LLM recap | Yes | Not tried |
-| `focusctl install-hooks` | Yes | Yes, and `focusctl doctor` found the config, the hooks and the running `focusd` |
-| `focusctl setup` (hooks, `focusd` in the background, checks) | Not run | Run end to end in a sandbox by the QA pass (`docs/qa/hag-4/`, 2026-11-19); a real Claude prompt after it has not been recorded |
-| The downloaded v0.1.0 zip, unzipped and followed as `READ-ME-FIRST.txt` says | Not run (neither Mac archive has been executed by anyone; the Intel one is a cross-compile that CI never runs) | `setup`, `doctor` and `uninstall-hooks` run from it against a sandbox with a synthetic hook; no real Claude session, no browser-downloaded "mark of the web" (`docs/qa/hag-4/`, part 5) |
-| The Statistics and Configuration page against a real `focusd` | Not tried | Not tried |
-| Time per app as read from the real OS | Not checked | Not checked |
-| Start at login | Not tried | Not built |
-| The declare-long hotkey (off by default) | Not tried | Not tried |
-| Claude Code in VS Code, Cursor or JetBrains | Not tried | Not tried |
+| `config.toml` (data folder) | written by `focusctl/src/config.rs` (token) and `focus-runner/src/settings.rs` (the Configuration tab); parsed by `focus-receiver/src/config_file.rs` | settings and the receiver token; mode 0600 |
+| `runs.jsonl` (data folder) | `focus-runner/src/history.rs` | one metadata line per finished run: times, counts, a salted hash of the project folder. No prompt text, commands or paths; mode 0600 |
+| `usage.json` (data folder) | `focus-runner/src/usage.rs` | time per app in half-hour slots: app ids, names, milliseconds, counts. No window titles; mode 0600 |
+| `open-ui.html` (data folder) | `focusctl/src/ui.rs` | a redirect to the page, with the token after the `#`; mode 0600 |
+| `recap-workdir/` (data folder) | created by `focus-runner/src/recap_cli.rs` | an empty folder the `claude` command is run in |
+| `focusd.log` (data folder) | the stdout of a `focusd` started by the launch agent (`focusctl/src/agent.rs`) or by `focusctl setup` (`focusctl/src/setup.rs`, `spawn_detached`, which calls `focus-platform/src/spawn.rs`); `focusctl setup` reads back only what that start wrote, for the lines starting `hotkey problem:` (`hotkey_problems`) | event names, app names and outcomes; never prompt text, commands, toast or recap text (`focus-runner/src/lib.rs`, `verbose`) |
+| `focusd.log.old` (data folder) | `focusctl/src/setup.rs`, `rotate_log` | the previous `focusd.log`, moved aside by `focusctl setup` at its next start once the log passes 1 MB (replacing any earlier `.old`); same contents as `focusd.log`, so the same limits |
+| `~/.claude/settings.json`, or the project's with `--scope` | `focusctl/src/files.rs`, `hooks.rs` | only entries whose URL is this app's hook URL are added or removed; a `.focus-autopilot.bak` copy is kept beside it |
+| `~/Library/LaunchAgents/io.github.firedash.focusautopilot.plist` | `focusctl/src/agent.rs` | only with `focusctl install-agent`, which is macOS only |
 
-**By a machine only.** On every push CI builds, lints and tests on Linux, on a macOS runner
-and on a Windows runner. The Windows job also installs the hooks, starts the real
-`focusd.exe`, sends it one hook and checks that it reported the front window and received
-the hook. The page is checked in Chromium on Linux by `scripts/ui-check`, by hand.
+`focusd` never reads Claude Code's transcripts or any file in your projects.
 
-**What real use found that the tests had not.** Each of these was a bug or a wrong guess
-that only showed when a person ran the app: a leftover setting stopped `focusd` starting; a
-rule meant to protect someone working with another Claude session also caught anyone working
-in an editor or the Claude app; a sub-agent's late "finished" report cancelled the return;
-`focusctl doctor` misread a closed port on Windows; and the first Windows focus key was
-already taken by the Claude desktop app. All are fixed. Expect more of the same in whatever
-the table says is not tried.
+## Processes started
 
-`docs/design.md` describes the app as built. Where the build departed from the design as
-first written (`docs/design-original.md`), the decision records in `docs/adr/` say why:
-[0003](docs/adr/0003-shell-decisions.md) for the shell,
-[0004](docs/adr/0004-statistics-and-configuration-page.md) for the page,
-[0005](docs/adr/0005-the-full-loop-by-default.md) for the loop and
-[0006](docs/adr/0006-the-windows-adapter.md) for Windows. Two settings
-(`switching.auto_return`, `away.resume_last_app`) turn the automatic switches off, which
-gives the manual mode that was the default until 2026-11-17.
-
-## What exists
-
-| Part | Crate | State |
+| Program | When | Where |
 | --- | --- | --- |
-| Every decision: sessions, guards, switch controller, estimator, recap text, redaction | `focus-core` | done; 97% line coverage |
-| **The full loop by default**: automatic return after a countdown from any app; the away switch goes to where you left off, then to `away.apps` | `focus-core` (`returns.rs`, `guards.rs`, `engine.rs`) | done and tested against the fake platform; the return seen on a Mac and on Windows, the move back seen once on a Mac (table above) |
-| Hook receiver: path, method, Host, Origin, constant-time token, content type, 8 MB limit, rate limit | `focus-receiver` | done; negative tests over a real socket |
-| Payload parsing, truncation, redaction, project hash; `config.toml` loading (an unknown key is an error; a setting an older build had is skipped with a note) | `focus-receiver` | done |
-| **Statistics and Configuration page**: three static files and a JSON API on the same loopback port, with Host, Origin, `Sec-Fetch-Site` and token checks and a strict Content-Security-Policy | `focus-receiver` (`ui.rs`, `assets/ui/`) | done; 47 browser checks in `scripts/ui-check` |
-| **Time per app**: sampled twice a second, split by whether Claude was working, with switches and time-to-return; saved in half-hour slots | `focus-runner` (`usage.rs`) | done and tested |
-| **Statistics**: totals for today and seven days, per-day and per-app breakdowns in the viewer's time zone, up to six insights | `focus-runner` (`stats.rs`) | done and tested |
-| **Settings**: an explicit list of changeable settings; edits keep the file's comments; validated before writing; applied live; a hand edit of `config.toml` is picked up within two seconds | `focus-runner` (`settings.rs`, `ui.rs`) | done and tested |
-| The shell loop shared by both runners | `focus-runner` | done; integration-tested against the fake platform |
-| LLM recap through the user's `claude` command | `focus-runner`, `focus-core` | run on a Mac |
-| Run history in `runs.jsonl`, loaded into the estimator | `focus-runner` | done |
-| `focusctl`: `setup`, `install-hooks`, `uninstall-hooks`, `rotate-token`, `--scope user/project/local`, `ui`, `doctor`, `install-agent`, `uninstall-agent` (macOS only), `--version` | `focusctl` | done and tested on Linux and in CI on all three systems; `install-hooks` used on a Mac and on Windows, `doctor` and `setup` on Windows |
-| **Prebuilt downloads**: on a version tag, unsigned archives with SHA-256 files for macOS arm64, macOS x64 and Windows x64, each with a `READ-ME-FIRST.txt` | `.github/workflows/release.yml`, [docs/releasing.md](docs/releasing.md) | ran for v0.1.0 (a draft, tested on Windows) and v0.1.1 (published). The v0.1.1 checksums, contents and file types were checked against the release; see "Prebuilt downloads" below |
-| macOS adapter: front app, running apps, activation, idle time, sound, toast and recap panels | `focus-platform` | run on a Mac |
-| Global hotkeys: focus, pause, declare-long; `focusd --test-hotkeys`, `--test-box` | `focus-platform` | focus and pause registered and delivered in the self-test on a Mac and on Windows; the focus key snoozed a countdown in a real run on Windows; declare-long untried |
-| **Windows adapter**: front window and its executable, app windows, idle time, switching to an exact window, hotkeys, the two boxes, a sound; `focusd` on Windows | `focus-platform` (`windows.rs`, `windows_overlay.rs`), `focusd` | run on Windows by the owner (table above), and on a Windows CI machine on every push |
-| Fake platform, overlay and hotkeys; headless runner | `focus-platform`, `focus-headless` | done; runs on Linux |
-| CI: format, lint, test and repository rules on Linux; build, lint and test on macOS and on Windows; `cargo deny` | `.github/workflows/ci.yml` | all four jobs passing on `main` |
-| SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, THREAT_MODEL, PERMISSIONS, AUDIT, CODEOWNERS, pull request template, dependabot, `deny.toml` | repository root, `.github/` | written |
+| `claude -p ...` with no tools, no MCP servers and hooks disabled | only when `recap.mode = "llm"`, once per recap | `crates/focus-runner/src/recap_cli.rs` |
+| `focusd --config <config.toml>`, beside `focusctl` or on the PATH, in the background with no window, its output in `focusd.log`, and only those two handles inherited (a Windows handle list), so no pipe of the caller's stays open | `focusctl setup`, only when nothing answers on the port yet | `crates/focusctl/src/setup.rs`, `spawn_detached` |
+| `claude --version` | `focusctl doctor` | `crates/focusctl/src/main.rs`, `claude_version` |
+| `open <file>` (macOS; `explorer` on Windows; `xdg-open` on Linux) | `focusctl ui` | `crates/focusctl/src/ui.rs`, `open_in_browser` |
 
-## Checks
+Each is started with an argument list, never through a shell.
 
-Run on Linux with Rust 1.97.0:
+## OS calls that observe or move the user (macOS)
 
-- `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
-  (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 260 tests, all passing.
-- `focusctl setup`: its tests use temporary files and a stand-in for focusd, never the real
-  `~/.claude/settings.json`. Run end to end once on Windows (hooks written, focusd started in the
-  background, second run changed nothing). Not run on macOS: the macOS start path (own process
-  group, no terminal) is type-checked only, and a closed terminal's hang-up signal is untested.
-- `cargo clippy --workspace --all-targets` again with `--target aarch64-apple-darwin` and
-  with `--target x86_64-pc-windows-msvc`: the macOS and Windows code type-checks and is
-  lint-clean.
-- `cargo deny check`: advisories, bans, licenses and sources pass.
-- `python3 scripts/check-repo.py`: required files, SPDX headers, a DEPENDENCIES.md entry for
-  every dependency, `unsafe` confined to `focus-platform`.
-- `scripts/ui-check/run.sh`: 47 checks of the page in Chromium, all passing.
-
-On GitHub Actions (`.github/workflows/ci.yml`), on every push: the Linux checks above, a build,
-lint and test run on a macOS runner (the first place the macOS adapter is actually linked),
-the same on a Windows runner (where the Windows adapter's calls are made against a real Windows),
-and `cargo deny`. All four jobs pass on `main`. The browser checks are not in CI: it has no
-browser set up.
-
-Measured with `cargo llvm-cov` on Linux on 2026-11-17: **97.3% line coverage on
-`focus-core`** (the design's target is 90%), 89.9% across the workspace. The lowest file in
-`focus-core` is `recap_llm.rs` at 81%. The macOS and Windows adapters are not compiled on
-Linux, so they are not in these numbers.
-
-## Measured against the design's own targets
-
-- **Size.** The design aimed for under 6,000 lines of first-party code for the MVP, excluding
-  tests. The code is now about 11,000 lines of Rust and 1,750 of HTML, CSS and JavaScript.
-  It is well over, because V1 items (estimator, LLM recap, history), the page, the automatic
-  loop and a second platform adapter were built.
-  The split by crate still lets an auditor read the security-relevant parts first.
-- **Performance budgets.** Not measured.
-- **Fuzzing, the `strace` test, signed releases, `focusctl audit`.** Not built.
-
-## Which Claude Code surfaces
-
-Two have been run: Claude Code in a terminal on a Mac, and a local session in the Claude
-desktop app's Code tab on Windows. Anthropic's docs say Claude Code fires the same hooks
-wherever it runs, so one install should cover the others, but those are unverified here. Each
-also needs its app in the home-app list; `focusd` prints the line to add, and the
-Configuration tab has a picker for it.
-
-| Surface | Tested | What is known |
+| Call | Purpose | Where |
 | --- | --- | --- |
-| Terminal | yes, on a Mac | works. Not tried on Windows |
-| VS Code, Claude Code extension | no | docs: shares `~/.claude/settings.json` with the CLI |
-| Cursor, same extension or `claude` in its terminal | no | docs offer the extension for Cursor; Cursor's own agent is not supported |
-| Claude Desktop, Code tab, local session | yes, on Windows | the prompt, tool uses, the finish and a sub-agent's end all arrived, the window was recognised as `claude.exe`, and the return brought it forward (2026-11-17). Approval events and the Mac app are untried |
-| Munder Difflin, a third-party app that runs Claude Code | yes, on Windows | hooks arrive and the whole loop works (2026-11-18). That run had `Munder Difflin.exe` added under `[home] extra_apps`; it is on the built-in list since, which has not been re-run. The project on the box is the folder that app runs Claude in, not the repo |
-| Claude Desktop, Cowork | yes, on Windows: no hooks | nothing reached `focusd` (2026-11-17); not supported |
-| JetBrains | no | not mentioned in the hooks docs; unknown |
-| Cloud sessions | n/a | not supported: no local hooks |
+| `NSWorkspace.frontmostApplication`, `runningApplications` | which app is in front; which are running | `crates/focus-platform/src/macos.rs` |
+| `CGEventSourceSecondsSinceLastEventType` | seconds since any input; no input content | `crates/focus-platform/src/macos.rs` |
+| `NSRunningApplication.activateWithOptions` | bring an app to the front | `crates/focus-platform/src/macos.rs` |
+| `RegisterEventHotKey` (Carbon) | be told when one of up to three chosen chords is pressed | `crates/focus-platform/src/macos_hotkeys.rs` |
+| A non-activating `NSPanel` that ignores the mouse | the toast and the recap card | `crates/focus-platform/src/macos_overlay.rs` |
+| `NSSound` | the sound on return | `crates/focus-platform/src/macos.rs` |
 
-On a Mac a return goes to the app, not the window: with several sessions in one app you land
-in whichever window macOS raises, and the project name on the box says which session is
-waiting. On Windows a return goes to the exact window.
+## OS calls that observe or move the user (Windows)
 
-The Claude desktop app has a notification of its own when a session finishes. On Windows it
-showed the session's name and a one-line summary, and a click on it opened the app
-(2026-11-17). For someone using the desktop app, that already does much of what this app's
-return does; what this app adds is the return with no click, the move back to where you
-left off, and the statistics.
+| Call | Purpose | Where |
+| --- | --- | --- |
+| `GetForegroundWindow`, `GetWindowThreadProcessId`, `OpenProcess` (query only), `QueryFullProcessImageNameW` | which window is in front and which executable owns it | `crates/focus-platform/src/windows.rs` |
+| `EnumWindows`, `IsWindowVisible`, `GetWindow`, `GetWindowLongW`, `GetWindowTextLengthW`, `DwmGetWindowAttribute` | which windows are app windows; the title's length is read, never the title | `crates/focus-platform/src/windows.rs` |
+| `GetLastInputInfo`, `GetTickCount` | seconds since any input; no input content | `crates/focus-platform/src/windows.rs` |
+| `ShowWindow` (restore), `SetForegroundWindow` | bring a window to the front | `crates/focus-platform/src/windows.rs` |
+| `SendInput` with one mouse event that moves nothing and presses nothing | be allowed that request when Windows refused it; off with `switching.force_foreground = false` | `crates/focus-platform/src/windows.rs`, `empty_mouse_event` |
+| `RegisterHotKey` | be told when one of up to three chosen combinations is pressed | `crates/focus-platform/src/windows.rs` |
+| Two topmost, non-activating, click-through popup windows drawn with GDI | the toast and the recap card | `crates/focus-platform/src/windows_overlay.rs` |
+| `MessageBeep` | the sound on return | `crates/focus-platform/src/windows.rs` |
 
-## Not built
+Not used anywhere: Accessibility, Input Monitoring, Screen Recording, Apple Events, event taps,
+keyboard or mouse hooks, thread-input attachment, synthesized keystrokes or clicks. The one
+empty mouse event above is the only input the app sends. See [PERMISSIONS.md](PERMISSIONS.md).
 
-- **Windows beyond the adapter**: start at login is not built, and the LLM recap is untried
-  there.
-- **Menu-bar icon, click on a toast, first-run wizard, installer.** `focusd` runs in a
-  terminal or from a launch agent, and the page is opened with `focusctl ui`.
-- **Exact-window return on macOS.** The editor-URL route was tried and withdrawn; see ADR 0003 items
-  16 and 21 for what would be needed. Decided on 2026-11-19 to leave it: one window per app
-  is fine for now. The Accessibility route, what it would take and why it was postponed, is
-  in ADR 0006, "Left for later".
-- **Changing hotkeys without a restart.**
-- **Statistics per project.** History keeps only a salted hash of the folder.
-- **`focusctl record`, `focusctl audit`, fuzz targets, the `strace` test, REPRODUCIBLE.md,
-  signing, an SBOM and attestations.**
-- **Prebuilt downloads: published, unsigned, and only partly run.** v0.1.1 is on the
-  releases page. Its SHA-256 files match the archives, each archive holds the right files, and
-  the arm64 binaries carry the code-signature entry Apple silicon requires. The Windows v0.1.0 zip was
-  followed end to end in a sandbox (`docs/qa/hag-4/`). Not done by anyone: running either Mac
-  archive, a first run of a browser-downloaded file under SmartScreen or Gatekeeper, and a real
-  Claude prompt after `setup` from a zip. Not built: signing, an SBOM, attestations. See
-  [docs/releasing.md](docs/releasing.md).
-- **Stopping or upgrading a running `focusd`.** There is no `focusctl stop`, and `setup` does
-  not compare versions: with a `focusd` already answering it says "already running" and leaves
-  it, even if it is an older build. To stop one: on Windows `taskkill /F /IM focusd.exe`, on a Mac
-  `pkill -x focusd`; then run `setup` again. `setup` moves `focusd.log` aside to `focusd.log.old`
-  at its next start once it passes 1 MB.
-- **Front-app change notifications.** The front app is polled twice a second.
-- Known redaction gaps: a secret in plain prose, and attached short flags (`mysql -pSecret`).
+## `unsafe`
 
-## Next steps, in order
+Only `focus-platform` may contain it; every other crate sets `#![forbid(unsafe_code)]`, which
+`scripts/check-repo.py` checks. Each block has a `// SAFETY:` comment, enforced by the
+`undocumented_unsafe_blocks` lint.
 
-1. Use it for a week of ordinary work, on either machine, next to Claude's own
-   notifications, and see whether the automatic switching is missed when it is off. That
-   answers whether the rest of this list is worth doing.
-2. Re-run the move back to where you left off on a Mac: send a second prompt, stay in the
-   Claude window, and check that you are moved to the app you were in. On Windows it has
-   been recorded working.
-3. On a Mac, press the focus key during a return countdown, and on the "Go back?" box with
-   `switching.auto_return = false`.
-4. Run `focusctl ui` against a real `focusd` and check the numbers against a day of use.
-5. Test VS Code and Cursor, and correct the app ids in
-   `crates/focus-platform/src/known_apps.rs`, which were written from memory. Real runs
-   have confirmed four: `com.apple.Terminal`, `com.microsoft.VSCode`, `claude.exe` and
-   `WindowsTerminal.exe`.
-6. From a downloaded archive (not a build), on each of Windows and a Mac: run `focusctl setup`,
-   send one real prompt, switch away, and check the box and the return. That closes the
-   biggest gap in "Prebuilt downloads" above. Until then, consider marking the release a
-   pre-release.
-7. A `focusctl stop`, and a version check in `setup`, so an upgrade does not leave the old
-   `focusd` running.
+| File | Blocks | What for |
+| --- | --- | --- |
+| `crates/focus-platform/src/macos_hotkeys.rs` | 6 | hand-declared Carbon functions for hotkeys, which the `objc2` crates do not bind: the block that declares them and five that call them |
+| `crates/focus-platform/src/macos_overlay.rs` | 2 | keeping a panel alive after it closes; taking the next AppKit event |
+| `crates/focus-platform/src/macos.rs` | 1 | turning the run loop once so the front-app reading is fresh |
+| `crates/focus-platform/src/windows.rs` | 20 | Win32 calls through `windows-sys`: every one is `unsafe` by declaration |
+| `crates/focus-platform/src/windows_overlay.rs` | 10 | creating, painting, showing and hiding the two overlay windows |
 
-## Before continuing
+## What the page can do
 
-1. `rust-toolchain.toml` pins 1.97.0, the version this was checked with.
-2. Read the records in `docs/adr/`: they list where the design left a choice open and what
-   was chosen, including two approaches that were tried and withdrawn.
-3. The core's trace tests still read fixtures with a test-only JSON reader
-   (`crates/focus-core/tests/support/json.rs`). `focus-receiver/tests/http.rs` parses the same
-   fixture with the real parser.
+The statistics and configuration page can read the statistics, read the settings, change the
+settings listed in `crates/focus-runner/src/settings.rs` (`KEYS`), and erase the statistics.
+It cannot read or change the token, the port or the history salt: they are not in that list,
+and a test (`secrets_and_unknown_names_cannot_be_set`) holds that.
+
+## Checking it yourself
+
+- `cargo deny check` for advisories, licenses and crate sources (`deny.toml`).
+- `python3 scripts/check-repo.py` for required files, SPDX headers and dependency entries.
+- `scripts/ui-check/run.sh` drives the page in a real browser.
+- Not built yet: `focusctl audit`, and the test that runs the app under `strace` and fails on
+  any non-loopback connection or stray file write.
