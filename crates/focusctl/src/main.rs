@@ -455,4 +455,4 @@ mod tests {
                 .contains("user, project or local")
         );
     }
-      }
+}
