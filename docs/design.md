@@ -899,6 +899,9 @@ cwd_globs = []
 
 [stats]
 track_app_time = true         # record time per app (names and durations only) for the Statistics tab
+
+[antigravity]
+app_name = "Antigravity"      # the OS display name of the app brought forward (experimental, ADR 0007)
 ```
 
 **Manual mode.** Turning off `switching.auto_return` and `away.resume_last_app`, with

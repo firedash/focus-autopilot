@@ -28,14 +28,20 @@ Keep the executable in that location: the manifest records its absolute path. St
 
 The default manifest is `~/.gemini/config/hooks.json`. `--scope project` selects `.agents/hooks.json`; for Antigravity, `--scope local` is an alias of project, not a separate local-only file. `--settings FILE` selects a manifest. `--config FILE` selects Focus Autopilot's config and is recorded as an absolute path.
 
-If the OS exposes a different display name, set it explicitly in Focus Autopilot's config:
+If the OS exposes a different display name, set it in Focus Autopilot's `config.toml`:
 
 ```toml
 [antigravity]
 app_name = "the exact name reported by your OS"
 ```
 
-This name is read by the hook bridge, so another manifest install is unnecessary. Name lookup is exact apart from letter case. No match logs `attention_app_not_running`; conflicting identities log `attention_app_ambiguous`. The app is never launched if it is absent, and an unrelated foreground window is never used as a fallback.
+`focusd` reads this itself, the way it reads its other settings: a hook cannot name the app, so
+nothing a hook sends can choose which window comes forward ([ADR 0007](adr/0007-antigravity-attention-returns.md)).
+The default is `Antigravity`. `focusd` applies a hand edit of `config.toml` within a couple of
+seconds like its other settings; that has been tested in the core and not on a desktop. Name
+lookup is exact apart from letter case. No match logs `attention_app_not_running`; conflicting
+identities log `attention_app_ambiguous`. The app is never launched if it is absent, and an
+unrelated foreground window is never used as a fallback.
 
 ```text
 focusctl uninstall-antigravity-hooks --dry-run
@@ -80,4 +86,3 @@ Before treating this as supported on a desktop:
 - Practitioner payloads, including NO_TOOL_CALL: https://atamel.dev/posts/2026/07-16_where_agy_hooks/ . Its old no-UI statement is superseded by the current official docs.
 - Community normalization/manifest example: https://github.com/pbakaus/impeccable/pull/1433 . Implementation evidence, not an official API contract.
 - Secondary runtime and notification cautions: https://anotifier.io/guides/antigravity-cli-notifications/
-- Claude Code project context and imports: https://code.claude.com/docs/en/claude-md . Reference this note from a short CLAUDE.md entry for review sessions if desired; no automatic context synchronization is set up.

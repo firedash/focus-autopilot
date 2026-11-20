@@ -257,6 +257,9 @@ fn explain(error: &ConfigError) -> String {
              announced"
                 .to_owned()
         }
+        ConfigError::BadAntigravityName => {
+            "antigravity.app_name must be 1 to 80 characters with no control characters".to_owned()
+        }
         ConfigError::AwayAppIsHomeApp(app) => format!(
             "{app} is a home app (somewhere you prompt Claude from), so it can't also be an \
              away app"

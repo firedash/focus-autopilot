@@ -51,15 +51,13 @@ pub struct AgentEvent {
 pub enum EventKind {
     /// Provider liveness, not evidence of a new user submission or a tool call.
     AgentActivity,
-    /// App-level attention, independent of prompt/home-window capture.
+    /// App-level attention, independent of prompt/home-window capture. The app is not named
+    /// here: the core takes it from `antigravity.app_name` in its own configuration.
     AppFinished {
-        app_name: String,
         message: String,
         failed: bool,
     },
-    AppNeedsInput {
-        app_name: String,
-    },
+    AppNeedsInput,
     UserPromptSubmit {
         prompt: String,
         /// Length of the full prompt, before the receiver truncated it.

@@ -158,7 +158,6 @@ pub fn normalize(event: &str, raw: &Value) -> Result<Value, String> {
                 .unwrap_or("");
             if matches!(tool, "ask_question" | "ask_permission") {
                 body["hook_event_name"] = json!("AppNeedsInput");
-                body["target_app"] = json!("Antigravity");
             } else {
                 body["hook_event_name"] = json!("PreToolUse");
                 body["tool_name"] = json!(tool);
@@ -211,7 +210,6 @@ pub fn normalize(event: &str, raw: &Value) -> Result<Value, String> {
                     .unwrap_or("")
                     .is_empty();
             body["hook_event_name"] = json!("AppFinished");
-            body["target_app"] = json!("Antigravity");
             body["failed"] = json!(!normal);
             body["last_assistant_message"] = json!(if !normal {
                 "Agent stopped without normal completion"
@@ -272,20 +270,8 @@ pub fn run(event: &str, config: &Path) {
             return Err("hook input exceeded 64 KiB".into());
         }
         let raw: Value = serde_json::from_slice(&input).map_err(|_| "hook input is not JSON")?;
-        let mut body = normalize(event, &raw)?;
-        if body.get("target_app").is_some() {
-            let text = std::fs::read_to_string(config).map_err(|_| "cannot read config")?;
-            let doc = text
-                .parse::<toml_edit::DocumentMut>()
-                .map_err(|_| "invalid config")?;
-            if let Some(name) = doc.get("antigravity").and_then(|v| v.get("app_name")) {
-                let name = name
-                    .as_str()
-                    .filter(|n| !n.is_empty() && n.len() <= 80 && !n.chars().any(char::is_control))
-                    .ok_or("invalid Antigravity app_name")?;
-                body["target_app"] = json!(name);
-            }
-        }
+        // Which app to bring forward is not decided here: focusd takes it from its own config.
+        let body = normalize(event, &raw)?;
         let token = crate::config::token_of(config).ok_or("receiver token is missing")?;
         deliver(crate::config::ensure_port(config), &token, &body)
     };
@@ -326,7 +312,7 @@ mod tests {
                 r["fullyIdle"] = idle;
                 let out = normalize("Stop", &r).unwrap();
                 assert_eq!(out["hook_event_name"], "AppFinished");
-                assert_eq!(out["target_app"], "Antigravity");
+                assert!(out.get("target_app").is_none());
                 assert_eq!(out["failed"], false);
                 assert!(
                     !out["last_assistant_message"]
@@ -398,7 +384,7 @@ mod tests {
             r["toolCall"] = json!({"name":tool, "args":{}});
             let out = normalize("PreToolUse", &r).unwrap();
             assert_eq!(out["hook_event_name"], "AppNeedsInput");
-            assert_eq!(out["target_app"], "Antigravity");
+            assert!(out.get("target_app").is_none());
         }
         let mut r = raw();
         r["toolCall"] = json!({"name":"run_command", "args":{"CommandLine":"echo hi", "TargetFile":"/a.rs", "other":"private"}});

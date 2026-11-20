@@ -98,7 +98,7 @@ impl Session {
         if ended && !shows_claude_working(&ev.kind) {
             return Change::Ignored;
         }
-        if ended && self.run.attention_app.is_some() {
+        if ended && self.run.attention {
             // This return is about a task that requested attention, not global idle.
             // Helpers continuing must not withdraw it. Repeated Stop is deduped
             // until fresh work is observed after the return has been handled.
@@ -181,12 +181,8 @@ impl Session {
 
     fn on_running(&mut self, ev: &AgentEvent, now: Instant) -> Change {
         match &ev.kind {
-            EventKind::AppFinished {
-                app_name,
-                message,
-                failed,
-            } => {
-                self.run.attention_app = Some(app_name.clone());
+            EventKind::AppFinished { message, failed } => {
+                self.run.attention = true;
                 self.run.home = None;
                 self.run.away_spent = true;
                 if *failed {
@@ -201,8 +197,8 @@ impl Session {
                     )
                 }
             }
-            EventKind::AppNeedsInput { app_name } => {
-                self.run.attention_app = Some(app_name.clone());
+            EventKind::AppNeedsInput => {
+                self.run.attention = true;
                 self.run.home = None;
                 self.run.away_spent = true;
                 self.enter_needs_input(Need::Input, now)
@@ -420,7 +416,7 @@ impl Session {
 fn shows_claude_working(kind: &EventKind) -> bool {
     match kind {
         EventKind::AppFinished { .. }
-        | EventKind::AppNeedsInput { .. }
+        | EventKind::AppNeedsInput
         | EventKind::AgentActivity
         | EventKind::UserPromptSubmit { .. }
         | EventKind::PreToolUse { .. }

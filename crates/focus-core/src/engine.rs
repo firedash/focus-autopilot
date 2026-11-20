@@ -353,6 +353,8 @@ impl Core {
                 self.note_manual_away();
             }
             Observation::RunningApps(apps) => {
+                // The name comes from our own configuration, never from a hook payload.
+                let name = self.cfg.antigravity.app_name.clone();
                 for session in self.sessions.values_mut() {
                     let run = &mut session.run;
                     if run.home.is_some()
@@ -363,12 +365,12 @@ impl Core {
                     if now.saturating_duration_since(run.waiting_since) > Duration::from_secs(3) {
                         continue;
                     }
-                    let Some(name) = &run.attention_app else {
+                    if !run.attention {
                         continue;
-                    };
+                    }
                     let candidates: Vec<_> = apps
                         .iter()
-                        .filter(|app| app.name.eq_ignore_ascii_case(name))
+                        .filter(|app| app.name.eq_ignore_ascii_case(&name))
                         .collect();
                     let Some(first) = candidates.first() else {
                         fx.push(log("attention_app_not_running", ""));

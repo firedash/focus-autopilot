@@ -115,7 +115,9 @@ pub(crate) struct Start {
 #[derive(Debug, Clone)]
 pub(crate) struct Run {
     pub agent: &'static str,
-    pub attention_app: Option<String>,
+    /// Set when this run is an app-level attention request (a finished task or an input
+    /// request), which is returned to by app name, not by a home window.
+    pub attention: bool,
     pub id: Option<String>,
     pub started: Instant,
     pub prompt: String,
@@ -176,7 +178,7 @@ impl Run {
             _ => (String::new(), None, PromptLen::default(), false),
         };
         let mut run = Self {
-            attention_app: None,
+            attention: false,
             agent: if ev.session_id.starts_with("antigravity:") {
                 "Antigravity"
             } else {

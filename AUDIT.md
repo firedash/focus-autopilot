@@ -27,7 +27,8 @@ The app itself makes **no outbound connection outside loopback**. The one thing 
 `~/.gemini/config/hooks.json` (or `.agents/hooks.json` with project scope, or the explicit
 `--settings` path). `files.rs` uses the same atomic-write/first-backup helper as Claude
 settings. `antigravity.rs` merges/removes only its recognized bundle. No token is stored
-in the manifest. The config may include an exact OS app display-name override.
+in the manifest. The app to bring forward is named only in `focusd`'s own config
+(`[antigravity] app_name`), never in a hook payload.
 
 ## Files
 

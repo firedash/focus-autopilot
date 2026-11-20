@@ -102,8 +102,6 @@ fn lenient_object<'de, D: Deserializer<'de>, T: Deserialize<'de> + Default>(
 struct Raw {
     #[serde(default, deserialize_with = "lenient")]
     hook_event_name: Option<String>,
-    #[serde(default, deserialize_with = "lenient")]
-    target_app: Option<String>,
     #[serde(default, deserialize_with = "lenient_bool")]
     failed: bool,
     #[serde(default, deserialize_with = "lenient")]
@@ -155,16 +153,13 @@ pub fn parse(body: &[u8], salt: &str) -> Result<AgentEvent, ParseError> {
     let kind = match name.as_str() {
         "AgentActivity" => EventKind::AgentActivity,
         "AppFinished" => EventKind::AppFinished {
-            app_name: clean_text(&raw.target_app.unwrap_or_default(), 80),
             message: keep(
                 &raw.last_assistant_message.unwrap_or_default(),
                 MESSAGE_MAX_CHARS,
             ),
             failed: raw.failed,
         },
-        "AppNeedsInput" => EventKind::AppNeedsInput {
-            app_name: clean_text(&raw.target_app.unwrap_or_default(), 80),
-        },
+        "AppNeedsInput" => EventKind::AppNeedsInput,
         "UserPromptSubmit" => {
             let full = raw.prompt.unwrap_or_default();
             EventKind::UserPromptSubmit {
@@ -372,5 +367,23 @@ mod tests {
         assert_ne!(project_key("a", "/x"), project_key("b", "/x"));
         assert_ne!(project_key("a", "/x"), project_key("a", "/y"));
         assert_eq!(project_key("a", "/x").len(), 16);
+    }
+
+    #[test]
+    fn a_payload_cannot_name_the_app_to_bring_forward() {
+        // `target_app` was how an earlier draft let a hook choose the window. It is ignored now.
+        let ev = p(r#"{"hook_event_name":"AppFinished","session_id":"antigravity:s","target_app":"Some Bank","last_assistant_message":"Task finished"}"#).unwrap();
+        assert_eq!(
+            ev.kind,
+            EventKind::AppFinished {
+                message: "Task finished".into(),
+                failed: false
+            }
+        );
+        let ev = p(
+            r#"{"hook_event_name":"AppNeedsInput","session_id":"antigravity:s","target_app":"x"}"#,
+        )
+        .unwrap();
+        assert_eq!(ev.kind, EventKind::AppNeedsInput);
     }
 }

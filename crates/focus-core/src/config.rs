@@ -18,6 +18,7 @@ pub struct Config {
     pub history: History,
     pub ignore: Ignore,
     pub stats: Stats,
+    pub antigravity: Antigravity,
 }
 
 impl Default for Config {
@@ -35,6 +36,7 @@ impl Default for Config {
             history: History::default(),
             ignore: Ignore::default(),
             stats: Stats::default(),
+            antigravity: Antigravity::default(),
         }
     }
 }
@@ -266,6 +268,24 @@ pub struct Ignore {
     pub cwd_globs: Vec<String>,
 }
 
+/// `[antigravity]`: the one thing the experimental Antigravity support is told about the app.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Antigravity {
+    /// `app_name`: the display name the operating system reports for the Antigravity app, which
+    /// is the app brought forward when it finishes a task or asks for input. Matched exactly
+    /// (letter case aside) against the running apps. It is read here, by `focusd`, and never from
+    /// a hook payload, so a hook cannot pick which window comes forward.
+    pub app_name: String,
+}
+
+impl Default for Antigravity {
+    fn default() -> Self {
+        Self {
+            app_name: "Antigravity".to_owned(),
+        }
+    }
+}
+
 /// `[stats]`: what the shell records for the statistics page. Everything stays on this machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stats {
@@ -290,6 +310,8 @@ pub enum ConfigError {
     NoCountdown,
     /// `countdown.return_seconds` is 0, for the same reason.
     NoReturnCountdown,
+    /// `antigravity.app_name` is empty, over 80 characters, or has a control character.
+    BadAntigravityName,
     /// An app is both an away app and a home app.
     AwayAppIsHomeApp(String),
     /// `away.immersive` names an app that isn't in `away.apps`.
@@ -312,6 +334,10 @@ impl Config {
         }
         if self.countdown.return_length.is_zero() {
             errors.push(ConfigError::NoReturnCountdown);
+        }
+        let name = &self.antigravity.app_name;
+        if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control) {
+            errors.push(ConfigError::BadAntigravityName);
         }
         for app in &self.away.apps {
             if is_home(app) {
@@ -351,6 +377,20 @@ mod tests {
         assert_eq!(Hotkeys::windows().focus_key, "Ctrl+Alt+Shift+Space");
         assert_eq!(Hotkeys::macos().pause, "Control+Option+Command+P");
         assert_eq!(c.validate(|_| false), Ok(()));
+    }
+
+    #[test]
+    fn the_antigravity_app_name_must_be_a_plain_short_name() {
+        let mut c = Config::default();
+        assert_eq!(c.validate(|_| false), Ok(()));
+        for bad in ["", "tab\there", &"x".repeat(81)] {
+            c.antigravity.app_name = bad.to_owned();
+            assert_eq!(
+                c.validate(|_| false),
+                Err(vec![ConfigError::BadAntigravityName]),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]

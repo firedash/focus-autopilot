@@ -12,10 +12,10 @@ your next prompt it moves you back to the app you left. It also serves a page wi
 download** (v0.1.1: macOS arm64, macOS x64, Windows x64) on the
 [releases page](https://github.com/firedash/focus-autopilot/releases); see "Prebuilt downloads" below for what has and has not been run.
 
-## Experimental Antigravity branch
+## Experimental Antigravity support
 
 See [docs/antigravity.md](docs/antigravity.md) for installation, behavior and the review
-checklist. Adapter/receiver process tests and simulated completion/input-return tests
+checklist, and [ADR 0007](docs/adr/0007-antigravity-attention-returns.md) for the decisions. Adapter/receiver process tests and simulated completion/input-return tests
 run on Linux. No person has yet verified this adapter with a real Antigravity session,
 Mac or Windows hook execution, or its desktop boxes/activation. Existing desktop
 evidence below applies to Claude, not Antigravity.
@@ -99,7 +99,7 @@ Run on Linux with Rust 1.97.0:
 
 - `cargo fmt --check`, `cargo clippy --workspace --all-targets` with the workspace lints
   (warnings denied, pedantic, no `unwrap`, `expect`, `panic` or `todo` outside tests).
-- `cargo test --workspace`: 260 tests, all passing.
+- `cargo test --workspace`: 284 tests, all passing.
 - `focusctl setup`: its tests use temporary files and a stand-in for focusd, never the real
   `~/.claude/settings.json`. Run end to end once on Windows (hooks written, focusd started in the
   background, second run changed nothing). Not run on macOS: the macOS start path (own process

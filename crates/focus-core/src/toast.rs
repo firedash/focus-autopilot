@@ -93,9 +93,7 @@ fn headline(session: &Session, project: &str) -> String {
         (Some(Need::Question), _) => "has a question",
         (Some(Need::Mcp(_) | Need::Input), _) => "needs your input",
         (None, Some(Outcome::Error(_))) => "stopped with an error",
-        (None, Some(Outcome::Done { .. })) if session.run.attention_app.is_some() => {
-            "finished a task"
-        }
+        (None, Some(Outcome::Done { .. })) if session.run.attention => "finished a task",
         (None, _) => "is done",
     };
     if project.is_empty() {

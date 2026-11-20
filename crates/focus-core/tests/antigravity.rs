@@ -22,15 +22,12 @@ fn sim() -> Sim {
 }
 fn done() -> EventKind {
     EventKind::AppFinished {
-        app_name: "Antigravity".into(),
         message: "Task finished; other work may still be running".into(),
         failed: false,
     }
 }
 fn needs_input() -> EventKind {
-    EventKind::AppNeedsInput {
-        app_name: "Antigravity".into(),
-    }
+    EventKind::AppNeedsInput
 }
 
 #[test]
@@ -186,4 +183,23 @@ fn cancellation_withdraws_pending_completion_or_input_without_activation() {
         sim.at(130_000);
         assert_eq!(sim.activations().len(), 1);
     }
+}
+
+#[test]
+fn the_app_to_return_to_comes_from_the_configuration_not_the_hook() {
+    let mut cfg = Config::default();
+    cfg.antigravity.app_name = "Other Name".into();
+    let mut sim = Sim::new(cfg);
+    let other = AppRef {
+        name: "Other Name".into(),
+        ..app("observed.example.other")
+    };
+    sim.running.push(antigravity());
+    sim.running.push(other);
+    sim.focus(BROWSER);
+    sim.at(60_000);
+    sim.hook_for("antigravity:a", "", done());
+    sim.at(70_000);
+    // The hook names no app. The configured name picks the window, whatever else is running.
+    assert_eq!(sim.activations(), vec![(65_000, "observed.example.other")]);
 }

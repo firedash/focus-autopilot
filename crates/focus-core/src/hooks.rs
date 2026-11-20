@@ -46,7 +46,7 @@ impl Core {
         }
         if matches!(
             ev.kind,
-            EventKind::AppFinished { .. } | EventKind::AppNeedsInput { .. }
+            EventKind::AppFinished { .. } | EventKind::AppNeedsInput
         ) {
             // Resolve the target from a fresh OS snapshot, not a guessed bundle ID
             // or whichever unrelated window happened to be foreground at start.

@@ -129,6 +129,9 @@ pub fn parse_noting(text: &str) -> Result<(Config, Vec<String>), LoadError> {
     r.section("stats", |s| {
         s.flag("track_app_time", &mut c.stats.track_app_time)
     })?;
+    r.section("antigravity", |s| {
+        s.text("app_name", &mut c.antigravity.app_name)
+    })?;
     let retired = r.finish()?;
     Ok((c, retired))
 }
@@ -265,6 +268,21 @@ mod tests {
     #[test]
     fn empty_text_is_the_defaults() {
         assert_eq!(parse("").unwrap(), Config::default());
+    }
+
+    #[test]
+    fn the_antigravity_app_name_is_a_known_setting() {
+        // focusd refuses a config with an unknown key, so the documented override must load.
+        assert_eq!(
+            parse("").unwrap().antigravity.app_name,
+            "Antigravity",
+            "the default"
+        );
+        let c = parse("[antigravity]\napp_name = \"Antigravity IDE\"\n").unwrap();
+        assert_eq!(c.antigravity.app_name, "Antigravity IDE");
+        // A wrongly typed value and a misspelt key are still errors.
+        assert!(parse("[antigravity]\napp_name = 3\n").is_err());
+        assert!(parse("[antigravity]\nappname = \"x\"\n").is_err());
     }
 
     #[test]
