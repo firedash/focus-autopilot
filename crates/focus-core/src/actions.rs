@@ -98,7 +98,10 @@ impl Core {
                     self.away_verified(session, AwayHow::Prompt, now, fx);
                     Mode::Idle
                 } else {
-                    fx.push(Effect::ShowToast(toast::away_prompt(&target)));
+                    fx.push(Effect::ShowToast(toast::away_prompt(
+                        &target,
+                        self.agent_name(&session),
+                    )));
                     Mode::AwayPrompt {
                         session,
                         target,
