@@ -98,6 +98,28 @@ impl Session {
         if ended && !shows_claude_working(&ev.kind) {
             return Change::Ignored;
         }
+        if ended && self.run.attention_app.is_some() {
+            // This return is about a task that requested attention, not global idle.
+            // Helpers continuing must not withdraw it. Repeated Stop is deduped
+            // until fresh work is observed after the return has been handled.
+            if matches!(ev.kind, EventKind::AppFinished { .. })
+                || (!self.run.return_handled
+                    && matches!(
+                        ev.kind,
+                        EventKind::AgentActivity
+                            | EventKind::PreToolUse { .. }
+                            | EventKind::SubagentStart
+                    ))
+            {
+                return Change::Ignored;
+            }
+        }
+        if ended && ev.kind == EventKind::AgentActivity {
+            // Antigravity has no documented per-user-turn event. Never reuse the
+            // previous turn's home capture or invent a submission from a model call.
+            self.replace_run(Run::new(ev, &Start::default(), now));
+            return Change::Adopted;
+        }
         let entry = self.reopen(ev, now);
         self.run.last_event = now;
         let change = match self.state {
@@ -159,6 +181,32 @@ impl Session {
 
     fn on_running(&mut self, ev: &AgentEvent, now: Instant) -> Change {
         match &ev.kind {
+            EventKind::AppFinished {
+                app_name,
+                message,
+                failed,
+            } => {
+                self.run.attention_app = Some(app_name.clone());
+                self.run.home = None;
+                self.run.away_spent = true;
+                if *failed {
+                    self.finish(Outcome::Error(message.clone()), now)
+                } else {
+                    self.finish(
+                        Outcome::Done {
+                            message: message.clone(),
+                            background_tasks: 0,
+                        },
+                        now,
+                    )
+                }
+            }
+            EventKind::AppNeedsInput { app_name } => {
+                self.run.attention_app = Some(app_name.clone());
+                self.run.home = None;
+                self.run.away_spent = true;
+                self.enter_needs_input(Need::Input, now)
+            }
             EventKind::PreToolUse {
                 tool_name,
                 command,
@@ -218,7 +266,8 @@ impl Session {
     fn on_needs_input(&mut self, ev: &AgentEvent, now: Instant) -> Change {
         match ev.kind {
             // Claude moved on, so the user answered (or a hook did).
-            EventKind::PreToolUse { .. }
+            EventKind::AgentActivity
+            | EventKind::PreToolUse { .. }
             | EventKind::PermissionDenied
             | EventKind::SubagentStart => {
                 self.leave_needs_input();
@@ -227,7 +276,9 @@ impl Session {
                     change => change,
                 }
             }
-            EventKind::Stop { .. } | EventKind::StopFailure { .. } => self.on_running(ev, now),
+            EventKind::Stop { .. }
+            | EventKind::StopFailure { .. }
+            | EventKind::AppFinished { .. } => self.on_running(ev, now),
             // A second request, or the backup notification for the first: still waiting.
             _ => Change::None,
         }
@@ -368,7 +419,10 @@ impl Session {
 /// can all arrive late, after the Stop of the run they belong to.
 fn shows_claude_working(kind: &EventKind) -> bool {
     match kind {
-        EventKind::UserPromptSubmit { .. }
+        EventKind::AppFinished { .. }
+        | EventKind::AppNeedsInput { .. }
+        | EventKind::AgentActivity
+        | EventKind::UserPromptSubmit { .. }
         | EventKind::PreToolUse { .. }
         | EventKind::PermissionRequest { .. }
         | EventKind::Elicitation { .. }
