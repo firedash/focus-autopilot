@@ -13,6 +13,8 @@ use crate::hooks;
 pub enum Op {
     Install { port: u16, token: String },
     Uninstall,
+    InstallAntigravity { exe: PathBuf, config: PathBuf },
+    UninstallAntigravity,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -43,6 +45,9 @@ fn resolve(path: &Path) -> Result<(PathBuf, Option<PathBuf>), String> {
 
 fn compute(old: &str, op: &Op) -> Result<String, String> {
     let existed = !old.trim().is_empty();
+    if !existed && matches!(op, Op::UninstallAntigravity) {
+        return Ok(old.to_owned());
+    }
     let mut value: Value = if existed {
         serde_json::from_str(old)
             .map_err(|e| format!("settings.json is not strict JSON ({e}); nothing was changed"))?
@@ -52,6 +57,12 @@ fn compute(old: &str, op: &Op) -> Result<String, String> {
     match op {
         Op::Install { port, token } => hooks::install(&mut value, *port, token),
         Op::Uninstall => hooks::uninstall(&mut value).map(|_| ()),
+        Op::InstallAntigravity { exe, config } => {
+            crate::antigravity::install(&mut value, exe, config)
+                .map_err(|_| hooks::MergeError::Shape("Antigravity hook shape or path conflict"))
+        }
+        Op::UninstallAntigravity => crate::antigravity::uninstall(&mut value)
+            .map_err(|_| hooks::MergeError::Shape("hooks.json must be an object")),
     }
     .map_err(|e| format!("{e:?}"))?;
     if existed {
@@ -77,7 +88,7 @@ pub fn apply(settings: &Path, op: &Op, dry_run: bool) -> Result<Outcome, String>
             Err(e) => return Err(format!("{}: {e}", target.display())),
         };
         let mut new = compute(&old, op)?;
-        if matches!(op, Op::Uninstall) {
+        if matches!(op, Op::Uninstall | Op::UninstallAntigravity) {
             new = restore_original_bytes(&target, &old, new);
         }
         let outcome = Outcome {
@@ -266,4 +277,4 @@ mod tests {
                 .contains("UserPromptSubmit")
         );
     }
-}
+                                    }
