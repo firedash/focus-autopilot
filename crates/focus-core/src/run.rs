@@ -114,6 +114,8 @@ pub(crate) struct Start {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub(crate) struct Run {
+    pub agent: &'static str,
+    pub attention_app: Option<String>,
     pub id: Option<String>,
     pub started: Instant,
     pub prompt: String,
@@ -174,6 +176,12 @@ impl Run {
             _ => (String::new(), None, PromptLen::default(), false),
         };
         let mut run = Self {
+            attention_app: None,
+            agent: if ev.session_id.starts_with("antigravity:") {
+                "Antigravity"
+            } else {
+                "Claude"
+            },
             id: ev.prompt_id.clone(),
             started: now,
             prompt,
@@ -304,4 +312,4 @@ impl Run {
 /// A short identifier-like value (a mode, an effort level, a project key).
 fn label(raw: &str) -> String {
     clean_text(raw, LABEL_MAX_CHARS)
-}
+        }
