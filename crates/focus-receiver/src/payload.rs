@@ -103,6 +103,10 @@ struct Raw {
     #[serde(default, deserialize_with = "lenient")]
     hook_event_name: Option<String>,
     #[serde(default, deserialize_with = "lenient")]
+    target_app: Option<String>,
+    #[serde(default, deserialize_with = "lenient_bool")]
+    failed: bool,
+    #[serde(default, deserialize_with = "lenient")]
     session_id: Option<String>,
     #[serde(default, deserialize_with = "lenient")]
     prompt_id: Option<String>,
@@ -149,6 +153,18 @@ pub fn parse(body: &[u8], salt: &str) -> Result<AgentEvent, ParseError> {
         .file_path
         .map(|p| clean_text(&p, PATH_MAX_CHARS));
     let kind = match name.as_str() {
+        "AgentActivity" => EventKind::AgentActivity,
+        "AppFinished" => EventKind::AppFinished {
+            app_name: clean_text(&raw.target_app.unwrap_or_default(), 80),
+            message: keep(
+                &raw.last_assistant_message.unwrap_or_default(),
+                MESSAGE_MAX_CHARS,
+            ),
+            failed: raw.failed,
+        },
+        "AppNeedsInput" => EventKind::AppNeedsInput {
+            app_name: clean_text(&raw.target_app.unwrap_or_default(), 80),
+        },
         "UserPromptSubmit" => {
             let full = raw.prompt.unwrap_or_default();
             EventKind::UserPromptSubmit {
@@ -357,4 +373,4 @@ mod tests {
         assert_ne!(project_key("a", "/x"), project_key("a", "/y"));
         assert_eq!(project_key("a", "/x").len(), 16);
     }
-}
+        }
