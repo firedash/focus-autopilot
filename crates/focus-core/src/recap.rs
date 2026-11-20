@@ -237,4 +237,4 @@ mod tests {
         assert_eq!(duration_text(Duration::from_secs(89)), "1 min");
         assert_eq!(duration_text(Duration::from_secs(240)), "4 min");
     }
-        }
+}
