@@ -47,6 +47,12 @@ switch then becomes a question, and the focus key answers it. The macOS build se
 
 ## Things that are not OS permissions but are worth knowing
 
+- **Antigravity hooks (experimental).** `install-antigravity-hooks` adds a named command
+  bundle to its user/project hook manifest, with dry-run, backup and matching uninstall.
+  Each command reads the private Focus Autopilot config and sends bounded data only to
+  the authenticated loopback receiver. It does not read transcripts, approve tools, or
+  inject prompts. Task completion and explicit input requests reuse the existing app
+  activation facilities. [The guide](docs/antigravity.md) lists untested cases.
 - **Claude Code's settings.** `focusctl install-hooks` adds hook entries to
   `~/.claude/settings.json`. It shows the change first with `--dry-run`, backs the file up,
   and `uninstall-hooks` removes exactly those entries.
