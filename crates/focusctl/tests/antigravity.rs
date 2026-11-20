@@ -149,4 +149,4 @@ fn install_dry_run_and_uninstall_need_no_claude_changes() {
     assert_eq!(std::fs::read_to_string(&settings).unwrap(), installed);
     assert!(run("uninstall-antigravity-hooks", false).status.success());
     assert_eq!(std::fs::read_to_string(&settings).unwrap(), original);
-          }
+}
