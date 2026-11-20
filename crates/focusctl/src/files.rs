@@ -277,4 +277,4 @@ mod tests {
                 .contains("UserPromptSubmit")
         );
     }
-                                    }
+}
