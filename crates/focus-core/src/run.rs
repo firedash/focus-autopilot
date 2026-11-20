@@ -312,4 +312,4 @@ impl Run {
 /// A short identifier-like value (a mode, an effort level, a project key).
 fn label(raw: &str) -> String {
     clean_text(raw, LABEL_MAX_CHARS)
-        }
+}
