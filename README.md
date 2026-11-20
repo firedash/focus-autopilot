@@ -58,6 +58,13 @@ typed into a prompt are redacted before they are stored or shown. It does
 record, on your machine, how long each app is in front, to draw the Statistics tab below; one
 switch on the Configuration tab turns that off.
 
+## Antigravity support on this branch
+
+Experimental [Antigravity hooks](docs/antigravity.md) bring its app forward when a task
+finishes or explicitly asks for input, even if helpers keep running. This is app-level
+attention, not the full Claude away/return loop. Build this branch; released binaries do
+not contain it. Real Antigravity hook delivery and desktop activation are not yet tested.
+
 ## Get your first box
 
 On Windows, follow [docs/windows-quickstart.md](docs/windows-quickstart.md) instead.
