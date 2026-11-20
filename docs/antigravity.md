@@ -14,9 +14,9 @@ Experimental implementation. The goal is simple: **when Antigravity finishes a t
 - SessionStart and PreInvocation are liveness only. They do not invent user prompts or capture home windows. Automatic switching away after the next prompt is not added for Antigravity.
 - There is no transcript reader or invented answer summary. Recaps show a plain status; Antigravity does not invoke the optional Claude LLM recap.
 
-## Install from this branch
+## Install
 
-Released v0.1.1 binaries do not include these commands. Build this branch, then use the built `target/release/focusctl` (or `target\release\focusctl.exe` on Windows):
+Released v0.1.1 binaries do not include these commands. Build from source, then use the built `target/release/focusctl` (or `target\release\focusctl.exe` on Windows):
 
 ```text
 cargo build --release -p focusctl -p focusd
@@ -37,8 +37,10 @@ app_name = "the exact name reported by your OS"
 
 `focusd` reads this itself, the way it reads its other settings: a hook cannot name the app, so
 nothing a hook sends can choose which window comes forward ([ADR 0007](adr/0007-antigravity-attention-returns.md)).
-The default is `Antigravity`. `focusd` applies a hand edit of `config.toml` within a couple of
-seconds like its other settings; that has been tested in the core and not on a desktop. Name
+The default is `Antigravity`. A hand edit of `config.toml` is checked (parsed and validated)
+and swapped into the running core within a couple of seconds, like its other settings. That is
+read from the code, not tested: no test edits the name while `focusd` runs, and nobody has tried it on a
+desktop. Name
 lookup is exact apart from letter case. No match logs `attention_app_not_running`; conflicting
 identities log `attention_app_ambiguous`. The app is never launched if it is absent, and an
 unrelated foreground window is never used as a fallback.
