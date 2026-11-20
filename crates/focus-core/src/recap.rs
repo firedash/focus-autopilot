@@ -93,16 +93,19 @@ pub(crate) fn build(session: &Session, project: &str, others: &[Waiting]) -> Rec
 
 fn status_line(session: &Session) -> String {
     let run = &session.run;
+    let agent = run.agent;
     match (session.state, &run.need, &run.outcome) {
-        (SessionState::NeedsInput, Some(need), _) => format!("Needs:   {}", need_text(need)),
+        (SessionState::NeedsInput, Some(need), _) => {
+            format!("Needs:   {}", need_text(need).replace("Claude", agent))
+        }
         (_, _, Some(Outcome::Done { message, .. })) if !message.is_empty() => {
-            format!("Claude:  {message}")
+            format!("{agent}:  {message}")
         }
-        (_, _, Some(Outcome::Done { .. })) => "Claude:  finished".to_owned(),
+        (_, _, Some(Outcome::Done { .. })) => format!("{agent}:  finished"),
         (_, _, Some(Outcome::Error(error))) => {
-            format!("Claude:  stopped with an error ({error})")
+            format!("{agent}:  stopped with an error ({error})")
         }
-        _ => "Claude:  still working".to_owned(),
+        _ => format!("{agent}:  still working"),
     }
 }
 
@@ -234,4 +237,4 @@ mod tests {
         assert_eq!(duration_text(Duration::from_secs(89)), "1 min");
         assert_eq!(duration_text(Duration::from_secs(240)), "4 min");
     }
-}
+        }
