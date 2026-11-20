@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod agent;
+mod antigravity;
 mod config;
 mod doctor;
 mod files;
@@ -23,6 +24,9 @@ commands:
                     check everything, and say what to do next (safe to run again)
   install-hooks     add Focus Autopilot's hooks to Claude Code's settings (and create the token)
   uninstall-hooks   remove them again, leaving everything else as it was
+  install-antigravity-hooks   add experimental Antigravity command hooks
+  uninstall-antigravity-hooks remove only those hooks
+  antigravity-hook   internal passive hook bridge, --event EVENT
   rotate-token      replace the token in config.toml and in the hooks
   ui                open the statistics and configuration page in your browser
   doctor            check the setup and say how to fix what is wrong
@@ -63,6 +67,7 @@ fn main() {
 
 struct Args {
     command: String,
+    event: Option<String>,
     dry_run: bool,
     no_open: bool,
     scope: Option<String>,
@@ -76,6 +81,7 @@ fn parse_args() -> Result<Args, String> {
     let mut args = std::env::args().skip(1);
     let mut parsed = Args {
         command: args.next().ok_or(USAGE)?,
+        event: None,
         dry_run: false,
         no_open: false,
         scope: None,
@@ -92,6 +98,7 @@ fn parse_args() -> Result<Args, String> {
         match arg.as_str() {
             "--dry-run" => parsed.dry_run = true,
             "--no-open" => parsed.no_open = true,
+            "--event" => parsed.event = Some(value()?),
             "--scope" => parsed.scope = Some(value()?),
             "--settings" => parsed.settings = Some(PathBuf::from(value()?)),
             "--config" => parsed.config = Some(PathBuf::from(value()?)),
@@ -128,8 +135,24 @@ fn run() -> Result<bool, String> {
         println!("{USAGE}");
         return Ok(true);
     }
+    if args.command == "antigravity-hook" {
+        // Always answer passively, even if arguments/config/input are unusable.
+        let path = args
+            .config
+            .clone()
+            .or_else(focus_runner::paths::config_path)
+            .unwrap_or_default();
+        antigravity::run(args.event.as_deref().unwrap_or(""), &path);
+        return Ok(true);
+    }
+    let is_antigravity = args.command.ends_with("antigravity-hooks");
     let settings = match &args.settings {
         Some(path) => path.clone(),
+        None if is_antigravity => match args.scope.as_deref().unwrap_or("user") {
+            "user" => home()?.join(".gemini/config/hooks.json"),
+            "project" | "local" => PathBuf::from(".agents/hooks.json"),
+            _ => return Err("Antigravity scope must be user, project or local".into()),
+        },
         None => settings_for(args.scope.as_deref(), &home()?)?,
     };
     let config_path = match &args.config {
@@ -143,6 +166,40 @@ fn run() -> Result<bool, String> {
         None => home().map(|home| home.join("Library/LaunchAgents")),
     };
     match args.command.as_str() {
+        "install-antigravity-hooks" => {
+            if !args.dry_run {
+                config::ensure_token(&config_path, false)?;
+            }
+            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+            let absolute_config = if config_path.is_absolute() {
+                config_path.clone()
+            } else {
+                std::env::current_dir()
+                    .map_err(|e| e.to_string())?
+                    .join(&config_path)
+            };
+            show(
+                &files::apply(
+                    &settings,
+                    &Op::InstallAntigravity {
+                        exe,
+                        config: absolute_config,
+                    },
+                    args.dry_run,
+                )?,
+                args.dry_run,
+            );
+            println!(
+                "Experimental Antigravity completion/input return. See docs/antigravity.md for limits."
+            );
+            println!("Restart Antigravity and inspect its Hooks panel. See docs/antigravity.md.");
+        }
+        "uninstall-antigravity-hooks" => {
+            show(
+                &files::apply(&settings, &Op::UninstallAntigravity, args.dry_run)?,
+                args.dry_run,
+            );
+        }
         "install-hooks" | "rotate-token" => {
             install_hooks(&args, &settings, &config_path)?;
         }
@@ -398,4 +455,4 @@ mod tests {
                 .contains("user, project or local")
         );
     }
-}
+      }
