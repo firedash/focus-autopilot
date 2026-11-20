@@ -14,8 +14,20 @@ the page is the bug: please report it.
 | The page's files, embedded in the binary | `crates/focus-receiver/assets/ui/` |
 | `focusctl doctor` connects to that same loopback port to see whether `focusd` answers | `crates/focusctl/src/doctor.rs`, `get` |
 
-The app itself makes **no outbound connection**. The one thing that reaches the network is the
+The Antigravity command bridge (`crates/focusctl/src/antigravity.rs`) also connects only
+to the configured authenticated loopback receiver, using a fixed `/hook` path. It reads
+the token at invocation time, never from hook arguments. No transcript or artifact is read.
+
+The app itself makes **no outbound connection outside loopback**. The one thing that reaches the network is the
 `claude` command, and only if you turn on the LLM recap (see Processes).
+
+## Antigravity hook manifest
+
+`focusctl install-antigravity-hooks` writes a named command-hook bundle to
+`~/.gemini/config/hooks.json` (or `.agents/hooks.json` with project scope, or the explicit
+`--settings` path). `files.rs` uses the same atomic-write/first-backup helper as Claude
+settings. `antigravity.rs` merges/removes only its recognized bundle. No token is stored
+in the manifest. The config may include an exact OS app display-name override.
 
 ## Files
 
