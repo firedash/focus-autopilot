@@ -12,6 +12,14 @@ your next prompt it moves you back to the app you left. It also serves a page wi
 download** (v0.1.1: macOS arm64, macOS x64, Windows x64) on the
 [releases page](https://github.com/firedash/focus-autopilot/releases); see "Prebuilt downloads" below for what has and has not been run.
 
+## Experimental Antigravity branch
+
+See [docs/antigravity.md](docs/antigravity.md) for installation, behavior and the review
+checklist. Adapter/receiver process tests and simulated completion/input-return tests
+run on Linux. No person has yet verified this adapter with a real Antigravity session,
+Mac or Windows hook execution, or its desktop boxes/activation. Existing desktop
+evidence below applies to Claude, not Antigravity.
+
 ## What has been seen working, and by whom
 
 There are three kinds of evidence here, strongest first: a person saw it on a desktop; a CI
