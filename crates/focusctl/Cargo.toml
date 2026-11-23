@@ -15,7 +15,7 @@ focus-receiver = { path = "../focus-receiver" }
 focus-runner = { path = "../focus-runner" }
 serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
-toml_edit = "0.23"
+toml_edit = "0.25"
 
 [dev-dependencies]
 tempfile = "3"
